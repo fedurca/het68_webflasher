@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="het68 web flasher — flash firmware from GitHub Releases to Pico 2 / Pico 2 W / Pimoroni Pico Plus 2 W."
+    />
+    <title>het68 — Web Flasher</title>
+    <link rel="alternate" hreflang="cs" href="https://flasher.het68.cz/" />
+    <link rel="alternate" hreflang="en" href="https://flasher.het68.cz/en/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="logo" href="https://het68.cz/en/">het68</a>
+        <div class="header-right">
+          <nav class="top-links">
+            <a href="https://het68.cz/en/">Website</a>
+            <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
+              >Releases</a
+            >
+            <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
+          </nav>
+          <div class="lang-switch" aria-label="Language">
+            <a href="/" hreflang="cs" lang="cs">CZ</a>
+            <a class="is-active" href="/en/" hreflang="en" lang="en">EN</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <p class="overline">Firmware flasher · flasher.het68.cz</p>
+        <h1>Flash firmware<br />to your board.</h1>
+        <p class="lead">
+          Downloads a UF2 from
+          <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
+            >GitHub Releases</a
+          >
+          and writes it over WebUSB to a Pico&nbsp;2 in BOOTSEL mode.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-teal" href="#flasher">Start flasher</a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/fedurca/het68/releases"
+            target="_blank"
+            rel="noopener"
+            >Source releases</a
+          >
+        </div>
+      </section>
+
+      <section id="flasher" class="panel" aria-labelledby="flasher-title">
+        <div class="panel-head">
+          <h2 id="flasher-title">Flasher</h2>
+          <p class="panel-sub">
+            Chromium (Chrome / Edge / Brave) · board in BOOTSEL · WebUSB
+          </p>
+        </div>
+
+        <div id="browserWarning" class="banner banner-warn" hidden>
+          WebUSB is not available in this browser. Use Chrome, Edge, or Brave — or download the UF2
+          manually and copy it to the RP2350 drive.
+        </div>
+
+        <ol class="steps">
+          <li class="step" data-step="board">
+            <div class="step-label"><span>01</span> Board</div>
+            <div class="board-grid" id="boardGrid" role="radiogroup" aria-label="Board variant"></div>
+          </li>
+
+          <li class="step" data-step="release">
+            <div class="step-label"><span>02</span> Firmware version</div>
+            <div class="field-row">
+              <label class="field">
+                <span>Release</span>
+                <select id="releaseSelect" disabled>
+                  <option value="">Loading releases…</option>
+                </select>
+              </label>
+              <button type="button" class="btn btn-ghost" id="refreshReleases" title="Refresh">
+                Refresh
+              </button>
+            </div>
+            <p class="meta" id="releaseMeta">—</p>
+            <p class="meta meta-soft" id="assetMeta">—</p>
+          </li>
+
+          <li class="step" data-step="bootsel">
+            <div class="step-label"><span>03</span> BOOTSEL</div>
+            <ol class="howto">
+              <li>Unplug the USB cable.</li>
+              <li>Hold the <strong>BOOTSEL</strong> (or BOOT) button.</li>
+              <li>Plug USB back in, then release after 1–2&nbsp;s.</li>
+              <li>The board appears as a USB drive named <code>RP2350</code>.</li>
+            </ol>
+            <div class="action-row">
+              <button type="button" class="btn btn-teal" id="connectBtn">
+                Connect board (WebUSB)
+              </button>
+              <p class="meta" id="deviceMeta">Board: not connected</p>
+            </div>
+          </li>
+
+          <li class="step" data-step="flash">
+            <div class="step-label"><span>04</span> Flash</div>
+            <div class="action-row">
+              <button type="button" class="btn btn-blue" id="flashBtn" disabled>
+                Download &amp; flash
+              </button>
+              <label class="check">
+                <input type="checkbox" id="eraseToggle" checked />
+                Erase sectors before write
+              </label>
+            </div>
+            <div class="progress-wrap">
+              <div class="progress-track">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+              </div>
+              <div class="progress-label" id="progressLabel">0%</div>
+            </div>
+            <p class="meta" id="statusMeta">Ready</p>
+          </li>
+        </ol>
+
+        <details class="log-box" id="logDetails">
+          <summary>Process output</summary>
+          <pre id="log" aria-live="polite"></pre>
+        </details>
+
+        <p class="footnote">
+          Firmware from
+          <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
+            >github.com/fedurca/het68/releases</a
+          >
+          · proxied via flasher.het68.cz. Or download the UF2 manually and drop it onto the BOOTSEL
+          drive.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="https://het68.cz/en/">het68</a>
+        <p>WebUSB flasher · RP2350</p>
+        <div class="footer-links">
+          <a href="/" hreflang="cs">Česky</a>
+          <a href="https://het68.cz/en/">Back to site</a>
+        </div>
+      </div>
+    </footer>
+
+    <script type="module" src="../app.js"></script>
+  </body>
+</html>

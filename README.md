@@ -4,10 +4,10 @@ Statický web + firmware flasher pro [HET68](https://github.com/fedurca/het68) n
 
 | Host | Obsah | Auth |
 |---|---|---|
-| `het68.cz` / `www.het68.cz` | Marketing (CZ `/`, EN `/en/`) | Basic Auth `dev:dev` |
-| `flasher.het68.cz` | WebUSB firmware flasher | bez auth |
+| `het68.cz` / `www.het68.cz` | Marketing CZ `/` · EN `/en/` · DE `/de/` | Basic Auth `dev:dev` |
+| `flasher.het68.cz` | WebUSB flasher CZ `/` · EN `/en/` | bez auth |
 
-Odkazy na webu: [flasher.het68.cz](https://flasher.het68.cz/), open-source firmware [fedurca/het68](https://github.com/fedurca/het68).
+Odkazy: [flasher.het68.cz](https://flasher.het68.cz/), firmware [fedurca/het68](https://github.com/fedurca/het68).
 
 ## Lokální vývoj
 

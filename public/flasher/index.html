@@ -8,6 +8,8 @@
       content="het68 web flasher — nahrání firmware z GitHub Releases na Pico 2 / Pico 2 W / Pimoroni Pico Plus 2 W."
     />
     <title>het68 — Web Flasher</title>
+    <link rel="alternate" hreflang="cs" href="https://flasher.het68.cz/" />
+    <link rel="alternate" hreflang="en" href="https://flasher.het68.cz/en/" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -21,13 +23,19 @@
     <header class="site-header">
       <div class="wrap header-inner">
         <a class="logo" href="https://het68.cz/">het68</a>
-        <nav class="top-links">
-          <a href="https://het68.cz/">Web</a>
-          <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
-            >Releases</a
-          >
-          <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
-        </nav>
+        <div class="header-right">
+          <nav class="top-links">
+            <a href="https://het68.cz/">Web</a>
+            <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
+              >Releases</a
+            >
+            <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
+          </nav>
+          <div class="lang-switch" aria-label="Jazyk">
+            <a class="is-active" href="/" hreflang="cs" lang="cs">CZ</a>
+            <a href="/en/" hreflang="en" lang="en">EN</a>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -146,7 +154,10 @@
       <div class="wrap footer-inner">
         <a class="logo" href="https://het68.cz/">het68</a>
         <p>WebUSB flasher · RP2350</p>
-        <a href="https://het68.cz/">Zpět na web</a>
+        <div class="footer-links">
+          <a href="/en/" hreflang="en">English</a>
+          <a href="https://het68.cz/">Zpět na web</a>
+        </div>
       </div>
     </footer>
 

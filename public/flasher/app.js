@@ -3,29 +3,19 @@ import {
   PicoBoot,
   flashUF2,
   usbFilters,
-  describeDevice,
+  describeDevice as describeDeviceRaw,
   mcuOf,
   VID,
 } from "./js/picoboot.js";
+import { t, getLang } from "./i18n.js";
 
 const FALLBACK_BOARDS = [
-  {
-    id: "pico2",
-    label: "Raspberry Pi Pico 2",
-    short: "Pico 2",
-    description: "RP2350 · bez Wi‑Fi",
-  },
-  {
-    id: "pico2w",
-    label: "Raspberry Pi Pico 2 W",
-    short: "Pico 2 W",
-    description: "RP2350 · CYW43439 Wi‑Fi / BT",
-  },
+  { id: "pico2", label: "Raspberry Pi Pico 2", short: "Pico 2" },
+  { id: "pico2w", label: "Raspberry Pi Pico 2 W", short: "Pico 2 W" },
   {
     id: "pimoroni",
     label: "Pimoroni Pico Plus 2 W",
     short: "Pimoroni Plus 2 W",
-    description: "RP2350 · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
   },
 ];
 
@@ -57,8 +47,18 @@ const state = {
   webUsb: false,
 };
 
+function describeDevice(device) {
+  const raw = describeDeviceRaw(device);
+  if (!device) return t().unknownDevice;
+  return raw;
+}
+
+function boardDescription(board) {
+  return t().boards[board.id] || board.description || "";
+}
+
 function log(msg) {
-  const ts = new Date().toLocaleTimeString();
+  const ts = new Date().toLocaleTimeString(t().locale);
   els.log.textContent += `[${ts}] ${msg}\n`;
   els.log.scrollTop = els.log.scrollHeight;
 }
@@ -93,29 +93,32 @@ function boardAvailability(release, boardId) {
 }
 
 function updateAssetMeta() {
+  const i18n = t();
   const rel = selectedRelease();
   if (!rel) {
-    els.releaseMeta.textContent = "Žádný release";
+    els.releaseMeta.textContent = i18n.noRelease;
     els.assetMeta.textContent = "—";
     return;
   }
   const board = state.boards.find((b) => b.id === state.boardId);
   const info = rel.boards?.[state.boardId];
   const when = rel.published_at
-    ? new Date(rel.published_at).toLocaleString("cs-CZ")
+    ? new Date(rel.published_at).toLocaleString(i18n.locale)
     : "—";
   els.releaseMeta.textContent = `${rel.name} · ${when}${
     rel.prerelease ? " · pre-release" : ""
   }`;
   if (info?.available) {
     const kb = Math.round(info.size / 1024);
-    els.assetMeta.textContent = `Asset: ${info.name} (${kb} KiB) · ${
+    els.assetMeta.textContent = i18n.assetLine(
+      info.name,
+      kb,
       board?.label || state.boardId
-    }`;
+    );
   } else {
-    els.assetMeta.textContent = `Pro ${
+    els.assetMeta.textContent = i18n.noUf2ForBoard(
       board?.label || state.boardId
-    } v této verzi není UF2 k dispozici`;
+    );
   }
 }
 
@@ -127,6 +130,7 @@ function updateFlashEnabled() {
 }
 
 function renderBoards() {
+  const i18n = t();
   const rel = selectedRelease();
   els.boardGrid.innerHTML = "";
   for (const board of state.boards) {
@@ -139,9 +143,9 @@ function renderBoards() {
     btn.disabled = state.busy;
     btn.innerHTML = `
       <strong>${board.short || board.label}</strong>
-      <small>${board.description || ""}</small>
+      <small>${boardDescription(board)}</small>
       <div class="avail ${available ? "" : "missing"}">${
-        rel ? (available ? "UF2 dostupný" : "UF2 chybí") : "—"
+        rel ? (available ? i18n.uf2Available : i18n.uf2Missing) : "—"
       }</div>
     `;
     btn.addEventListener("click", () => {
@@ -155,13 +159,14 @@ function renderBoards() {
 }
 
 function renderReleases() {
+  const i18n = t();
   const select = els.releaseSelect;
   select.innerHTML = "";
   if (state.releases.length === 0) {
     select.disabled = true;
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = "Žádné releases s UF2";
+    opt.textContent = i18n.noReleases;
     select.appendChild(opt);
     state.tag = "";
     return;
@@ -171,7 +176,9 @@ function renderReleases() {
   for (const rel of state.releases) {
     const opt = document.createElement("option");
     opt.value = rel.tag;
-    const mark = boardAvailability(rel, state.boardId) ? "" : " · bez UF2 pro desku";
+    const mark = boardAvailability(rel, state.boardId)
+      ? ""
+      : i18n.noUf2ForBoardOpt;
     opt.textContent = `${rel.tag}${rel.prerelease ? " (pre)" : ""}${mark}`;
     select.appendChild(opt);
   }
@@ -189,9 +196,10 @@ function renderReleases() {
 }
 
 async function loadReleases() {
+  const i18n = t();
   els.releaseSelect.disabled = true;
-  els.releaseSelect.innerHTML = "<option>Načítám releases…</option>";
-  setStatus("Načítám seznam releases…");
+  els.releaseSelect.innerHTML = `<option>${i18n.loadingReleases}</option>`;
+  setStatus(i18n.loadingReleasesStatus);
   try {
     const res = await fetch(`/api/releases?_=${Date.now()}`, {
       cache: "no-store",
@@ -206,22 +214,23 @@ async function loadReleases() {
     renderBoards();
     updateAssetMeta();
     updateFlashEnabled();
-    setStatus(`Načteno ${state.releases.length} release(ů)`);
-    log(`Releases z ${data.source || data.repo}: ${state.releases.length}`);
+    setStatus(i18n.loadedReleases(state.releases.length));
+    log(i18n.releasesFrom(data.source || data.repo, state.releases.length));
   } catch (e) {
     log(`ERROR: releases — ${e.message}`);
-    setStatus(`Chyba načtení releases: ${e.message}`);
-    els.releaseSelect.innerHTML = "<option>Chyba načtení</option>";
+    setStatus(i18n.loadError(e.message));
+    els.releaseSelect.innerHTML = `<option>${i18n.loadErrorOpt}</option>`;
   }
 }
 
 async function connectDevice() {
+  const i18n = t();
   if (!state.webUsb) {
-    setStatus("WebUSB není podporováno");
+    setStatus(i18n.webusbUnsupported);
     return;
   }
   try {
-    setStatus("Vyber zařízení v dialogu…");
+    setStatus(i18n.pickDevice);
     const existing = await navigator.usb.getDevices();
     let device =
       existing.find(
@@ -236,34 +245,35 @@ async function connectDevice() {
 
     const mcu = mcuOf(device);
     if (!mcu) {
-      throw new Error("Nepodporované zařízení (očekáván RP2040/RP2350 BOOTSEL)");
+      throw new Error(i18n.unsupportedDevice);
     }
     if (mcu !== "RP2350") {
-      log(`Varování: detekován ${mcu}. HET68 cílí na RP2350.`);
+      log(i18n.warnMcu(mcu));
     }
 
     state.device = device;
-    els.deviceMeta.textContent = `Deska: ${describeDevice(device)}`;
-    setStatus("Deska připojena");
-    log(`Připojeno: ${describeDevice(device)}`);
+    els.deviceMeta.textContent = i18n.boardLabel(describeDevice(device));
+    setStatus(i18n.boardConnected);
+    log(i18n.connected(describeDevice(device)));
     updateFlashEnabled();
   } catch (e) {
     if (e?.name === "NotFoundError") {
-      setStatus("Výběr zařízení zrušen");
-      log("Výběr zařízení zrušen");
+      setStatus(i18n.selectionCanceled);
+      log(i18n.selectionCanceled);
       return;
     }
-    setStatus(`Připojení selhalo: ${e.message}`);
+    setStatus(i18n.connectFailed(e.message));
     log(`ERROR: ${e.message}`);
   }
 }
 
 async function downloadFirmware() {
+  const i18n = t();
   const url = `/api/firmware/${encodeURIComponent(state.tag)}/${encodeURIComponent(
     state.boardId
   )}`;
-  log(`Stahuji ${url}`);
-  setStatus("Stahuji UF2…");
+  log(i18n.downloadingUrl(url));
+  setStatus(i18n.downloading);
   setProgress(0, "load");
 
   const res = await fetch(url);
@@ -280,25 +290,24 @@ async function downloadFirmware() {
 
   const assetName = res.headers.get("x-het68-asset") || "firmware.uf2";
   const buf = await res.arrayBuffer();
-  log(`Staženo ${assetName} (${buf.byteLength} B)`);
-  setStatus("Parsuji UF2…");
+  log(i18n.downloaded(assetName, buf.byteLength));
+  setStatus(i18n.parsing);
   const uf2 = await parseUF2(buf, (pct) => setProgress(pct, "load"));
-  log(
-    `UF2: ${uf2.blocks.length} bloků, ${uf2.ranges.length} rozsah(ů)${
-      uf2.familyId != null ? `, family 0x${uf2.familyId.toString(16)}` : ""
-    }`
-  );
+  const family =
+    uf2.familyId != null ? `, family 0x${uf2.familyId.toString(16)}` : "";
+  log(i18n.uf2Parsed(uf2.blocks.length, uf2.ranges.length, family));
   return { uf2, assetName };
 }
 
 async function runFlash() {
+  const i18n = t();
   if (state.busy) return;
   if (!state.device) {
-    setStatus("Nejdřív připoj desku");
+    setStatus(i18n.connectBoardFirst);
     return;
   }
   if (!boardAvailability(selectedRelease(), state.boardId)) {
-    setStatus("Pro vybranou desku chybí UF2");
+    setStatus(i18n.missingUf2);
     return;
   }
 
@@ -313,18 +322,17 @@ async function runFlash() {
   let pico = null;
   try {
     const { uf2, assetName } = await downloadFirmware();
-    setStatus("Otevírám PICOBOOT…");
-    log(`Flashuji ${assetName} na ${describeDevice(state.device)}`);
+    setStatus(i18n.openingPicoboot);
+    log(i18n.flashingTo(assetName, describeDevice(state.device)));
 
-    // Re-request if device handle went stale
     let device = state.device;
     try {
       pico = await PicoBoot.open(device);
     } catch (openErr) {
-      log(`Reopen potřeba (${openErr.message}), žádám zařízení znovu…`);
+      log(i18n.reopenNeeded(openErr.message));
       device = await navigator.usb.requestDevice({ filters: usbFilters() });
       state.device = device;
-      els.deviceMeta.textContent = `Deska: ${describeDevice(device)}`;
+      els.deviceMeta.textContent = i18n.boardLabel(describeDevice(device));
       pico = await PicoBoot.open(device);
     }
 
@@ -333,19 +341,19 @@ async function runFlash() {
       erase: els.eraseToggle.checked,
       onProgress(phase, pct) {
         setProgress(pct, phase);
-        if (phase === "erase") setStatus(`Mazání flash… ${pct}%`);
-        if (phase === "write") setStatus(`Zápis firmware… ${pct}%`);
-        if (phase === "reboot") setStatus("Reboot do aplikace…");
+        if (phase === "erase") setStatus(i18n.erasing(pct));
+        if (phase === "write") setStatus(i18n.writing(pct));
+        if (phase === "reboot") setStatus(i18n.rebooting);
       },
     });
 
     setProgress(100, "write");
-    setStatus("Hotovo — deska by měla naběhnout s novým firmware");
-    log("Flash dokončen, reboot odeslán");
+    setStatus(i18n.done);
+    log(i18n.flashDone);
     state.device = null;
-    els.deviceMeta.textContent = "Deska: odpojeno po rebootu (OK)";
+    els.deviceMeta.textContent = i18n.boardAfterReboot;
   } catch (e) {
-    setStatus(`Chyba: ${e.message}`);
+    setStatus(i18n.error(e.message));
     log(`ERROR: ${e.message}`);
   } finally {
     if (pico) {
@@ -369,15 +377,18 @@ function bindUsbEvents() {
   if (!navigator.usb) return;
   navigator.usb.addEventListener("disconnect", (event) => {
     if (state.device && event.device === state.device) {
+      const i18n = t();
       state.device = null;
-      els.deviceMeta.textContent = "Deska: odpojeno";
+      els.deviceMeta.textContent = i18n.boardDisconnected;
       updateFlashEnabled();
-      log("Deska odpojena");
+      log(i18n.boardDisconnectedLog);
     }
   });
 }
 
 function init() {
+  void getLang();
+  const i18n = t();
   state.webUsb = !!navigator.usb && isChromium();
   if (!state.webUsb) {
     els.browserWarning.hidden = false;
@@ -398,11 +409,7 @@ function init() {
   bindUsbEvents();
   renderBoards();
   loadReleases();
-  log(
-    state.webUsb
-      ? "WebUSB připraveno. Dej desku do BOOTSEL a připoj."
-      : "WebUSB není k dispozici — použij Chromium prohlížeč."
-  );
+  log(state.webUsb ? i18n.readyWebusb : i18n.noWebusb);
 }
 
 init();

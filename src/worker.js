@@ -308,12 +308,13 @@ async function serveAssets(request, env) {
   return env.ASSETS.fetch(request);
 }
 
-function prefersEnglish(request) {
+function preferredLocalePath(request) {
   const al = (request.headers.get("Accept-Language") || "").toLowerCase();
-  if (!al) return false;
-  // Prefer first language tag; only redirect when English wins over Czech.
+  if (!al) return null;
   const primary = al.split(",")[0]?.trim().slice(0, 2);
-  return primary === "en";
+  if (primary === "en") return "/en/";
+  if (primary === "de") return "/de/";
+  return null;
 }
 
 export default {
@@ -328,6 +329,17 @@ export default {
 
     // flasher.het68.cz — no Basic Auth
     if (isFlasherHost(host)) {
+      // Soft locale: / → /en/ when browser prefers English
+      if (
+        (url.pathname === "/" || url.pathname === "") &&
+        !url.searchParams.has("lang")
+      ) {
+        const al = (request.headers.get("Accept-Language") || "").toLowerCase();
+        const primary = al.split(",")[0]?.trim().slice(0, 2);
+        if (primary === "en") {
+          return Response.redirect(new URL("/en/", url).toString(), 302);
+        }
+      }
       return serveFlasherHost(request, env);
     }
 
@@ -341,14 +353,15 @@ export default {
       return unauthorized();
     }
 
-    // Soft locale hint: / → /en/ when browser prefers English
+    // Soft locale hint: / → /en/ or /de/ from Accept-Language
     if (
       (url.pathname === "/" || url.pathname === "") &&
-      !url.searchParams.has("lang") &&
-      prefersEnglish(request)
+      !url.searchParams.has("lang")
     ) {
-      const dest = new URL("/en/", url);
-      return Response.redirect(dest.toString(), 302);
+      const destPath = preferredLocalePath(request);
+      if (destPath) {
+        return Response.redirect(new URL(destPath, url).toString(), 302);
+      }
     }
 
     return serveAssets(request, env);
