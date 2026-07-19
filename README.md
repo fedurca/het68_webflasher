@@ -1,23 +1,25 @@
 # het68.cz
 
-Statický web + firmware flasher pro [HET68](https://github.com/fedurca/het68) na Cloudflare Workers.
+Statický web + firmware flasher + QR pro [HET68](https://github.com/fedurca/het68) na Cloudflare Workers.
 
 | Host | Obsah | Auth |
 |---|---|---|
 | `het68.cz` / `www.het68.cz` | Marketing CZ `/` · EN `/en/` · DE `/de/` | Basic Auth `dev:dev` |
 | `flasher.het68.cz` | WebUSB flasher CZ `/` · EN `/en/` | bez auth |
+| `qr.het68.cz` | QR scrambler z [fedurca/qr_scrambler](https://github.com/fedurca/qr_scrambler) | bez auth |
 
-Odkazy: [flasher.het68.cz](https://flasher.het68.cz/), firmware [fedurca/het68](https://github.com/fedurca/het68).
+Před každým `npm run deploy` / CI deployem se stáhne **nejnovější `main`** z `qr_scrambler` do `public/qr/` (`npm run fetch:qr`).
 
 ## Lokální vývoj
 
 ```bash
 npm install
-npm run dev
+npm run dev          # automaticky spustí fetch:qr
 ```
 
-- Landing: `http://127.0.0.1:8787/` — prohlížeč vyžádá login **dev / dev**
-- Flasher (dev path): `http://127.0.0.1:8787/flasher/`
+- Landing: `http://127.0.0.1:8787/` — login **dev / dev**
+- Flasher: `http://127.0.0.1:8787/flasher/`
+- QR: `http://127.0.0.1:8787/qr/`
 - API: `http://127.0.0.1:8787/api/releases`
 
 ## Flasher — podporované desky
@@ -35,27 +37,20 @@ git clone https://github.com/fedurca/het68_webflasher.git
 cd het68_webflasher
 npm install
 npx wrangler login
-npx wrangler deploy
+npx wrangler deploy   # predeploy → fetch:qr → wrangler deploy
 ```
 
-Domény `het68.cz`, `www.het68.cz` a `flasher.het68.cz` jsou v `wrangler.toml` jako Custom Domains (`custom_domain = true`) — připojí se při `deploy`. Zóna **het68.cz** musí být na stejném Cloudflare účtu.
+Custom Domains v `wrangler.toml`: `het68.cz`, `www.het68.cz`, `flasher.het68.cz`, `qr.het68.cz`.
 
-Jednorázově bez úpravy souboru:
-
-```bash
-npx wrangler deploy \
-  --domains het68.cz \
-  --domains www.het68.cz \
-  --domains flasher.het68.cz
-```
-
-Heslo: `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` ve `wrangler.toml` (teď `dev` / `dev`).
+CI (`.github/workflows/deploy.yml`) běží na push do `main`, ručně, každých 12 h (kvůli čerstvému QR) a na `repository_dispatch` typu `qr_scrambler_updated`.
 
 ## Struktura
 
 ```
 public/                 # landing (het68.cz)
-public/flasher/         # flasher UI (flasher.het68.cz)
-src/worker.js           # Basic Auth + host routing + GitHub proxy
+public/flasher/         # flasher UI
+public/qr/              # generováno z fedurca/qr_scrambler (fetch:qr)
+scripts/fetch-qr.mjs    # stažení nejnovějšího QR z GitHubu
+src/worker.js           # auth + host routing + GitHub proxy
 wrangler.toml
 ```

@@ -1,0 +1,11 @@
+{
+  "repo": "fedurca/qr_scrambler",
+  "ref": "main",
+  "sha": "eb29a5acb2c66e34ede7ee821d71b2ddc0e9cfd6",
+  "short": "eb29a5a",
+  "message": "Add single-page QR that updates epoch URL every second",
+  "fetched_at": "2026-07-19T20:11:06.746Z",
+  "files": [
+    "index.html"
+  ]
+}

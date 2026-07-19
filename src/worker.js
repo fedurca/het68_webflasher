@@ -3,6 +3,7 @@
  *
  * - het68.cz / www → static marketing site (Basic Auth)
  * - flasher.het68.cz → web flasher (no auth)
+ * - qr.het68.cz → QR scrambler from fedurca/qr_scrambler (no auth)
  * - /api/* → GitHub Releases proxy (flasher host, or /flasher path in dev)
  */
 
@@ -270,6 +271,31 @@ function isFlasherHost(hostname) {
   return host === "flasher.het68.cz" || host.startsWith("flasher.");
 }
 
+function isQrHost(hostname) {
+  const host = (hostname || "").toLowerCase();
+  return host === "qr.het68.cz" || host.startsWith("qr.");
+}
+
+/**
+ * Resolve request host. Prefer flasher/qr when any candidate matches —
+ * local `wrangler dev` rewrites URL/Host to the first custom_domain (het68.cz).
+ */
+function requestHostname(request) {
+  const url = new URL(request.url);
+  const candidates = [
+    request.headers.get("X-Forwarded-Host")?.split(",")[0]?.trim(),
+    request.headers.get("Host"),
+    url.hostname,
+  ]
+    .filter(Boolean)
+    .map((h) => h.split(":")[0].toLowerCase());
+
+  for (const h of candidates) {
+    if (isFlasherHost(h) || isQrHost(h)) return h;
+  }
+  return candidates[0] || url.hostname.toLowerCase();
+}
+
 /**
  * Map flasher subdomain paths onto /flasher/* assets and follow
  * asset-platform redirects internally so the browser stays on /.
@@ -302,6 +328,40 @@ async function serveFlasherHost(request, env) {
     assetUrl = new URL(loc, assetUrl);
     if (!assetUrl.pathname.startsWith("/flasher")) {
       assetUrl.pathname = `/flasher${assetUrl.pathname === "/" ? "/" : assetUrl.pathname}`;
+    }
+    res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  }
+
+  return res;
+}
+
+/**
+ * Map qr.het68.cz onto /qr/* (latest fetch of fedurca/qr_scrambler).
+ */
+async function serveQrHost(request, env) {
+  const url = new URL(request.url);
+  let path = url.pathname;
+
+  if (path === "/" || path === "" || path === "/index.html") {
+    path = "/qr/index.html";
+  } else if (path === "/version.json" || path.startsWith("/qr/")) {
+    if (!path.startsWith("/qr/")) path = `/qr${path}`;
+  } else if (!path.startsWith("/qr/")) {
+    path = `/qr${path.startsWith("/") ? path : `/${path}`}`;
+  }
+
+  let assetUrl = new URL(request.url);
+  assetUrl.pathname = path;
+
+  let res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+
+  for (let i = 0; i < 3; i++) {
+    if (res.status < 300 || res.status >= 400) break;
+    const loc = res.headers.get("Location");
+    if (!loc) break;
+    assetUrl = new URL(loc, assetUrl);
+    if (!assetUrl.pathname.startsWith("/qr")) {
+      assetUrl.pathname = `/qr${assetUrl.pathname === "/" ? "/" : assetUrl.pathname}`;
     }
     res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
   }
@@ -362,7 +422,7 @@ function localeRedirect(request, url, pathForLang) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const host = url.hostname;
+    const host = requestHostname(request);
 
     // API available on both hosts
     if (url.pathname.startsWith("/api/")) {
@@ -376,8 +436,16 @@ export default {
       return serveFlasherHost(request, env);
     }
 
-    // Dev convenience: /flasher/* without auth
+    // qr.het68.cz — latest qr_scrambler (no Basic Auth)
+    if (isQrHost(host)) {
+      return serveQrHost(request, env);
+    }
+
+    // Dev convenience: /flasher/* and /qr/* without auth
     if (url.pathname === "/flasher" || url.pathname.startsWith("/flasher/")) {
+      return serveAssets(request, env);
+    }
+    if (url.pathname === "/qr" || url.pathname.startsWith("/qr/")) {
       return serveAssets(request, env);
     }
 

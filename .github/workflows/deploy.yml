@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Keep qr.het68.cz fresh even when only qr_scrambler changes
+  schedule:
+    - cron: "0 */12 * * *"
+  repository_dispatch:
+    types: [qr_scrambler_updated]
 
 jobs:
   deploy:
@@ -26,6 +31,9 @@ jobs:
 
       - name: Syntax check
         run: npm run check
+
+      - name: Fetch latest qr_scrambler
+        run: npm run fetch:qr
 
       - name: Deploy
         uses: cloudflare/wrangler-action@v3

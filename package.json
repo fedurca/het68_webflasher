@@ -5,9 +5,12 @@
   "type": "module",
   "description": "HET68 web firmware flasher for Cloudflare (het68.cz)",
   "scripts": {
+    "fetch:qr": "node scripts/fetch-qr.mjs",
+    "predev": "npm run fetch:qr",
     "dev": "wrangler dev",
+    "predeploy": "npm run fetch:qr",
     "deploy": "wrangler deploy",
-    "check": "node --check src/worker.js && node --check public/landing.js && node --check public/lang.js && node --check public/flasher/js/picoboot.js && node --check public/flasher/js/uf2.js && node --check public/flasher/i18n.js && node --check public/flasher/app.js"
+    "check": "node --check src/worker.js && node --check public/landing.js && node --check public/lang.js && node --check scripts/fetch-qr.mjs && node --check public/flasher/js/picoboot.js && node --check public/flasher/js/uf2.js && node --check public/flasher/i18n.js && node --check public/flasher/app.js"
   },
   "devDependencies": {
     "wrangler": "^4.26.0"
