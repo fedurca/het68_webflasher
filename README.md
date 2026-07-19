@@ -26,20 +26,28 @@ npm run dev
 | Raspberry Pi Pico 2 W | `het68-<ver>-pico2w.uf2` |
 | Pimoroni Pico Plus 2 W (8 MB PSRAM · 16 MB flash) | `het68-<ver>-pico-plus2-w.uf2` |
 
-## Deploy
-
-1. Secrets v GitHubu: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-2. Push na `main` → [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
-3. Domény:
+## Deploy (z Macu)
 
 ```bash
+git clone https://github.com/fedurca/het68_webflasher.git
+cd het68_webflasher
+npm install
+npx wrangler login
 npx wrangler deploy
-npx wrangler domains add het68.cz
-npx wrangler domains add www.het68.cz
-npx wrangler domains add flasher.het68.cz
 ```
 
-Heslo změníš přes `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` ve `wrangler.toml` (nebo secrets).
+Domény `het68.cz`, `www.het68.cz` a `flasher.het68.cz` jsou v `wrangler.toml` jako Custom Domains (`custom_domain = true`) — připojí se při `deploy`. Zóna **het68.cz** musí být na stejném Cloudflare účtu.
+
+Jednorázově bez úpravy souboru:
+
+```bash
+npx wrangler deploy \
+  --domains het68.cz \
+  --domains www.het68.cz \
+  --domains flasher.het68.cz
+```
+
+Heslo: `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` ve `wrangler.toml` (teď `dev` / `dev`).
 
 ## Struktura
 

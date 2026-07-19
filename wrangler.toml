@@ -16,18 +16,16 @@ FIRMWARE_REPO = "fedurca/het68"
 BASIC_AUTH_USER = "dev"
 BASIC_AUTH_PASS = "dev"
 
-# Custom domains (zone must be on the same Cloudflare account):
-#   npx wrangler domains add het68.cz
-#   npx wrangler domains add www.het68.cz
-#   npx wrangler domains add flasher.het68.cz
-#
-# Or routes:
-# [[routes]]
-# pattern = "het68.cz/*"
-# zone_name = "het68.cz"
-# [[routes]]
-# pattern = "www.het68.cz/*"
-# zone_name = "het68.cz"
-# [[routes]]
-# pattern = "flasher.het68.cz/*"
-# zone_name = "het68.cz"
+# Custom Domains (zóna het68.cz musí být na stejném Cloudflare účtu).
+# Po úpravě stačí: npx wrangler deploy
+[[routes]]
+pattern = "het68.cz"
+custom_domain = true
+
+[[routes]]
+pattern = "www.het68.cz"
+custom_domain = true
+
+[[routes]]
+pattern = "flasher.het68.cz"
+custom_domain = true
