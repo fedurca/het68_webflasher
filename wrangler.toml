@@ -1,5 +1,4 @@
-# HET68 web flasher — Cloudflare Workers Static Assets
-# Domain: het68.cz
+# het68.cz — marketing site + flasher.het68.cz
 name = "het68-webflasher"
 main = "src/worker.js"
 compatibility_date = "2026-07-19"
@@ -8,21 +7,27 @@ workers_dev = true
 [assets]
 directory = "./public"
 binding = "ASSETS"
+# Worker must run first for Basic Auth + host-based flasher routing
+run_worker_first = true
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
-
-# Bind custom domain after the zone is in the same Cloudflare account:
-#   npx wrangler deploy
-#   npx wrangler domains add het68.cz
-# Or set routes below once DNS is on Cloudflare:
-#
-# [[routes]]
-# pattern = "het68.cz/*"
-# zone_name = "het68.cz"
-#
-# [[routes]]
-# pattern = "www.het68.cz/*"
-# zone_name = "het68.cz"
 
 [vars]
 FIRMWARE_REPO = "fedurca/het68"
+BASIC_AUTH_USER = "dev"
+BASIC_AUTH_PASS = "dev"
+
+# Custom domains (zone must be on the same Cloudflare account):
+#   npx wrangler domains add het68.cz
+#   npx wrangler domains add www.het68.cz
+#   npx wrangler domains add flasher.het68.cz
+#
+# Or routes:
+# [[routes]]
+# pattern = "het68.cz/*"
+# zone_name = "het68.cz"
+# [[routes]]
+# pattern = "www.het68.cz/*"
+# zone_name = "het68.cz"
+# [[routes]]
+# pattern = "flasher.het68.cz/*"
+# zone_name = "het68.cz"
