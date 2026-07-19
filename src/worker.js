@@ -308,6 +308,14 @@ async function serveAssets(request, env) {
   return env.ASSETS.fetch(request);
 }
 
+function prefersEnglish(request) {
+  const al = (request.headers.get("Accept-Language") || "").toLowerCase();
+  if (!al) return false;
+  // Prefer first language tag; only redirect when English wins over Czech.
+  const primary = al.split(",")[0]?.trim().slice(0, 2);
+  return primary === "en";
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -331,6 +339,16 @@ export default {
     // Marketing site — Basic Auth (Cloudflare stand-in for .htaccess)
     if (!checkBasicAuth(request, env)) {
       return unauthorized();
+    }
+
+    // Soft locale hint: / → /en/ when browser prefers English
+    if (
+      (url.pathname === "/" || url.pathname === "") &&
+      !url.searchParams.has("lang") &&
+      prefersEnglish(request)
+    ) {
+      const dest = new URL("/en/", url);
+      return Response.redirect(dest.toString(), 302);
     }
 
     return serveAssets(request, env);

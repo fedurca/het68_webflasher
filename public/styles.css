@@ -77,6 +77,49 @@ a:hover {
   gap: 0.75rem;
 }
 
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.lang-switch a {
+  min-width: 2.1rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.lang-switch a:hover {
+  color: var(--text);
+}
+
+.lang-switch a.is-active {
+  background: rgba(31, 191, 160, 0.18);
+  color: var(--text);
+}
+
+.nav-flasher {
+  color: var(--teal) !important;
+  font-weight: 800 !important;
+}
+
 .logo {
   font-weight: 800;
   font-size: 1.25rem;
@@ -559,6 +602,94 @@ a:hover {
   width: 100%;
 }
 
+.offer-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+/* Project / open-source */
+.project-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.project-head {
+  text-align: left;
+  max-width: none;
+  margin: 0;
+}
+
+.project-head .offer-kicker {
+  margin-bottom: 0.55rem;
+}
+
+.project-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.project-card h3 {
+  margin: 0 0 0.55rem;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+.project-card > p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
+.project-links {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1.15rem;
+}
+
+.spec-list {
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.spec-list div {
+  display: grid;
+  gap: 0.15rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.spec-list dt {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.spec-list dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.footer-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-links a:hover {
+  color: var(--teal);
+}
+
 /* Trust logos */
 .trust {
   padding: 2rem 0 1rem;
@@ -668,6 +799,14 @@ a:hover {
     padding: 0.45rem 0.7rem;
   }
 
+  .project-links {
+    grid-template-columns: repeat(2, max-content);
+  }
+
+  .offer-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .hero {
     padding: 3.5rem 0 2rem;
   }
@@ -691,7 +830,7 @@ a:hover {
   }
 
   .contact-actions {
-    grid-template-columns: repeat(2, max-content);
+    grid-template-columns: repeat(3, max-content);
     justify-content: center;
   }
 
@@ -703,6 +842,10 @@ a:hover {
   .footer-inner p {
     justify-self: center;
     margin: 0;
+  }
+
+  .footer-links {
+    justify-self: end;
   }
 }
 
@@ -732,6 +875,16 @@ a:hover {
 
   .offer-card {
     padding: 1.5rem;
+  }
+
+  .project-grid {
+    grid-template-columns: 1.1fr 1fr 1fr;
+    align-items: start;
+    gap: 1.15rem;
+  }
+
+  .project-head {
+    grid-column: 1 / -1;
   }
 }
 

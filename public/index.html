@@ -5,9 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 — 6kanálová platforma prostorové akustiky. Slyší směr. Detekuje dřív, než uvidíte."
+      content="het68 — 6kanálová platforma prostorové akustiky pro Raspberry Pi Pico 2. Open-source firmware, WebUSB flasher, detekce směru zvuku."
     />
     <title>het68 — prostorová akustika</title>
+    <link rel="alternate" hreflang="cs" href="https://het68.cz/" />
+    <link rel="alternate" hreflang="en" href="https://het68.cz/en/" />
+    <link rel="alternate" hreflang="x-default" href="https://het68.cz/" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -34,41 +37,49 @@
         </button>
 
         <nav class="site-nav" id="siteNav" aria-label="Hlavní navigace">
+          <a href="#projekt">Projekt</a>
           <a href="#scenare">Scénáře</a>
           <a href="#kutily">Pro kutily</a>
           <a href="#firmy">Pro firmy</a>
-          <a href="#jak">Jak to funguje</a>
           <a href="#kontakt">Kontakt</a>
+          <a class="nav-flasher" href="https://flasher.het68.cz/">Flasher</a>
         </nav>
 
-        <button class="theme-btn" type="button" id="themeBtn" aria-label="Přepnout motiv" title="Motiv">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
+        <div class="header-tools">
+          <div class="lang-switch" aria-label="Jazyk">
+            <a class="is-active" href="/" hreflang="cs" lang="cs">CZ</a>
+            <a href="/en/" hreflang="en" lang="en">EN</a>
+          </div>
+          <button class="theme-btn" type="button" id="themeBtn" aria-label="Přepnout motiv" title="Motiv">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
     </header>
 
     <main>
-      <!-- Hero -->
       <section class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
             <p class="overline">Prostorová akustika · 6 mikrofonů</p>
             <h1>Slyší směr.<br />Detekuje dřív,<br />než uvidíte.</h1>
             <p class="lead">
-              het68 je 6kanálová platforma prostorové akustiky. Vnímá zvuk v čase i prostoru a
-              přináší data, která dávají smysl.
+              het68 je 6kanálová platforma prostorové akustiky na Raspberry Pi Pico&nbsp;2 (RP2350).
+              Vnímá zvuk v čase i prostoru a přináší data, která dávají smysl.
             </p>
             <div class="hero-actions">
-              <a class="btn btn-teal" href="#kutily">Chci hardware</a>
-              <a class="btn btn-blue" href="#firmy">Chci službu pro firmu</a>
-              <a class="btn btn-ghost" href="#jak">Zjistit více →</a>
+              <a class="btn btn-teal" href="https://flasher.het68.cz/">Otevřít flasher</a>
+              <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
+                >GitHub repo</a
+              >
+              <a class="btn btn-ghost" href="#projekt">O projektu →</a>
             </div>
             <ul class="trust-badges">
               <li>
@@ -96,13 +107,87 @@
             <div class="hero-stats">
               <div><strong>6×</strong><span>kanálů</span></div>
               <div><strong>48 kHz</strong><span>vzorkování</span></div>
-              <div><strong>&lt;10 ms</strong><span>latence</span></div>
+              <div><strong>24-bit</strong><span>S24_3LE</span></div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Scenarios -->
+      <section class="section project" id="projekt">
+        <div class="wrap project-grid">
+          <header class="section-head project-head">
+            <p class="offer-kicker teal">Open source</p>
+            <h2>Firmware a hardware pro Pico&nbsp;2</h2>
+            <p>
+              Open-source projekt
+              <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
+                >github.com/fedurca/het68</a
+              >
+              — 6kanálová I2S USB zvuková karta a platforma prostorové akustiky pro Raspberry Pi
+              Pico&nbsp;2 (RP2350).
+            </p>
+          </header>
+
+          <div class="project-card">
+            <h3>Co firmware dělá</h3>
+            <p>
+              Pico&nbsp;2 se chová jako 6kanálové USB mikrofonní zařízení (UAC2). Zachytává šest
+              nezávislých I2S linek z MEMS mikrofonů ICS-43434, data přesouvá DMA a streamuje je do
+              hostitele přes TinyUSB.
+            </p>
+            <ul class="checklist">
+              <li>USB Audio Class 2.0 · isochronní IN</li>
+              <li>6 kanálů · 48&nbsp;kHz · 24-bit packed (<code>S24_3LE</code>)</li>
+              <li>PIO + DMA capture, produktový řetězec pro DOA / detekci</li>
+              <li>Release UF2 pro Pico&nbsp;2 a Pimoroni Pico Plus&nbsp;2&nbsp;W</li>
+            </ul>
+          </div>
+
+          <div class="project-card">
+            <h3>Rychlé odkazy</h3>
+            <div class="project-links">
+              <a class="btn btn-teal" href="https://flasher.het68.cz/">Web flasher</a>
+              <a
+                class="btn btn-ghost"
+                href="https://github.com/fedurca/het68"
+                target="_blank"
+                rel="noopener"
+                >Repozitář na GitHubu</a
+              >
+              <a
+                class="btn btn-ghost"
+                href="https://github.com/fedurca/het68/releases"
+                target="_blank"
+                rel="noopener"
+                >Firmware releases</a
+              >
+            </div>
+            <dl class="spec-list">
+              <div>
+                <dt>MCU</dt>
+                <dd>RP2350 (Pico 2 / Pico 2 W / Pimoroni Plus 2 W)</dd>
+              </div>
+              <div>
+                <dt>Audio</dt>
+                <dd>6× ICS-43434 · 48 kHz / 24-bit</dd>
+              </div>
+              <div>
+                <dt>Flasher</dt>
+                <dd><a href="https://flasher.het68.cz/">flasher.het68.cz</a> · WebUSB / BOOTSEL</dd>
+              </div>
+              <div>
+                <dt>Licence / zdroj</dt>
+                <dd>
+                  <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
+                    >fedurca/het68</a
+                  >
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </section>
+
       <section class="section" id="scenare">
         <div class="wrap">
           <header class="section-head">
@@ -186,7 +271,6 @@
         </div>
       </section>
 
-      <!-- Offers -->
       <section class="section offers" id="jak">
         <div class="wrap offers-grid">
           <article class="offer-card offer-hw" id="kutily">
@@ -196,10 +280,9 @@
               <ul class="checklist">
                 <li>6 MEMS mikrofonů + lokální zpracování</li>
                 <li>USB‑C OTG i Wi‑Fi varianta</li>
-                <li>Open API / SDK a dokumentace</li>
-                <li>Komunita a aktualizace firmware</li>
+                <li>Open-source firmware na GitHubu</li>
                 <li>
-                  Web flasher na
+                  Web flasher:
                   <a href="https://flasher.het68.cz/">flasher.het68.cz</a>
                 </li>
               </ul>
@@ -212,7 +295,10 @@
                 <p class="price">8&nbsp;990&nbsp;Kč</p>
                 <p class="price-note">Doprava zdarma · 30 dní na vrácení · 2 roky záruka</p>
               </div>
-              <a class="btn btn-teal" href="#kontakt">Chci hardware</a>
+              <div class="offer-actions">
+                <a class="btn btn-teal" href="https://flasher.het68.cz/">Nahrát firmware</a>
+                <a class="btn btn-ghost" href="#kontakt">Poptat hardware</a>
+              </div>
             </div>
           </article>
 
@@ -247,7 +333,6 @@
         </div>
       </section>
 
-      <!-- Trust -->
       <section class="trust" aria-label="Reference">
         <div class="wrap">
           <p class="trust-label">Důvěřují nám</p>
@@ -262,7 +347,6 @@
         </div>
       </section>
 
-      <!-- Contact -->
       <section class="section contact" id="kontakt">
         <div class="wrap contact-inner">
           <h2>Kontakt</h2>
@@ -278,6 +362,7 @@
             <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=het68%20sluzba%20pro%20firmu"
               >Poptat službu</a
             >
+            <a class="btn btn-ghost" href="https://flasher.het68.cz/">Flasher</a>
           </div>
         </div>
       </section>
@@ -286,8 +371,14 @@
     <footer class="site-footer">
       <div class="wrap footer-inner">
         <a class="logo" href="/">het68</a>
-        <p>© <span id="year"></span> het68 · prostorová akustika</p>
-        <a class="footer-flash" href="https://flasher.het68.cz/">Firmware flasher</a>
+        <p>
+          © <span id="year"></span> het68 ·
+          <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
+        </p>
+        <div class="footer-links">
+          <a href="/en/" hreflang="en">English</a>
+          <a href="https://flasher.het68.cz/">Flasher</a>
+        </div>
       </div>
     </footer>
 
