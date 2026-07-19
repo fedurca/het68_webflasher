@@ -278,8 +278,13 @@ async function serveFlasherHost(request, env) {
   const url = new URL(request.url);
   let path = url.pathname;
 
+  // Shared root assets (not under /flasher/)
+  const sharedRoot = new Set(["/lang.js"]);
+
   if (path === "/" || path === "" || path === "/index.html") {
     path = "/flasher/index.html";
+  } else if (sharedRoot.has(path)) {
+    // keep as-is
   } else if (!path.startsWith("/flasher/")) {
     path = `/flasher${path.startsWith("/") ? path : `/${path}`}`;
   }
@@ -308,13 +313,50 @@ async function serveAssets(request, env) {
   return env.ASSETS.fetch(request);
 }
 
-function preferredLocalePath(request) {
+function cookieLang(request) {
+  const raw = request.headers.get("Cookie") || "";
+  const m = raw.match(/(?:^|;\s*)het68_lang=([^;]+)/);
+  if (!m) return null;
+  try {
+    const lang = decodeURIComponent(m[1]).slice(0, 2).toLowerCase();
+    if (lang === "cs" || lang === "en" || lang === "de") return lang;
+  } catch (_) {
+    /* ignore */
+  }
+  return null;
+}
+
+function acceptLanguageLang(request) {
   const al = (request.headers.get("Accept-Language") || "").toLowerCase();
   if (!al) return null;
   const primary = al.split(",")[0]?.trim().slice(0, 2);
-  if (primary === "en") return "/en/";
-  if (primary === "de") return "/de/";
+  if (primary === "en" || primary === "de" || primary === "cs") return primary;
   return null;
+}
+
+/** Locale path for marketing site. */
+function sitePathForLang(lang) {
+  if (lang === "en") return "/en/";
+  if (lang === "de") return "/de/";
+  return null; // cs → stay on /
+}
+
+/** Locale path for flasher (CZ/EN only; DE → EN). */
+function flasherPathForLang(lang) {
+  if (lang === "en" || lang === "de") return "/en/";
+  return null; // cs → stay on /
+}
+
+function localeRedirect(request, url, pathForLang) {
+  if (url.pathname !== "/" && url.pathname !== "") return null;
+  if (url.searchParams.has("lang")) return null;
+
+  // Cookie wins (manual choice). Accept-Language only on first visit.
+  const lang = cookieLang(request) || acceptLanguageLang(request);
+  if (!lang || lang === "cs") return null;
+  const dest = pathForLang(lang);
+  if (!dest) return null;
+  return Response.redirect(new URL(dest, url).toString(), 302);
 }
 
 export default {
@@ -329,17 +371,8 @@ export default {
 
     // flasher.het68.cz — no Basic Auth
     if (isFlasherHost(host)) {
-      // Soft locale: / → /en/ when browser prefers English
-      if (
-        (url.pathname === "/" || url.pathname === "") &&
-        !url.searchParams.has("lang")
-      ) {
-        const al = (request.headers.get("Accept-Language") || "").toLowerCase();
-        const primary = al.split(",")[0]?.trim().slice(0, 2);
-        if (primary === "en") {
-          return Response.redirect(new URL("/en/", url).toString(), 302);
-        }
-      }
+      const redirect = localeRedirect(request, url, flasherPathForLang);
+      if (redirect) return redirect;
       return serveFlasherHost(request, env);
     }
 
@@ -353,16 +386,8 @@ export default {
       return unauthorized();
     }
 
-    // Soft locale hint: / → /en/ or /de/ from Accept-Language
-    if (
-      (url.pathname === "/" || url.pathname === "") &&
-      !url.searchParams.has("lang")
-    ) {
-      const destPath = preferredLocalePath(request);
-      if (destPath) {
-        return Response.redirect(new URL(destPath, url).toString(), 302);
-      }
-    }
+    const redirect = localeRedirect(request, url, sitePathForLang);
+    if (redirect) return redirect;
 
     return serveAssets(request, env);
   },

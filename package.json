@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check": "node --check src/worker.js && node --check public/landing.js && node --check public/flasher/js/picoboot.js && node --check public/flasher/js/uf2.js && node --check public/flasher/i18n.js && node --check public/flasher/app.js"
+    "check": "node --check src/worker.js && node --check public/landing.js && node --check public/lang.js && node --check public/flasher/js/picoboot.js && node --check public/flasher/js/uf2.js && node --check public/flasher/i18n.js && node --check public/flasher/app.js"
   },
   "devDependencies": {
     "wrangler": "^4.26.0"
