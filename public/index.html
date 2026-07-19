@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="HET68 web flasher — nahrání firmware z GitHub Releases na Pico 2 / Pico 2 W / Pimoroni Pico Plus 2 W."
+    />
+    <title>HET68 — Web Flasher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <header class="top">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">HET68</span>
+      </a>
+      <nav class="top-links">
+        <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
+          >Releases</a
+        >
+        <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow">Firmware flasher · het68.cz</p>
+        <h1 class="hero-brand">HET68</h1>
+        <p class="hero-lead">
+          Nahraj nejnovější firmware přímo z prohlížeče na desku v&nbsp;BOOTSEL režimu.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#flasher">Spustit flasher</a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/fedurca/het68/releases"
+            target="_blank"
+            rel="noopener"
+            >Zdrojové releases</a
+          >
+        </div>
+      </section>
+
+      <section id="flasher" class="panel" aria-labelledby="flasher-title">
+        <div class="panel-head">
+          <h2 id="flasher-title">Flasher</h2>
+          <p class="panel-sub">
+            Chromium prohlížeč (Chrome / Edge / Brave) · deska v&nbsp;BOOTSEL · WebUSB
+          </p>
+        </div>
+
+        <div id="browserWarning" class="banner banner-warn" hidden>
+          WebUSB není v tomto prohlížeči dostupný. Použij Chrome, Edge nebo Brave, nebo stáhni UF2
+          ručně a zkopíruj ho na jednotku RP2350.
+        </div>
+
+        <ol class="steps">
+          <li class="step" data-step="board">
+            <div class="step-label"><span>01</span> Deska</div>
+            <div class="board-grid" id="boardGrid" role="radiogroup" aria-label="Varianta desky">
+              <!-- filled by app.js -->
+            </div>
+          </li>
+
+          <li class="step" data-step="release">
+            <div class="step-label"><span>02</span> Verze firmware</div>
+            <div class="field-row">
+              <label class="field">
+                <span>Release</span>
+                <select id="releaseSelect" disabled>
+                  <option value="">Načítám releases…</option>
+                </select>
+              </label>
+              <button type="button" class="btn btn-ghost" id="refreshReleases" title="Obnovit">
+                Obnovit
+              </button>
+            </div>
+            <p class="meta" id="releaseMeta">—</p>
+            <p class="meta meta-soft" id="assetMeta">—</p>
+          </li>
+
+          <li class="step" data-step="bootsel">
+            <div class="step-label"><span>03</span> BOOTSEL</div>
+            <ol class="howto">
+              <li>Odpoj USB kabel.</li>
+              <li>Podrž tlačítko <strong>BOOTSEL</strong> (nebo BOOT).</li>
+              <li>Připoj USB a po 1–2&nbsp;s tlačítko pusť.</li>
+              <li>Deska se objeví jako USB disk <code>RP2350</code>.</li>
+            </ol>
+            <div class="action-row">
+              <button type="button" class="btn btn-primary" id="connectBtn">
+                Připojit desku (WebUSB)
+              </button>
+              <p class="meta" id="deviceMeta">Deska: nepřipojena</p>
+            </div>
+          </li>
+
+          <li class="step" data-step="flash">
+            <div class="step-label"><span>04</span> Nahrát</div>
+            <div class="action-row">
+              <button type="button" class="btn btn-accent" id="flashBtn" disabled>
+                Stáhnout &amp; flashnout
+              </button>
+              <label class="check">
+                <input type="checkbox" id="eraseToggle" checked />
+                Mazat sektory před zápisem
+              </label>
+            </div>
+            <div class="progress-wrap">
+              <div class="progress-track">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+              </div>
+              <div class="progress-label" id="progressLabel">0%</div>
+            </div>
+            <p class="meta" id="statusMeta">Připraveno</p>
+          </li>
+        </ol>
+
+        <details class="log-box" id="logDetails">
+          <summary>Výstup procesu</summary>
+          <pre id="log" aria-live="polite"></pre>
+        </details>
+
+        <p class="footnote">
+          Firmware se stahuje z
+          <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
+            >github.com/fedurca/het68/releases</a
+          >
+          přes proxy na het68.cz (CORS). Alternativně si můžeš UF2 stáhnout ručně a nahrát drag&amp;drop
+          na BOOTSEL disk.
+        </p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>HET68 web flasher</span>
+      <span class="sep">·</span>
+      <a href="https://github.com/fedurca/het68_webflasher" target="_blank" rel="noopener"
+        >zdroj flasheru</a
+      >
+    </footer>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

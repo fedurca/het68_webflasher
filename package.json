@@ -1,0 +1,18 @@
+{
+  "name": "het68-webflasher",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HET68 web firmware flasher for Cloudflare (het68.cz)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/worker.js && node --check public/js/picoboot.js && node --check public/js/uf2.js && node --check public/app.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.26.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
