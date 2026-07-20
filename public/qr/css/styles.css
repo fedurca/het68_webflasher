@@ -1,0 +1,245 @@
+:root {
+  color-scheme: dark;
+  --bg: #000;
+  --fg: #e8e8e8;
+  --muted: #9a9a9a;
+  --panel: #111;
+  --border: #2a2a2a;
+  --ok: #6dca8c;
+  --warn: #e0b35a;
+  --err: #e07070;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 72px 16px 96px;
+}
+
+#controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1200;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  background: rgba(10, 10, 10, 0.94);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 13px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+#controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  padding: 6px 10px;
+  background: #161616;
+  border: 1px solid var(--border);
+}
+
+#controls input[type="number"] {
+  width: 4.2rem;
+  background: #000;
+  color: var(--fg);
+  border: 1px solid #444;
+  padding: 4px 6px;
+  font: inherit;
+}
+
+#controls input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--ok);
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(100%, 280px);
+  margin-top: 8px;
+}
+
+#qr {
+  width: min(100%, 240px);
+  aspect-ratio: 1 / 1;
+  background: #fff;
+  padding: 10px;
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+#qr .placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-size: 13px;
+  text-align: center;
+  padding: 12px;
+}
+
+#qr canvas,
+#qr img,
+#qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  background: #fff;
+}
+
+#url {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: clamp(11px, 3.2vw, 13px);
+  line-height: 1.4;
+  word-break: break-all;
+  color: #d0d0d0;
+}
+
+#ball-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  /* Above QR/main, below controls + debug */
+  z-index: 900;
+  display: none;
+  overflow: hidden;
+}
+
+/* Two independent paint planes: RGB additive vs CMYK subtractive (no cross-mix). */
+.ball-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.ball-canvas-rgb { z-index: 1; }
+.ball-canvas-cmyk { z-index: 2; }
+
+#debug {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.45;
+  z-index: 1000;
+}
+
+#debug header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#debug header strong {
+  font-weight: 600;
+}
+
+#debug .status-pill {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+#debug .status-pill.ok { color: var(--ok); border-color: #2f5a3d; }
+#debug .status-pill.warn { color: var(--warn); border-color: #5a4a2f; }
+#debug .status-pill.err { color: var(--err); border-color: #5a2f2f; }
+
+#debug .body {
+  display: none;
+  padding: 10px;
+  max-height: 32vh;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#debug.open .body { display: block; }
+
+#debug dl {
+  margin: 0 0 10px;
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 4px 10px;
+}
+
+#debug dt { color: var(--muted); }
+#debug dd { margin: 0; word-break: break-all; }
+
+#debug .log {
+  margin: 0;
+  padding: 8px;
+  background: #0a0a0a;
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: auto;
+}
+
+#debug .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#debug button {
+  background: #1a1a1a;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+#debug button:hover { background: #222; }

@@ -38,6 +38,29 @@ async function downloadRaw(sha, path) {
   return Buffer.from(await res.arrayBuffer());
 }
 
+/** Browser tabs truncate from the end — keep semver at the start of <title>. */
+function preferVersionFirstTitle(text) {
+  let out = text;
+  out = out.replace(
+    /<title>\s*het68 QR\s+v(\d+\.\d+\.\d+)\s*<\/title>/gi,
+    "<title>v$1 het68 QR</title>"
+  );
+  // build-single.js template: <title>het68 QR v${version}</title>
+  out = out.replace(
+    /<title>het68 QR v\$\{version\}<\/title>/g,
+    "<title>v${version} het68 QR</title>"
+  );
+  out = out.replace(
+    /document\.title\s*=\s*"het68 QR v"\s*\+\s*([^;\n]+);/g,
+    'document.title = "v" + $1 + " het68 QR";'
+  );
+  return out;
+}
+
+function shouldRewriteTitle(path) {
+  return /\.(html?|js|mjs)$/i.test(path);
+}
+
 async function main() {
   console.log(`Fetching ${REPO}@${REF} → public/qr/`);
 
@@ -65,7 +88,15 @@ async function main() {
   await mkdir(DEST, { recursive: true });
 
   for (const file of files) {
-    const buf = await downloadRaw(sha, file.path);
+    let buf = await downloadRaw(sha, file.path);
+    if (shouldRewriteTitle(file.path)) {
+      const before = buf.toString("utf8");
+      const after = preferVersionFirstTitle(before);
+      if (after !== before) {
+        buf = Buffer.from(after, "utf8");
+        console.log(`  ~ title → version-first (${file.path})`);
+      }
+    }
     const out = join(DEST, file.path);
     await mkdir(dirname(out), { recursive: true });
     await writeFile(out, buf);

@@ -1,11 +1,26 @@
 {
   "repo": "fedurca/qr_scrambler",
   "ref": "main",
-  "sha": "eb29a5acb2c66e34ede7ee821d71b2ddc0e9cfd6",
-  "short": "eb29a5a",
-  "message": "Add single-page QR that updates epoch URL every second",
-  "fetched_at": "2026-07-19T20:11:06.746Z",
+  "sha": "76be1a429b3a26fe4f4182788e0b9e43ec43423e",
+  "short": "76be1a4",
+  "message": "Improve multi-step mask planning and debug forecasts (v1.2.6)",
+  "fetched_at": "2026-07-20T05:59:12.757Z",
   "files": [
-    "index.html"
+    "app.html",
+    "css/styles.css",
+    "index.html",
+    "js/app.js",
+    "js/codec.js",
+    "js/mask-balls.js",
+    "js/version.js",
+    "package.json",
+    "scripts/build-single.js",
+    "vendor/LICENSE.jsQR.txt",
+    "vendor/LICENSE.qrcode.txt",
+    "vendor/LICENSE.qrcodejs.txt",
+    "vendor/README.md",
+    "vendor/jsQR.js",
+    "vendor/qrcode.min.js",
+    "vendor/qrcodejs.min.js"
   ]
 }
