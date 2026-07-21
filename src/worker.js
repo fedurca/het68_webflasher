@@ -428,9 +428,10 @@ function sitePathForLang(lang) {
   return null; // cs → stay on /
 }
 
-/** Locale path for flasher (CZ/EN only; DE → EN). */
+/** Locale path for flasher (CS / EN / DE). */
 function flasherPathForLang(lang) {
-  if (lang === "en" || lang === "de") return "/en/";
+  if (lang === "en") return "/en/";
+  if (lang === "de") return "/de/";
   return null; // cs → stay on /
 }
 

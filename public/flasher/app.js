@@ -403,6 +403,38 @@ async function runFlash() {
   }
 }
 
+const THEME_KEY = "het68-theme";
+
+function currentTheme() {
+  const t = document.documentElement.dataset.theme;
+  return t === "light" ? "light" : "dark";
+}
+
+function applyTheme(theme) {
+  const t = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+  const btn = document.getElementById("themeToggle");
+  if (btn) {
+    // Show the icon of the theme you switch TO.
+    btn.textContent = t === "light" ? "\u263e" : "\u2600";
+    btn.setAttribute("aria-pressed", String(t === "light"));
+  }
+  try {
+    localStorage.setItem(THEME_KEY, t);
+  } catch (_) {
+    /* private mode */
+  }
+}
+
+function bindThemeToggle() {
+  const btn = document.getElementById("themeToggle");
+  if (!btn) return;
+  applyTheme(currentTheme());
+  btn.addEventListener("click", () => {
+    applyTheme(currentTheme() === "light" ? "dark" : "light");
+  });
+}
+
 function bindUsbEvents() {
   if (!navigator.usb) return;
   navigator.usb.addEventListener("disconnect", (event) => {
@@ -436,6 +468,7 @@ function init() {
   els.connectBtn.addEventListener("click", () => connectDevice());
   els.flashBtn.addEventListener("click", () => runFlash());
 
+  bindThemeToggle();
   bindUsbEvents();
   renderBoards();
   loadReleases();

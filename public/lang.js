@@ -7,11 +7,6 @@
   const STORAGE = "het68-lang";
   const SUPPORTED = new Set(["cs", "en", "de"]);
 
-  function isFlasherHost() {
-    const h = location.hostname.toLowerCase();
-    return h === "flasher.het68.cz" || h.startsWith("flasher.");
-  }
-
   function readCookie() {
     const m = document.cookie.match(
       new RegExp("(?:^|; )" + COOKIE + "=([^;]*)")
@@ -63,11 +58,7 @@
 
   /** Canonical path for a language on the current host. */
   function pathForLang(lang) {
-    if (isFlasherHost()) {
-      // Flasher is CZ/EN only; DE falls back to EN.
-      if (lang === "en" || lang === "de") return "/en/";
-      return "/";
-    }
+    // Both the marketing site and the flasher ship CS / EN / DE.
     if (lang === "en") return "/en/";
     if (lang === "de") return "/de/";
     return "/";
@@ -88,7 +79,6 @@
       return;
     }
 
-    // Flasher has no DE page — keep stored DE, but serve EN UI.
     const target = normalizePath(pathForLang(stored));
     const here = normalizePath(location.pathname);
 
@@ -104,11 +94,6 @@
         if (!SUPPORTED.has(lang)) return;
         setStoredLang(lang);
         // Let the browser follow href; cookie is already set.
-        // On flasher, rewrite DE → EN path if someone adds DE later.
-        if (isFlasherHost() && lang === "de") {
-          event.preventDefault();
-          location.href = "/en/" + location.search + location.hash;
-        }
       });
     });
   }
