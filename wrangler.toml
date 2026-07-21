@@ -33,3 +33,7 @@ custom_domain = true
 [[routes]]
 pattern = "qr.het68.cz"
 custom_domain = true
+
+[[routes]]
+pattern = "chirp.het68.cz"
+custom_domain = true

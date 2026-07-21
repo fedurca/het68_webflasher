@@ -317,8 +317,13 @@ function isQrHost(hostname) {
   return host === "qr.het68.cz" || host.startsWith("qr.");
 }
 
+function isChirpHost(hostname) {
+  const host = (hostname || "").toLowerCase();
+  return host === "chirp.het68.cz" || host.startsWith("chirp.");
+}
+
 /**
- * Resolve request host. Prefer flasher/qr when any candidate matches —
+ * Resolve request host. Prefer flasher/qr/chirp when any candidate matches —
  * local `wrangler dev` rewrites URL/Host to the first custom_domain (het68.cz).
  */
 function requestHostname(request) {
@@ -332,7 +337,7 @@ function requestHostname(request) {
     .map((h) => h.split(":")[0].toLowerCase());
 
   for (const h of candidates) {
-    if (isFlasherHost(h) || isQrHost(h)) return h;
+    if (isFlasherHost(h) || isQrHost(h) || isChirpHost(h)) return h;
   }
   return candidates[0] || url.hostname.toLowerCase();
 }
@@ -403,6 +408,42 @@ async function serveQrHost(request, env) {
     assetUrl = new URL(loc, assetUrl);
     if (!assetUrl.pathname.startsWith("/qr")) {
       assetUrl.pathname = `/qr${assetUrl.pathname === "/" ? "/" : assetUrl.pathname}`;
+    }
+    res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  }
+
+  return res;
+}
+
+/**
+ * Map chirp.het68.cz onto /chirp/* (acoustic chirp decoder web app).
+ */
+async function serveChirpHost(request, env) {
+  const url = new URL(request.url);
+  let path = url.pathname;
+
+  const sharedRoot = new Set(["/build-info.json"]);
+
+  if (path === "/" || path === "" || path === "/index.html") {
+    path = "/chirp/index.html";
+  } else if (sharedRoot.has(path)) {
+    // keep as-is
+  } else if (!path.startsWith("/chirp/")) {
+    path = `/chirp${path.startsWith("/") ? path : `/${path}`}`;
+  }
+
+  let assetUrl = new URL(request.url);
+  assetUrl.pathname = path;
+
+  let res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+
+  for (let i = 0; i < 3; i++) {
+    if (res.status < 300 || res.status >= 400) break;
+    const loc = res.headers.get("Location");
+    if (!loc) break;
+    assetUrl = new URL(loc, assetUrl);
+    if (!assetUrl.pathname.startsWith("/chirp")) {
+      assetUrl.pathname = `/chirp${assetUrl.pathname === "/" ? "/" : assetUrl.pathname}`;
     }
     res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
   }
@@ -483,11 +524,19 @@ export default {
       return serveQrHost(request, env);
     }
 
-    // Dev convenience: /flasher/* and /qr/* without auth
+    // chirp.het68.cz — acoustic chirp decoder (no Basic Auth)
+    if (isChirpHost(host)) {
+      return serveChirpHost(request, env);
+    }
+
+    // Dev convenience: /flasher/*, /qr/*, /chirp/* without auth
     if (url.pathname === "/flasher" || url.pathname.startsWith("/flasher/")) {
       return serveAssets(request, env);
     }
     if (url.pathname === "/qr" || url.pathname.startsWith("/qr/")) {
+      return serveAssets(request, env);
+    }
+    if (url.pathname === "/chirp" || url.pathname.startsWith("/chirp/")) {
       return serveAssets(request, env);
     }
 

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="het68 chirp dekodér — snímá mikrofon telefonu, lokálně v prohlížeči dekóduje audio chirpy a zobrazuje ID nodů, jejich polohu a vzdálenost."
+    />
+    <title>het68 — chirp dekodér</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="logo" href="https://het68.cz/">het68</a>
+        <p class="tagline">chirp dekodér</p>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <p class="overline">Akustická synchronizace · lokální dekódování</p>
+        <h1>Poslouchej nody.</h1>
+        <p class="lead">
+          Snímá mikrofon telefonu a přímo v prohlížeči dekóduje audio chirpy, kterými se het68 nody
+          synchronizují. Zobrazí zachycené <strong>ID nodů</strong>, jejich odhadovanou
+          <strong>polohu</strong> a <strong>vzdálenost</strong>. Nic se nikam neodesílá — vše běží
+          lokálně.
+        </p>
+        <div class="controls">
+          <button id="micBtn" class="btn btn-teal" type="button">Spustit mikrofon</button>
+          <span id="statusPill" class="pill">nečinné</span>
+        </div>
+        <div id="permWarn" class="banner banner-warn" hidden></div>
+      </section>
+
+      <section class="grid">
+        <div class="card radar-card">
+          <div class="card-head">
+            <h2>Radar</h2>
+            <span class="hint">telefon uprostřed · kružnice = vzdálenost</span>
+          </div>
+          <canvas id="radar" width="640" height="640" aria-label="Radar nodů"></canvas>
+          <div class="radar-meta">
+            <span id="levelMeter" class="mono">signál —</span>
+            <span id="detMeta" class="mono">detekcí: 0</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Nody</h2>
+            <button id="calibrateBtn" class="btn btn-ghost btn-sm" type="button" title="Nastav referenci vzdálenosti 1 m z posledního signálu">
+              Kalibrovat 1 m
+            </button>
+          </div>
+          <table class="nodes" id="nodesTable">
+            <thead>
+              <tr><th>ID</th><th>Vzdálenost</th><th>Signál</th><th>Naposledy</th></tr>
+            </thead>
+            <tbody id="nodesBody">
+              <tr class="empty"><td colspan="4">Zatím nic nezachyceno.</td></tr>
+            </tbody>
+          </table>
+          <button id="clearBtn" class="btn btn-ghost btn-sm" type="button">Vymazat nody</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Vzájemné vzdálenosti</h2>
+            <span class="hint">odhad z jednoho mikrofonu</span>
+          </div>
+          <div id="matrix" class="matrix">Potřeba alespoň 2 nody.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Vyslat testovací chirp</h2>
+            <span class="hint">tento telefon jako node</span>
+          </div>
+          <div class="emit-row">
+            <label class="field">
+              <span>ID nodu (0–511)</span>
+              <input id="emitId" type="number" min="0" max="511" value="42" />
+            </label>
+            <label class="field">
+              <span>Hlasitost</span>
+              <input id="emitGain" type="range" min="0" max="100" value="60" />
+            </label>
+          </div>
+          <div class="emit-actions">
+            <button id="emitBtn" class="btn btn-blue" type="button">Vyslat chirp</button>
+            <label class="check">
+              <input type="checkbox" id="emitLoop" />
+              Opakovat každé 2 s
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <details class="log-box" id="logDetails">
+        <summary>Log</summary>
+        <pre id="log" aria-live="polite"></pre>
+      </details>
+
+      <p class="proto-note">
+        Protokol het68 chirp v1: SYNC tón 14,5&nbsp;kHz + 4 datové symboly (8‑FSK, 15,0–18,5&nbsp;kHz,
+        60&nbsp;ms/symbol). ID = 3 symboly (0–511), 1 kontrolní symbol. Poloha z jednoho mikrofonu je
+        odhad (směr není měřitelný), vzdálenost z akustického útlumu — po kalibraci na 1&nbsp;m.
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="https://het68.cz/">het68</a>
+        <p>chirp dekodér · lokální DSP</p>
+        <p class="build-meta" id="buildMeta" hidden></p>
+      </div>
+    </footer>
+
+    <script src="./chirp.js"></script>
+  </body>
+</html>
