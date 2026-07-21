@@ -104,78 +104,106 @@
           </div>
         </div>
 
-        <div class="card radar-card">
+        <div class="card rx-card">
           <div class="card-head">
-            <h2>Radar</h2>
-            <span class="hint">telefon uprostřed · kružnice = vzdálenost</span>
+            <h2>Přijaté chirpy</h2>
+            <button id="rxClear" class="btn btn-ghost btn-sm" type="button">Vymazat</button>
           </div>
-          <canvas id="radar" width="640" height="640" aria-label="Radar nodů"></canvas>
-          <div class="radar-meta">
-            <span id="levelMeter" class="mono">signál —</span>
-            <span id="detMeta" class="mono">detekcí: 0</span>
+          <p id="rxStats" class="mono rx-stats">dekódováno 0 · CRC chyb 0 · detekcí 0</p>
+          <div class="rx-scroll">
+            <table class="nodes" id="rxTable">
+              <thead>
+                <tr>
+                  <th>Čas</th><th>Node</th><th>Typ</th><th>Seq</th>
+                  <th>Příznaky</th><th>Payload</th><th>ρ</th>
+                </tr>
+              </thead>
+              <tbody id="rxBody">
+                <tr class="empty"><td colspan="7">Zatím nic přijato.</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <h2>Nody</h2>
-            <button
-              id="calibrateBtn"
-              class="btn btn-ghost btn-sm"
-              type="button"
-              title="Nastav referenci vzdálenosti 1 m z posledního signálu"
-            >
-              Kalibrovat 1 m
-            </button>
+            <h2>Nody (peers)</h2>
+            <span class="hint">z přijatých beaconů</span>
           </div>
-          <table class="nodes" id="nodesTable">
+          <table class="nodes" id="peersTable">
             <thead>
-              <tr>
-                <th>ID</th>
-                <th>Vzdálenost</th>
-                <th>Signál</th>
-                <th>Naposledy</th>
-              </tr>
+              <tr><th>ID</th><th>Přijato</th><th>Poslední seq</th><th>ρ</th><th>Sync</th></tr>
             </thead>
-            <tbody id="nodesBody">
-              <tr class="empty">
-                <td colspan="4">Zatím nic nezachyceno.</td>
-              </tr>
+            <tbody id="peersBody">
+              <tr class="empty"><td colspan="5">Žádné nody.</td></tr>
             </tbody>
           </table>
-          <button id="clearBtn" class="btn btn-ghost btn-sm" type="button">Vymazat nody</button>
         </div>
 
-        <div class="card">
+        <div class="card tx-card">
           <div class="card-head">
-            <h2>Vzájemné vzdálenosti</h2>
-            <span class="hint">odhad z jednoho mikrofonu</span>
+            <h2>Vyslat chirp</h2>
+            <span class="hint">DSSS‑BPSK · 4&nbsp;kHz · konfigurovatelné</span>
           </div>
-          <div id="matrix" class="matrix">Potřeba alespoň 2 nody.</div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h2>Vyslat testovací chirp</h2>
-            <span class="hint">tento telefon jako node</span>
-          </div>
-          <div class="emit-row">
+          <div class="tx-grid">
             <label class="field">
-              <span>ID nodu (0–511)</span>
-              <input id="emitId" type="number" min="0" max="511" value="42" />
+              <span>Node ID</span>
+              <select id="txNode">
+                <option>0</option><option>1</option><option>2</option><option selected>3</option>
+                <option>4</option><option>5</option><option>6</option><option>7</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Typ</span>
+              <select id="txType">
+                <option value="1" selected>BEACON</option>
+                <option value="2">DETECT</option>
+                <option value="3">CTRL</option>
+                <option value="4">ACK</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Seq</span>
+              <input id="txSeq" type="number" min="0" max="255" value="0" />
+            </label>
+            <label class="field">
+              <span>Key ID</span>
+              <input id="txKeyId" type="number" min="0" max="255" value="0" />
+            </label>
+            <label class="field">
+              <span>Nonce (hex)</span>
+              <input id="txNonce" type="text" value="0" spellcheck="false" />
             </label>
             <label class="field">
               <span>Hlasitost</span>
-              <input id="emitGain" type="range" min="0" max="100" value="60" />
+              <input id="txGain" type="range" min="0" max="100" value="60" />
             </label>
+          </div>
+          <label class="field tx-payload">
+            <span>Payload (max 16 B) · <span id="txPayloadLen">0/16 B</span></span>
+            <input id="txPayload" type="text" maxlength="16" placeholder="het68" spellcheck="false" />
+          </label>
+          <div class="tx-flags">
+            <label class="check"><input type="checkbox" id="txSynced" /> synced</label>
+            <label class="check"><input type="checkbox" id="txAck" /> ack‑req</label>
+            <label class="check"><input type="checkbox" id="txEnc" /> encrypted</label>
+            <label class="check"><input type="checkbox" id="txSeqAuto" checked /> auto seq++</label>
           </div>
           <div class="emit-actions">
-            <button id="emitBtn" class="btn btn-blue" type="button">Vyslat chirp</button>
-            <label class="check">
-              <input type="checkbox" id="emitLoop" />
-              Opakovat každé 2 s
-            </label>
+            <button id="txSend" class="btn btn-blue" type="button">Vyslat chirp</button>
+            <button id="txQueueAdd" class="btn btn-ghost btn-sm" type="button">Přidat do zásobníku</button>
           </div>
+          <p id="txInfo" class="hint"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Zásobník odeslaných</h2>
+            <button id="queueClear" class="btn btn-ghost btn-sm" type="button">Vyprázdnit</button>
+          </div>
+          <ul id="queueList" class="queue-list">
+            <li class="queue-empty">Zásobník je prázdný.</li>
+          </ul>
         </div>
       </section>
 
@@ -185,9 +213,11 @@
       </details>
 
       <p class="proto-note">
-        Protokol het68 chirp v1: SYNC tón 14,5&nbsp;kHz + 4 datové symboly (8‑FSK, 15,0–18,5&nbsp;kHz,
-        60&nbsp;ms/symbol). ID = 3 symboly (0–511), 1 kontrolní symbol. Poloha z jednoho mikrofonu je
-        odhad (směr není měřitelný), vzdálenost z akustického útlumu — po kalibraci na 1&nbsp;m.
+        het68 chirp link (spec 1.3.1): DSSS‑BPSK na nosné 4&nbsp;kHz, 500&nbsp;chip/s, SF&nbsp;8,
+        127‑čipová preambule (Goldovy kódy, 8&nbsp;nodů). Rámec 31&nbsp;B (verze, node, typ, seq,
+        příznaky, key/nonce, payload 0–16&nbsp;B) s Hammingovým&nbsp;(7,4) FEC a CRC32. Jeden rámec
+        ≈&nbsp;7,2&nbsp;s ve vzduchu. Příjem i vysílání běží lokálně v prohlížeči přes mikrofon a
+        reproduktor telefonu.
       </p>
     </main>
 
@@ -205,6 +235,7 @@
     </footer>
 
     <script src="/lang.js"></script>
+    <script src="./alink.js"></script>
     <script src="./chirp.js"></script>
   </body>
 </html>

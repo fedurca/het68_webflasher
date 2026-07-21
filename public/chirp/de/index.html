@@ -104,78 +104,106 @@
           </div>
         </div>
 
-        <div class="card radar-card">
+        <div class="card rx-card">
           <div class="card-head">
-            <h2>Radar</h2>
-            <span class="hint">Telefon in der Mitte · Ringe = Entfernung</span>
+            <h2>Empfangene Chirps</h2>
+            <button id="rxClear" class="btn btn-ghost btn-sm" type="button">Löschen</button>
           </div>
-          <canvas id="radar" width="640" height="640" aria-label="Node-Radar"></canvas>
-          <div class="radar-meta">
-            <span id="levelMeter" class="mono">Signal —</span>
-            <span id="detMeta" class="mono">Erkennungen: 0</span>
+          <p id="rxStats" class="mono rx-stats">dekodiert 0 · CRC-Fehler 0 · Detektionen 0</p>
+          <div class="rx-scroll">
+            <table class="nodes" id="rxTable">
+              <thead>
+                <tr>
+                  <th>Zeit</th><th>Node</th><th>Typ</th><th>Seq</th>
+                  <th>Flags</th><th>Payload</th><th>ρ</th>
+                </tr>
+              </thead>
+              <tbody id="rxBody">
+                <tr class="empty"><td colspan="7">Noch nichts empfangen.</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <h2>Nodes</h2>
-            <button
-              id="calibrateBtn"
-              class="btn btn-ghost btn-sm"
-              type="button"
-              title="1-m-Referenz aus dem letzten Signal setzen"
-            >
-              1 m kalibrieren
-            </button>
+            <h2>Nodes (Peers)</h2>
+            <span class="hint">aus empfangenen Beacons</span>
           </div>
-          <table class="nodes" id="nodesTable">
+          <table class="nodes" id="peersTable">
             <thead>
-              <tr>
-                <th>ID</th>
-                <th>Entfernung</th>
-                <th>Signal</th>
-                <th>Zuletzt</th>
-              </tr>
+              <tr><th>ID</th><th>Empfangen</th><th>Letzte seq</th><th>ρ</th><th>Sync</th></tr>
             </thead>
-            <tbody id="nodesBody">
-              <tr class="empty">
-                <td colspan="4">Noch nichts erfasst.</td>
-              </tr>
+            <tbody id="peersBody">
+              <tr class="empty"><td colspan="5">Keine Nodes.</td></tr>
             </tbody>
           </table>
-          <button id="clearBtn" class="btn btn-ghost btn-sm" type="button">Nodes löschen</button>
         </div>
 
-        <div class="card">
+        <div class="card tx-card">
           <div class="card-head">
-            <h2>Gegenseitige Entfernungen</h2>
-            <span class="hint">Schätzung mit einem Mikrofon</span>
+            <h2>Chirp senden</h2>
+            <span class="hint">DSSS‑BPSK · 4&nbsp;kHz · konfigurierbar</span>
           </div>
-          <div id="matrix" class="matrix">Mindestens 2 Nodes nötig.</div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h2>Test-Chirp senden</h2>
-            <span class="hint">dieses Telefon als Node</span>
-          </div>
-          <div class="emit-row">
+          <div class="tx-grid">
             <label class="field">
-              <span>Node-ID (0–511)</span>
-              <input id="emitId" type="number" min="0" max="511" value="42" />
+              <span>Node-ID</span>
+              <select id="txNode">
+                <option>0</option><option>1</option><option>2</option><option selected>3</option>
+                <option>4</option><option>5</option><option>6</option><option>7</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Typ</span>
+              <select id="txType">
+                <option value="1" selected>BEACON</option>
+                <option value="2">DETECT</option>
+                <option value="3">CTRL</option>
+                <option value="4">ACK</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Seq</span>
+              <input id="txSeq" type="number" min="0" max="255" value="0" />
+            </label>
+            <label class="field">
+              <span>Key-ID</span>
+              <input id="txKeyId" type="number" min="0" max="255" value="0" />
+            </label>
+            <label class="field">
+              <span>Nonce (hex)</span>
+              <input id="txNonce" type="text" value="0" spellcheck="false" />
             </label>
             <label class="field">
               <span>Lautstärke</span>
-              <input id="emitGain" type="range" min="0" max="100" value="60" />
+              <input id="txGain" type="range" min="0" max="100" value="60" />
             </label>
+          </div>
+          <label class="field tx-payload">
+            <span>Payload (max 16 B) · <span id="txPayloadLen">0/16 B</span></span>
+            <input id="txPayload" type="text" maxlength="16" placeholder="het68" spellcheck="false" />
+          </label>
+          <div class="tx-flags">
+            <label class="check"><input type="checkbox" id="txSynced" /> synced</label>
+            <label class="check"><input type="checkbox" id="txAck" /> ack‑req</label>
+            <label class="check"><input type="checkbox" id="txEnc" /> encrypted</label>
+            <label class="check"><input type="checkbox" id="txSeqAuto" checked /> auto seq++</label>
           </div>
           <div class="emit-actions">
-            <button id="emitBtn" class="btn btn-blue" type="button">Chirp senden</button>
-            <label class="check">
-              <input type="checkbox" id="emitLoop" />
-              Alle 2 s wiederholen
-            </label>
+            <button id="txSend" class="btn btn-blue" type="button">Chirp senden</button>
+            <button id="txQueueAdd" class="btn btn-ghost btn-sm" type="button">Zur Warteschlange</button>
           </div>
+          <p id="txInfo" class="hint"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Gesendete Warteschlange</h2>
+            <button id="queueClear" class="btn btn-ghost btn-sm" type="button">Leeren</button>
+          </div>
+          <ul id="queueList" class="queue-list">
+            <li class="queue-empty">Warteschlange leer.</li>
+          </ul>
         </div>
       </section>
 
@@ -185,10 +213,10 @@
       </details>
 
       <p class="proto-note">
-        het68 Chirp-Protokoll v1: SYNC-Ton 14,5&nbsp;kHz + 4 Datensymbole (8‑FSK, 15,0–18,5&nbsp;kHz,
-        60&nbsp;ms/Symbol). ID = 3 Symbole (0–511), 1 Prüfsymbol. Position mit einem Mikrofon ist eine
-        Schätzung (Richtung nicht messbar); Entfernung aus akustischer Dämpfung — nach Kalibrierung
-        auf 1&nbsp;m.
+        het68 Chirp-Link (Spec 1.3.1): DSSS‑BPSK auf 4&nbsp;kHz-Träger, 500&nbsp;Chip/s, SF&nbsp;8,
+        127‑Chip-Präambel (Gold-Codes, 8&nbsp;Nodes). 31‑Byte-Frame (Version, Node, Typ, Seq, Flags,
+        Key/Nonce, 0–16&nbsp;B Payload) mit Hamming&nbsp;(7,4) FEC und CRC32. Ein Frame ≈&nbsp;7,2&nbsp;s
+        in der Luft. Empfang und Senden laufen lokal im Browser über Mikrofon und Lautsprecher.
       </p>
     </main>
 
@@ -206,6 +234,7 @@
     </footer>
 
     <script src="/lang.js"></script>
+    <script src="../alink.js"></script>
     <script src="../chirp.js"></script>
   </body>
 </html>

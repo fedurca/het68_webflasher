@@ -103,6 +103,19 @@
       evEvict: function (o, n) {
         return "event " + o + " vyřazen → nový " + n;
       },
+      rxEmpty: "Zatím nic přijato.",
+      peersEmpty: "Žádné nody.",
+      rxStats: function (d, b, det) {
+        return "dekódováno " + d + " · CRC chyb " + b + " · detekcí " + det;
+      },
+      rxCleared: "přijaté chirpy vymazány",
+      txAir: function (s) {
+        return "vysílání ~" + s + " s (dle spec ~7,2 s / rámec)";
+      },
+      queueEmpty: "Zásobník je prázdný.",
+      qLoad: "Načíst",
+      qSend: "Vyslat",
+      qDel: "Odebrat",
       recPause: "Pauza",
       recResume: "Pokračovat",
       recDownload: "Stáhnout WAV",
@@ -197,6 +210,19 @@
       evEvict: function (o, n) {
         return "event " + o + " evicted → new " + n;
       },
+      rxEmpty: "Nothing received yet.",
+      peersEmpty: "No nodes.",
+      rxStats: function (d, b, det) {
+        return "decoded " + d + " · CRC errors " + b + " · detects " + det;
+      },
+      rxCleared: "received chirps cleared",
+      txAir: function (s) {
+        return "air-time ~" + s + " s (spec ~7.2 s / frame)";
+      },
+      queueEmpty: "Queue is empty.",
+      qLoad: "Load",
+      qSend: "Send",
+      qDel: "Remove",
       recPause: "Pause",
       recResume: "Resume",
       recDownload: "Download WAV",
@@ -291,6 +317,19 @@
       evEvict: function (o, n) {
         return "Event " + o + " verworfen → neu " + n;
       },
+      rxEmpty: "Noch nichts empfangen.",
+      peersEmpty: "Keine Nodes.",
+      rxStats: function (d, b, det) {
+        return "dekodiert " + d + " · CRC-Fehler " + b + " · Detektionen " + det;
+      },
+      rxCleared: "empfangene Chirps gelöscht",
+      txAir: function (s) {
+        return "Sendedauer ~" + s + " s (Spec ~7,2 s / Frame)";
+      },
+      queueEmpty: "Warteschlange leer.",
+      qLoad: "Laden",
+      qSend: "Senden",
+      qDel: "Entfernen",
       recPause: "Pause",
       recResume: "Weiter",
       recDownload: "WAV laden",
@@ -341,6 +380,29 @@
     eventCounts: document.getElementById("eventCounts"),
     recPause: document.getElementById("recPause"),
     recDownload: document.getElementById("recDownload"),
+    // ALINK RX
+    rxBody: document.getElementById("rxBody"),
+    rxStats: document.getElementById("rxStats"),
+    peersBody: document.getElementById("peersBody"),
+    rxClear: document.getElementById("rxClear"),
+    // ALINK TX
+    txNode: document.getElementById("txNode"),
+    txType: document.getElementById("txType"),
+    txSeq: document.getElementById("txSeq"),
+    txSeqAuto: document.getElementById("txSeqAuto"),
+    txSynced: document.getElementById("txSynced"),
+    txAck: document.getElementById("txAck"),
+    txEnc: document.getElementById("txEnc"),
+    txKeyId: document.getElementById("txKeyId"),
+    txNonce: document.getElementById("txNonce"),
+    txPayload: document.getElementById("txPayload"),
+    txPayloadLen: document.getElementById("txPayloadLen"),
+    txGain: document.getElementById("txGain"),
+    txSend: document.getElementById("txSend"),
+    txQueueAdd: document.getElementById("txQueueAdd"),
+    txInfo: document.getElementById("txInfo"),
+    queueList: document.getElementById("queueList"),
+    queueClear: document.getElementById("queueClear"),
   };
 
   var state = {
@@ -366,6 +428,13 @@
     nodes: new Map(),
     domHz: null,
     domDb: null,
+    demod: null,
+    rx: [],
+    peers: new Map(),
+    rxStats: { decoded: 0, badCrc: 0, detects: 0 },
+    rxTick: 0,
+    queue: [],
+    ageTimer: 0,
     spectroReady: false,
     spectroColMs: 12,
     spectroDirty: true,
@@ -493,61 +562,45 @@
     });
   }
 
-  // ---- Emitter ------------------------------------------------------------
-  var emitCtx = null;
-  var emitLoopTimer = 0;
+  // ---- Transmitter (ALINK DSSS-BPSK per het68 chirp spec) ----------------
+  var txCtx = null;
+  var txActiveUntil = 0;
 
-  function emitChirp(id, vol) {
-    emitCtx = emitCtx || new (window.AudioContext || window.webkitAudioContext)();
-    var ctx = emitCtx;
-    if (ctx.state === "suspended") ctx.resume();
-    var v = Math.max(0.0001, Math.min(1, vol));
-    var idc = Math.max(0, Math.min(511, id | 0));
-    var d0 = (idc >> 6) & 7;
-    var d1 = (idc >> 3) & 7;
-    var d2 = idc & 7;
-    var chk = (d0 + d1 + d2) % 8;
-    var seq = [
-      PROTO.syncFreq,
-      PROTO.dataFreqs[d0],
-      PROTO.dataFreqs[d1],
-      PROTO.dataFreqs[d2],
-      PROTO.dataFreqs[chk],
-    ];
-    var osc = ctx.createOscillator();
-    var g = ctx.createGain();
-    osc.type = "sine";
-    osc.connect(g);
-    g.connect(ctx.destination);
-    var sym = PROTO.symbolMs / 1000;
-    var t0 = ctx.currentTime + 0.06;
-    g.gain.setValueAtTime(0.0001, t0);
-    for (var i = 0; i < seq.length; i++) {
-      var ts = t0 + i * sym;
-      osc.frequency.setValueAtTime(seq[i], ts);
-      g.gain.setValueAtTime(0.0001, ts);
-      g.gain.exponentialRampToValueAtTime(v, ts + 0.006);
-      g.gain.setValueAtTime(v, ts + sym - 0.006);
-      g.gain.exponentialRampToValueAtTime(0.0001, ts + sym);
+  function txAudioContext() {
+    if (!txCtx) {
+      try {
+        txCtx = new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: 48000,
+        });
+      } catch (e) {
+        txCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
     }
-    var end = t0 + seq.length * sym;
-    osc.start(t0);
-    osc.stop(end + 0.03);
-    log(t.emitLog(idc, d0, d1, d2, chk));
+    if (txCtx.state === "suspended") txCtx.resume();
+    return txCtx;
   }
 
-  // ---- Decoder ------------------------------------------------------------
-  function binOf(freq) {
-    return Math.round(freq / (state.ctx.sampleRate / state.analyser.fftSize));
-  }
-
-  function levelAt(bin) {
-    var b = state.buf;
-    var m = -Infinity;
-    for (var i = bin - 1; i <= bin + 1; i++) {
-      if (i >= 0 && i < b.length && b[i] > m) m = b[i];
+  /** Transmit one ALINK frame; returns air-time seconds. */
+  function transmitFrame(fields, gain) {
+    if (typeof ALINK === "undefined") {
+      log("ALINK unavailable");
+      return 0;
     }
-    return m;
+    var ctx = txAudioContext();
+    var enc = ALINK.encodeChips(fields, fields.nodeId);
+    var samples = ALINK.modulate(enc.chips, ctx.sampleRate, {
+      gain: Math.max(0.02, Math.min(1, gain == null ? 0.6 : gain)),
+    });
+    var audio = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+    audio.getChannelData(0).set(samples);
+    var srcNode = ctx.createBufferSource();
+    audio.copyToChannel ? audio.copyToChannel(samples, 0) : null;
+    srcNode.buffer = audio;
+    srcNode.connect(ctx.destination);
+    srcNode.start();
+    var dur = samples.length / ctx.sampleRate;
+    txActiveUntil = now() + dur * 1000;
+    return dur;
   }
 
   function bandMeanDb(f0, f1) {
@@ -919,186 +972,240 @@
 
   function poll() {
     if (!state.running) return;
-    var a = state.analyser;
-    a.getFloatFrequencyData(state.buf);
+    state.analyser.getFloatFrequencyData(state.buf);
 
-    var syncLvl = levelAt(state.syncBin);
-    var dLvls = state.dataBins.map(levelAt);
-    var dMax = -Infinity;
-    var dIdx = 0;
-    for (var i = 0; i < dLvls.length; i++) {
-      if (dLvls[i] > dMax) {
-        dMax = dLvls[i];
-        dIdx = i;
-      }
-    }
-
-    var bandMin = Math.min(syncLvl, dMax === -Infinity ? syncLvl : Math.min.apply(null, dLvls));
-    if (!isFinite(bandMin)) bandMin = -140;
-    state.nf = state.nf == null ? bandMin : bandMin < state.nf ? bandMin : state.nf * 0.95 + bandMin * 0.05;
-
-    var strongest = Math.max(syncLvl, dMax);
-    els.levelMeter.textContent = t.signalLine(
-      isFinite(strongest) ? strongest.toFixed(0) : "—",
-      isFinite(state.nf) ? state.nf.toFixed(0) : "—"
-    );
+    // Running noise-floor estimate (min bin, slow rise) for waveform + events.
+    var b = state.buf;
+    var mn = Infinity;
+    for (var i = 1; i < b.length; i++) if (b[i] < mn) mn = b[i];
+    if (!isFinite(mn)) mn = -100;
+    state.nf = state.nf == null ? mn : mn < state.nf ? mn : state.nf * 0.95 + mn * 0.05;
 
     if (!state.recPaused) {
       updateDominantFreq();
       pushSpectroColumn();
       detectSignalEvents();
     }
-
-    var tnow = now();
-    if (state.fsm === "IDLE") {
-      var syncPresent =
-        isFinite(syncLvl) &&
-        syncLvl > state.nf + SYNC_MARGIN &&
-        syncLvl >= dMax - 2;
-      if (syncPresent && tnow - state.lastPacketEnd > REFRACTORY_MS) {
-        state.fsm = "CAP";
-        state.t0 = tnow;
-        state.syms = [];
-        state.levels = [];
-        state.nextAt = tnow + PROTO.symbolMs * 1.5;
-      }
-    } else if (state.fsm === "CAP") {
-      if (tnow >= state.nextAt) {
-        if (dMax > state.nf + DATA_MARGIN) {
-          state.syms.push(dIdx);
-          state.levels.push(dMax);
-        } else {
-          state.syms.push(-1);
-          state.levels.push(dMax);
-        }
-        state.nextAt += PROTO.symbolMs;
-        if (state.syms.length >= 4) {
-          finishPacket();
-          state.fsm = "IDLE";
-          state.lastPacketEnd = now();
-        }
-      }
-    }
-  }
-
-  function finishPacket() {
-    var s = state.syms;
-    if (s.length < 4 || s.some(function (x) { return x < 0; })) {
-      log(t.packetIncomplete(s.join(" ")));
-      return;
-    }
-    var d0 = s[0], d1 = s[1], d2 = s[2], chk = s[3];
-    if ((d0 + d1 + d2) % 8 !== chk) {
-      log(t.checksumFail(d0, d1, d2, chk));
-      return;
-    }
-    var id = d0 * 64 + d1 * 8 + d2;
-    var level = (state.levels[0] + state.levels[1] + state.levels[2]) / 3;
-    state.detections += 1;
-    state.lastLevel = level;
-    upsertNode(id, level);
-    els.detMeta.textContent = t.detections(state.detections);
-    log(t.decoded(id, level.toFixed(1)));
-  }
-
-  function distanceFromLevel(level) {
-    var r = Math.pow(10, (state.refLevel - level) / 20);
-    return Math.max(0.1, Math.min(60, r));
-  }
-
-  function upsertNode(id, level) {
-    var ts = Date.now();
-    var n = state.nodes.get(id);
-    if (!n) {
-      n = { id: id, firstSeen: ts, count: 0 };
-      state.nodes.set(id, n);
-    }
-    n.level = level;
-    n.dist = distanceFromLevel(level);
-    n.lastSeen = ts;
-    n.count += 1;
-    renderNodes();
-    renderMatrix();
-  }
-
-  function nodeAngle(id) {
-    var h = (id * 2654435761) % 360;
-    if (h < 0) h += 360;
-    return (h / 360) * 2 * Math.PI;
-  }
-
-  function nodePoint(n) {
-    var a = nodeAngle(n.id);
-    return { x: Math.cos(a) * n.dist, y: Math.sin(a) * n.dist };
-  }
-
-  function fmtDist(d) {
-    return d < 10 ? d.toFixed(2) + " m" : d.toFixed(1) + " m";
   }
 
   function ago(ts) {
     var s = Math.max(0, Math.round((Date.now() - ts) / 1000));
     if (s < 60) return s + " s";
-    return Math.floor(s / 60) + " min";
+    if (s < 3600) return Math.floor(s / 60) + " min";
+    return Math.floor(s / 3600) + " h";
   }
 
-  function nodesSorted() {
-    return Array.from(state.nodes.values()).sort(function (a, b) {
-      return a.id - b.id;
-    });
+  // ---- RX: decoded ALINK frame handling ----------------------------------
+  function bytesToHex(u8) {
+    var s = "";
+    for (var i = 0; i < u8.length; i++) {
+      s += (u8[i] < 16 ? "0" : "") + u8[i].toString(16);
+    }
+    return s || "—";
   }
 
-  function renderNodes() {
-    var list = nodesSorted();
-    if (!list.length) {
-      els.nodesBody.innerHTML =
-        '<tr class="empty"><td colspan="4">' + t.emptyNodes + "</td></tr>";
+  function bytesToText(u8) {
+    if (!u8.length) return "—";
+    var s = "";
+    for (var i = 0; i < u8.length; i++) {
+      var c = u8[i];
+      s += c >= 32 && c < 127 ? String.fromCharCode(c) : ".";
+    }
+    return s;
+  }
+
+  function flagsText(fl) {
+    var A = ALINK.FLAG;
+    var p = [];
+    if (fl & A.SYNCED) p.push("S");
+    if (fl & A.ACK_REQ) p.push("A");
+    if (fl & A.ENCRYPTED) p.push("E");
+    return p.length ? p.join("") : "—";
+  }
+
+  function handleFrame(frame) {
+    frame.at = Date.now();
+    state.rx.unshift(frame);
+    if (state.rx.length > 60) state.rx.length = 60;
+
+    var peer = state.peers.get(frame.nodeId);
+    if (!peer) {
+      peer = { id: frame.nodeId, count: 0, lastSeq: -1, rho: 0, synced: false, at: 0 };
+      state.peers.set(frame.nodeId, peer);
+    }
+    peer.count += 1;
+    peer.lastSeq = frame.seq;
+    peer.rho = frame.rho;
+    peer.synced = !!(frame.flags & ALINK.FLAG.SYNCED);
+    peer.type = frame.typeName;
+    peer.at = frame.at;
+
+    renderReceived();
+    renderPeers();
+    renderRxStats();
+    log(
+      "RX " + frame.typeName + " node " + frame.nodeId + " seq " + frame.seq +
+        " rho " + frame.rho.toFixed(2) + " pl[" + frame.len + "] " + bytesToText(frame.payload)
+    );
+  }
+
+  function renderRxStats() {
+    if (!els.rxStats) return;
+    var st = state.demod ? state.demod.stats : state.rxStats;
+    els.rxStats.textContent = t.rxStats(st.decoded, st.badCrc, st.detects);
+  }
+
+  function renderReceived() {
+    if (!els.rxBody) return;
+    if (!state.rx.length) {
+      els.rxBody.innerHTML =
+        '<tr class="empty"><td colspan="7">' + t.rxEmpty + "</td></tr>";
       return;
     }
-    els.nodesBody.innerHTML = list
-      .map(function (n) {
+    els.rxBody.innerHTML = state.rx
+      .map(function (f) {
         return (
-          "<tr><td class='node-id'>#" +
-          n.id +
-          "</td><td>" +
-          fmtDist(n.dist) +
-          "</td><td>" +
-          n.level.toFixed(0) +
-          " dB</td><td>" +
-          ago(n.lastSeen) +
-          "</td></tr>"
+          "<tr><td>" + ago(f.at) + "</td><td class='node-id'>" + f.nodeId +
+          "</td><td>" + f.typeName + "</td><td>" + f.seq + "</td><td>" + flagsText(f.flags) +
+          "</td><td title='" + bytesToHex(f.payload) + "'>" + bytesToText(f.payload) +
+          "</td><td>" + f.rho.toFixed(2) + "</td></tr>"
         );
       })
       .join("");
   }
 
-  function renderMatrix() {
-    var list = nodesSorted();
-    if (list.length < 2) {
-      els.matrix.textContent = t.needTwoNodes;
+  function renderPeers() {
+    if (!els.peersBody) return;
+    var list = Array.from(state.peers.values()).sort(function (a, b) {
+      return a.id - b.id;
+    });
+    if (!list.length) {
+      els.peersBody.innerHTML =
+        '<tr class="empty"><td colspan="5">' + t.peersEmpty + "</td></tr>";
       return;
     }
-    var pts = list.map(nodePoint);
-    var html = "<table><thead><tr><th></th>";
-    list.forEach(function (n) {
-      html += "<th>#" + n.id + "</th>";
-    });
-    html += "</tr></thead><tbody>";
-    for (var i = 0; i < list.length; i++) {
-      html += "<tr><th>#" + list[i].id + "</th>";
-      for (var j = 0; j < list.length; j++) {
-        if (i === j) {
-          html += "<td>—</td>";
-        } else {
-          var dx = pts[i].x - pts[j].x;
-          var dy = pts[i].y - pts[j].y;
-          html += "<td>" + Math.hypot(dx, dy).toFixed(1) + "</td>";
-        }
-      }
-      html += "</tr>";
+    els.peersBody.innerHTML = list
+      .map(function (p) {
+        return (
+          "<tr><td class='node-id'>" + p.id + "</td><td>" + p.count + "</td><td>" +
+          p.lastSeq + "</td><td>" + p.rho.toFixed(2) + "</td><td>" +
+          (p.synced ? "✓" : "—") + "</td></tr>"
+        );
+      })
+      .join("");
+  }
+
+  function clearReceived() {
+    state.rx = [];
+    state.peers.clear();
+    if (state.demod) state.demod.stats = { detects: 0, decoded: 0, badCrc: 0 };
+    renderReceived();
+    renderPeers();
+    renderRxStats();
+    log(t.rxCleared);
+  }
+
+  function refreshAges() {
+    if (state.rx.length) renderReceived();
+  }
+
+  // ---- TX form + sent queue ----------------------------------------------
+  function payloadFromInput() {
+    var txt = els.txPayload ? els.txPayload.value : "";
+    var bytes = [];
+    for (var i = 0; i < txt.length && bytes.length < ALINK.CONST.PAYLOAD_MAX; i++) {
+      var c = txt.charCodeAt(i);
+      if (c < 256) bytes.push(c);
     }
-    html += "</tbody></table>";
-    els.matrix.innerHTML = html;
+    return new Uint8Array(bytes);
+  }
+
+  function updatePayloadLen() {
+    if (!els.txPayloadLen) return;
+    var n = payloadFromInput().length;
+    els.txPayloadLen.textContent = n + "/" + ALINK.CONST.PAYLOAD_MAX + " B";
+  }
+
+  function currentTxFields() {
+    var flags = 0;
+    if (els.txSynced && els.txSynced.checked) flags |= ALINK.FLAG.SYNCED;
+    if (els.txAck && els.txAck.checked) flags |= ALINK.FLAG.ACK_REQ;
+    if (els.txEnc && els.txEnc.checked) flags |= ALINK.FLAG.ENCRYPTED;
+    var nonce = parseInt((els.txNonce && els.txNonce.value) || "0", 16) >>> 0;
+    return {
+      nodeId: parseInt(els.txNode.value, 10) || 0,
+      type: parseInt(els.txType.value, 10) || ALINK.TYPE.BEACON,
+      seq: (parseInt(els.txSeq.value, 10) || 0) & 0xff,
+      flags: flags,
+      keyId: (parseInt((els.txKeyId && els.txKeyId.value) || "0", 10) || 0) & 0xff,
+      nonce: nonce,
+      payload: payloadFromInput(),
+    };
+  }
+
+  function loadTxFields(f) {
+    els.txNode.value = String(f.nodeId);
+    els.txType.value = String(f.type);
+    els.txSeq.value = String(f.seq);
+    if (els.txSynced) els.txSynced.checked = !!(f.flags & ALINK.FLAG.SYNCED);
+    if (els.txAck) els.txAck.checked = !!(f.flags & ALINK.FLAG.ACK_REQ);
+    if (els.txEnc) els.txEnc.checked = !!(f.flags & ALINK.FLAG.ENCRYPTED);
+    if (els.txKeyId) els.txKeyId.value = String(f.keyId || 0);
+    if (els.txNonce) els.txNonce.value = (f.nonce >>> 0).toString(16);
+    if (els.txPayload) {
+      var s = "";
+      for (var i = 0; i < f.payload.length; i++) s += String.fromCharCode(f.payload[i]);
+      els.txPayload.value = s;
+    }
+    updatePayloadLen();
+  }
+
+  function doTransmit(fields) {
+    var gain = els.txGain ? (parseInt(els.txGain.value, 10) || 60) / 100 : 0.6;
+    var dur = transmitFrame(fields, gain);
+    log(
+      "TX " + (ALINK.TYPE_NAME[fields.type] || "?") + " node " + fields.nodeId +
+        " seq " + fields.seq + " · " + dur.toFixed(1) + " s"
+    );
+    if (els.txInfo) els.txInfo.textContent = t.txAir(dur.toFixed(1));
+    if (els.txSeqAuto && els.txSeqAuto.checked) {
+      els.txSeq.value = String(((fields.seq + 1) & 0xff));
+    }
+  }
+
+  function renderQueue() {
+    if (!els.queueList) return;
+    if (!state.queue.length) {
+      els.queueList.innerHTML = '<li class="queue-empty">' + t.queueEmpty + "</li>";
+      return;
+    }
+    els.queueList.innerHTML = state.queue
+      .map(function (f, i) {
+        var summary =
+          (ALINK.TYPE_NAME[f.type] || "?") + " · n" + f.nodeId + " · s" + f.seq +
+          " · " + (f.payload.length ? bytesToText(f.payload) : "—");
+        return (
+          '<li class="queue-item"><span class="queue-sum">' + summary + "</span>" +
+          '<span class="queue-actions">' +
+          '<button class="btn btn-ghost btn-sm" data-q="load" data-i="' + i + '">' + t.qLoad + "</button>" +
+          '<button class="btn btn-ghost btn-sm" data-q="send" data-i="' + i + '">' + t.qSend + "</button>" +
+          '<button class="btn btn-ghost btn-sm" data-q="del" data-i="' + i + '">' + t.qDel + "</button>" +
+          "</span></li>"
+        );
+      })
+      .join("");
+  }
+
+  function snapshotFields(f) {
+    return {
+      nodeId: f.nodeId,
+      type: f.type,
+      seq: f.seq,
+      flags: f.flags,
+      keyId: f.keyId,
+      nonce: f.nonce,
+      payload: f.payload.slice(),
+    };
   }
 
   function fmtHz(hz) {
@@ -1816,84 +1923,6 @@
     canvas.addEventListener("pointercancel", endDrag);
   }
 
-  function drawRadar() {
-    var c = els.radar;
-    var ctx = c.getContext("2d");
-    var W = c.width,
-      H = c.height;
-    var cx = W / 2,
-      cy = H / 2;
-    var pad = 46;
-    var maxR = Math.min(W, H) / 2 - pad;
-    ctx.clearRect(0, 0, W, H);
-
-    var list = nodesSorted();
-    var maxDist = 4;
-    list.forEach(function (n) {
-      if (n.dist > maxDist) maxDist = n.dist;
-    });
-    maxDist = Math.ceil(maxDist);
-    var scale = maxR / maxDist;
-
-    ctx.strokeStyle = cssVar("--radar-ring", "rgba(148,163,184,0.22)");
-    ctx.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.8)");
-    ctx.font = "18px Manrope, sans-serif";
-    ctx.textAlign = "left";
-    var rings = 4;
-    for (var k = 1; k <= rings; k++) {
-      var rr = (maxR * k) / rings;
-      ctx.beginPath();
-      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillText(((maxDist * k) / rings).toFixed(0) + " m", cx + 4, cy - rr + 16);
-    }
-    ctx.beginPath();
-    ctx.moveTo(cx - maxR, cy);
-    ctx.lineTo(cx + maxR, cy);
-    ctx.moveTo(cx, cy - maxR);
-    ctx.lineTo(cx, cy + maxR);
-    ctx.stroke();
-
-    ctx.fillStyle = cssVar("--blue", "#3b82f6");
-    ctx.beginPath();
-    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.9)");
-    ctx.fillText(t.phone, cx + 14, cy + 5);
-
-    ctx.textAlign = "center";
-    list.forEach(function (n) {
-      var a = nodeAngle(n.id);
-      var r = Math.min(maxR, n.dist * scale);
-      var x = cx + Math.cos(a) * r;
-      var y = cy + Math.sin(a) * r;
-      var fresh = Date.now() - n.lastSeen < 4000;
-      ctx.fillStyle = fresh ? cssVar("--teal", "#1fbfa0") : "rgba(31,191,160,0.4)";
-      ctx.beginPath();
-      ctx.arc(x, y, 11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = cssVar("--radar-node-text", "#eef3f6");
-      ctx.font = "700 18px Manrope, sans-serif";
-      ctx.fillText("#" + n.id, x, y - 16);
-      ctx.font = "15px Manrope, sans-serif";
-      ctx.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.9)");
-      ctx.fillText(fmtDist(n.dist), x, y + 28);
-    });
-
-    if (!list.length) {
-      ctx.fillStyle = cssVar("--radar-waiting", "rgba(154,168,181,0.7)");
-      ctx.font = "20px Manrope, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(t.waitingChirp, cx, cy - maxR - 12);
-    }
-  }
-
-  function drawLoop() {
-    drawRadar();
-    if (state.nodes.size) renderNodes();
-    state.raf = requestAnimationFrame(drawLoop);
-  }
-
   async function startMic() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showPermWarn(t.noGetUserMedia);
@@ -1922,10 +1951,12 @@
       src.connect(state.analyser);
       state.buf = new Float32Array(state.analyser.frequencyBinCount);
       state.timeBuf = new Float32Array(state.analyser.fftSize);
-      state.syncBin = binOf(PROTO.syncFreq);
-      state.dataBins = PROTO.dataFreqs.map(binOf);
       ensureWav(state.ctx.sampleRate);
-      // PCM tap for WAV (silent sink — no monitoring feedback)
+      // ALINK receiver over the raw mono mic stream.
+      if (typeof ALINK !== "undefined") {
+        state.demod = new ALINK.Demod(state.ctx.sampleRate);
+      }
+      // PCM tap: feeds the WAV recorder and the ALINK demodulator.
       try {
         var proc = state.ctx.createScriptProcessor(2048, 1, 1);
         var mute = state.ctx.createGain();
@@ -1935,22 +1966,29 @@
         mute.connect(state.ctx.destination);
         proc.onaudioprocess = function (ev) {
           if (!state.running || state.recPaused) return;
-          pushWavSamples(ev.inputBuffer.getChannelData(0));
+          var ch = ev.inputBuffer.getChannelData(0);
+          pushWavSamples(ch);
+          if (state.demod) {
+            var frames = state.demod.push(ch);
+            for (var fi = 0; fi < frames.length; fi++) handleFrame(frames[fi]);
+            if (frames.length || (state.demod.stats.detects && !(state.rxTick++ & 15))) {
+              renderRxStats();
+            }
+          }
         };
         state.wavProc = proc;
         state.wavMute = mute;
       } catch (wavErr) {
-        log("WAV capture unavailable: " + (wavErr && wavErr.message ? wavErr.message : wavErr));
+        log("WAV/RX capture unavailable: " + (wavErr && wavErr.message ? wavErr.message : wavErr));
       }
       state.running = true;
       state.recPaused = false;
-      state.fsm = "IDLE";
       state.nf = null;
-      state.lastPacketEnd = 0;
       els.permWarn.hidden = true;
       els.micBtn.textContent = t.stopMic;
       setStatus("on", t.listening);
       updateSpectroControls();
+      renderRxStats();
       log(
         t.micStarted(
           state.ctx.sampleRate,
@@ -1958,7 +1996,7 @@
         )
       );
       state.pollTimer = setInterval(poll, 12);
-      if (!state.raf) drawLoop();
+      if (!state.ageTimer) state.ageTimer = setInterval(refreshAges, 1000);
     } catch (e) {
       showPermWarn(t.micFailed(e && e.message ? e.message : e));
       setStatus("err", t.error);
@@ -1988,6 +2026,11 @@
       state.wavMute = null;
     }
     state.micSrc = null;
+    state.demod = null;
+    if (state.ageTimer) {
+      clearInterval(state.ageTimer);
+      state.ageTimer = 0;
+    }
     if (state.stream)
       state.stream.getTracks().forEach(function (tr) {
         tr.stop();
@@ -1998,7 +2041,6 @@
     state.ctx = null;
     els.micBtn.textContent = t.startMic;
     setStatus("", t.idle);
-    els.levelMeter.textContent = t.signalDash;
     if (els.domFreq) els.domFreq.textContent = t.freqDash;
     state.domHz = null;
     state.domDb = null;
@@ -2028,47 +2070,46 @@
     else startMic();
   });
 
-  els.calibrateBtn.addEventListener("click", function () {
-    if (state.lastLevel == null) {
-      log(t.calibNoSignal);
-      return;
-    }
-    state.refLevel = state.lastLevel;
-    state.nodes.forEach(function (n) {
-      n.dist = distanceFromLevel(n.level);
+  if (els.rxClear) els.rxClear.addEventListener("click", clearReceived);
+
+  if (els.txPayload) els.txPayload.addEventListener("input", updatePayloadLen);
+
+  if (els.txSend) {
+    els.txSend.addEventListener("click", function () {
+      doTransmit(currentTxFields());
     });
-    renderNodes();
-    renderMatrix();
-    log(t.calibrated(state.refLevel.toFixed(1)));
-  });
+  }
 
-  els.clearBtn.addEventListener("click", function () {
-    state.nodes.clear();
-    state.detections = 0;
-    els.detMeta.textContent = t.detections(0);
-    renderNodes();
-    renderMatrix();
-    log(t.nodesCleared);
-  });
+  if (els.txQueueAdd) {
+    els.txQueueAdd.addEventListener("click", function () {
+      state.queue.push(snapshotFields(currentTxFields()));
+      renderQueue();
+    });
+  }
 
-  els.emitBtn.addEventListener("click", function () {
-    emitChirp(parseInt(els.emitId.value, 10) || 0, (parseInt(els.emitGain.value, 10) || 0) / 100);
-  });
+  if (els.queueClear) {
+    els.queueClear.addEventListener("click", function () {
+      state.queue = [];
+      renderQueue();
+    });
+  }
 
-  els.emitLoop.addEventListener("change", function () {
-    if (emitLoopTimer) {
-      clearInterval(emitLoopTimer);
-      emitLoopTimer = 0;
-    }
-    if (els.emitLoop.checked) {
-      emitLoopTimer = setInterval(function () {
-        emitChirp(
-          parseInt(els.emitId.value, 10) || 0,
-          (parseInt(els.emitGain.value, 10) || 0) / 100
-        );
-      }, 2000);
-    }
-  });
+  if (els.queueList) {
+    els.queueList.addEventListener("click", function (ev) {
+      var btn = ev.target.closest ? ev.target.closest("button[data-q]") : null;
+      if (!btn) return;
+      var i = parseInt(btn.getAttribute("data-i"), 10);
+      var action = btn.getAttribute("data-q");
+      var item = state.queue[i];
+      if (!item) return;
+      if (action === "load") loadTxFields(item);
+      else if (action === "send") doTransmit(snapshotFields(item));
+      else if (action === "del") {
+        state.queue.splice(i, 1);
+        renderQueue();
+      }
+    });
+  }
 
   function fmtDateTime(d) {
     function p(n) {
@@ -2112,6 +2153,10 @@
   bindSpectroControls();
   clearSpectro();
   renderEventCounts();
-  drawRadar();
+  renderReceived();
+  renderPeers();
+  renderRxStats();
+  renderQueue();
+  updatePayloadLen();
   log(t.ready);
 })();
