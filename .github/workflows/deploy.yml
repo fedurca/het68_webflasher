@@ -10,9 +10,24 @@ on:
   repository_dispatch:
     types: [qr_scrambler_updated]
 
+# Never run two deploys at once; let an in-flight deploy finish.
+concurrency:
+  group: cloudflare-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Only this repo, and manual runs only from main — secrets never reach
+    # forks or feature branches.
+    if: >-
+      github.repository == 'fedurca/het68_webflasher' &&
+      (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    # Scopes CLOUDFLARE_* secrets to this environment. In repo Settings →
+    # Environments → production you can restrict deployment branches to `main`.
+    environment:
+      name: production
+      url: https://het68.cz
     permissions:
       contents: read
       deployments: write
@@ -35,8 +50,10 @@ jobs:
       - name: Fetch latest qr_scrambler
         run: npm run fetch:qr
 
+      # Pinned to a full commit SHA (cloudflare/wrangler-action v3.15.0) for
+      # supply-chain safety; bump deliberately when upgrading.
       - name: Deploy
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
