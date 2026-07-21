@@ -190,10 +190,12 @@
             <label class="check"><input type="checkbox" id="txSeqAuto" checked /> auto seq++</label>
           </div>
           <div class="emit-actions">
-            <button id="txSend" class="btn btn-blue" type="button">Vyslat chirp</button>
+            <button id="txSend" class="btn btn-blue" type="button">Vyslat rámec (~7,2 s)</button>
+            <button id="txShort" class="btn btn-teal btn-sm" type="button">Krátký test (~0,25 s)</button>
+            <button id="txStop" class="btn btn-ghost btn-sm" type="button">Stop</button>
             <button id="txQueueAdd" class="btn btn-ghost btn-sm" type="button">Přidat do zásobníku</button>
           </div>
-          <p id="txInfo" class="hint"></p>
+          <p id="txInfo" class="hint">Celý rámec dle spec trvá ~7,2 s (127+3472 čipů). Pro rychlé ověření použij Krátký test.</p>
         </div>
 
         <div class="card">

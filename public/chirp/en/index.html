@@ -190,10 +190,12 @@
             <label class="check"><input type="checkbox" id="txSeqAuto" checked /> auto seq++</label>
           </div>
           <div class="emit-actions">
-            <button id="txSend" class="btn btn-blue" type="button">Transmit chirp</button>
+            <button id="txSend" class="btn btn-blue" type="button">Transmit frame (~7.2 s)</button>
+            <button id="txShort" class="btn btn-teal btn-sm" type="button">Short test (~0.25 s)</button>
+            <button id="txStop" class="btn btn-ghost btn-sm" type="button">Stop</button>
             <button id="txQueueAdd" class="btn btn-ghost btn-sm" type="button">Add to queue</button>
           </div>
-          <p id="txInfo" class="hint"></p>
+          <p id="txInfo" class="hint">A full spec frame lasts ~7.2 s (127+3472 chips). Use Short test for a quick check.</p>
         </div>
 
         <div class="card">

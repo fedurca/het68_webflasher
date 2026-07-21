@@ -218,7 +218,8 @@
   function modulate(chips, fs, opts) {
     opts = opts || {};
     var gain = opts.gain == null ? 0.6 : opts.gain;
-    var samplesPerChip = fs * (C.CHIP_MS / 1000);
+    var chipMs = opts.chipMs || C.CHIP_MS;
+    var samplesPerChip = fs * (chipMs / 1000);
     var total = Math.round(chips.length * samplesPerChip);
     var out = new Float32Array(total);
     var w = 2 * Math.PI * C.CARRIER_HZ / fs;
@@ -240,7 +241,8 @@
     opts = opts || {};
     this.fs = fs;
     this.w = (2 * Math.PI * C.CARRIER_HZ) / fs;
-    this.samplesPerChip = fs * (C.CHIP_MS / 1000);
+    this.chipMs = opts.chipMs || C.CHIP_MS;
+    this.samplesPerChip = fs * (this.chipMs / 1000);
     this.detectRho = opts.detectRho == null ? C.DETECT_RHO : opts.detectRho;
     this.detectEmin = opts.detectEmin == null ? C.DETECT_EMIN : opts.detectEmin;
     this.reset();
