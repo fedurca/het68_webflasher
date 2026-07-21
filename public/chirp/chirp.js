@@ -72,6 +72,11 @@
       freqLine: function (hz, db) {
         return "dominantní " + hz + " · " + db + " dB";
       },
+      axisFreq: "Frekvence (kHz)",
+      axisTime: "Čas (s)",
+      legendDom: "dominantní f",
+      legendNow: "teď",
+      spectroHint: "osa Y = frekvence · osa X = čas · čára = dominantní f",
     },
     en: {
       locale: "en-US",
@@ -124,6 +129,11 @@
       freqLine: function (hz, db) {
         return "dominant " + hz + " · " + db + " dB";
       },
+      axisFreq: "Frequency (kHz)",
+      axisTime: "Time (s)",
+      legendDom: "dominant f",
+      legendNow: "now",
+      spectroHint: "Y = frequency · X = time · line = dominant f",
     },
     de: {
       locale: "de-DE",
@@ -176,6 +186,11 @@
       freqLine: function (hz, db) {
         return "dominant " + hz + " · " + db + " dB";
       },
+      axisFreq: "Frequenz (kHz)",
+      axisTime: "Zeit (s)",
+      legendDom: "dominante f",
+      legendNow: "jetzt",
+      spectroHint: "Y = Frequenz · X = Zeit · Linie = dominante f",
     },
   };
 
@@ -232,12 +247,17 @@
     domHz: null,
     domDb: null,
     spectroReady: false,
+    spectroPlot: null,
+    domHist: null,
+    spectroCols: 0,
+    spectroColMs: 12,
   };
 
   var SPEC_FMIN = 0;
   var SPEC_FMAX = 20000;
   var SPEC_DB_MIN = -100;
   var SPEC_DB_MAX = -20;
+  var SPEC_PAD = { l: 54, r: 14, t: 18, b: 36 };
 
   function now() {
     return performance.now();
@@ -283,6 +303,7 @@
     applyTheme(currentTheme());
     els.themeToggle.addEventListener("click", function () {
       applyTheme(currentTheme() === "light" ? "dark" : "light");
+      if (state.spectroReady) drawSpectroFrame();
     });
   }
 
@@ -555,29 +576,199 @@
     return "rgb(" + r + "," + g + "," + b + ")";
   }
 
-  function clearSpectro() {
+  function spectroLayout() {
+    var c = els.spectro;
+    var W = c.width;
+    var H = c.height;
+    var pad = SPEC_PAD;
+    return {
+      W: W,
+      H: H,
+      pad: pad,
+      plotX: pad.l,
+      plotY: pad.t,
+      plotW: W - pad.l - pad.r,
+      plotH: H - pad.t - pad.b,
+    };
+  }
+
+  function freqToY(freq, plotY, plotH) {
+    var frac = (SPEC_FMAX - freq) / (SPEC_FMAX - SPEC_FMIN);
+    if (frac < 0) frac = 0;
+    if (frac > 1) frac = 1;
+    return plotY + frac * (plotH - 1);
+  }
+
+  function ensureSpectroBuffers() {
+    var lay = spectroLayout();
+    if (
+      state.spectroPlot &&
+      state.spectroPlot.width === lay.plotW &&
+      state.spectroPlot.height === lay.plotH &&
+      state.domHist &&
+      state.domHist.length === lay.plotW
+    ) {
+      return lay;
+    }
+    state.spectroPlot = document.createElement("canvas");
+    state.spectroPlot.width = lay.plotW;
+    state.spectroPlot.height = lay.plotH;
+    var pg = state.spectroPlot.getContext("2d");
+    pg.fillStyle = "#05080a";
+    pg.fillRect(0, 0, lay.plotW, lay.plotH);
+    state.domHist = new Float32Array(lay.plotW);
+    for (var i = 0; i < lay.plotW; i++) state.domHist[i] = NaN;
+    state.spectroCols = 0;
+    return lay;
+  }
+
+  function drawSpectroFrame() {
     var c = els.spectro;
     if (!c) return;
+    var lay = ensureSpectroBuffers();
     var g = c.getContext("2d");
-    g.fillStyle = cssVar("--bg", "#05080a");
-    g.fillRect(0, 0, c.width, c.height);
-    // frequency guide lines for chirp band
-    g.strokeStyle = "rgba(148,163,184,0.18)";
-    g.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.7)");
-    g.font = "12px Manrope, sans-serif";
-    g.textAlign = "left";
-    var marks = [0, 5000, 10000, 14500, 18500, 20000];
+    var pad = lay.pad;
+
+    g.fillStyle = cssVar("--bg-card", "#0f1720");
+    g.fillRect(0, 0, lay.W, lay.H);
+
+    // plot background + spectro image
+    g.fillStyle = "#05080a";
+    g.fillRect(lay.plotX, lay.plotY, lay.plotW, lay.plotH);
+    g.drawImage(state.spectroPlot, lay.plotX, lay.plotY);
+
+    // horizontal grid + Y ticks (frequency)
+    var marks = [0, 2500, 5000, 7500, 10000, 12500, 15000, 17500, 20000];
+    g.font = "11px Manrope, sans-serif";
+    g.fillStyle = cssVar("--muted", "#9aa8b5");
+    g.strokeStyle = "rgba(148,163,184,0.16)";
+    g.lineWidth = 1;
+    g.textAlign = "right";
+    g.textBaseline = "middle";
     for (var i = 0; i < marks.length; i++) {
       var f = marks[i];
-      if (f < SPEC_FMIN || f > SPEC_FMAX) continue;
-      var y = ((SPEC_FMAX - f) / (SPEC_FMAX - SPEC_FMIN)) * (c.height - 1);
+      var y = freqToY(f, lay.plotY, lay.plotH);
       g.beginPath();
-      g.moveTo(0, y);
-      g.lineTo(c.width, y);
+      g.moveTo(lay.plotX, y);
+      g.lineTo(lay.plotX + lay.plotW, y);
       g.stroke();
-      g.fillText(f >= 1000 ? f / 1000 + "k" : String(f), 4, y + 11);
+      g.fillText((f / 1000).toFixed(f % 1000 === 0 ? 0 : 1), lay.plotX - 8, y);
     }
+
+    // chirp band markers
+    function bandLine(freq, color) {
+      var yb = freqToY(freq, lay.plotY, lay.plotH);
+      g.strokeStyle = color;
+      g.setLineDash([4, 4]);
+      g.beginPath();
+      g.moveTo(lay.plotX, yb);
+      g.lineTo(lay.plotX + lay.plotW, yb);
+      g.stroke();
+      g.setLineDash([]);
+    }
+    bandLine(PROTO.syncFreq, "rgba(59,130,246,0.55)");
+    bandLine(PROTO.dataFreqs[0], "rgba(31,191,160,0.4)");
+    bandLine(PROTO.dataFreqs[7], "rgba(31,191,160,0.4)");
+
+    // dominant frequency graph
+    if (state.domHist) {
+      g.strokeStyle = "#f59e0b";
+      g.lineWidth = 2;
+      g.lineJoin = "round";
+      g.beginPath();
+      var started = false;
+      for (var x = 0; x < lay.plotW; x++) {
+        var hz = state.domHist[x];
+        if (!isFinite(hz)) {
+          started = false;
+          continue;
+        }
+        var yy = freqToY(hz, lay.plotY, lay.plotH);
+        if (!started) {
+          g.moveTo(lay.plotX + x, yy);
+          started = true;
+        } else {
+          g.lineTo(lay.plotX + x, yy);
+        }
+      }
+      g.stroke();
+
+      // latest point
+      if (isFinite(state.domHz)) {
+        var lx = lay.plotX + lay.plotW - 1;
+        var ly = freqToY(state.domHz, lay.plotY, lay.plotH);
+        g.fillStyle = "#f59e0b";
+        g.beginPath();
+        g.arc(lx, ly, 3.5, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+
+    // plot border
+    g.strokeStyle = cssVar("--line", "rgba(148,163,184,0.3)");
+    g.lineWidth = 1;
+    g.strokeRect(lay.plotX + 0.5, lay.plotY + 0.5, lay.plotW - 1, lay.plotH - 1);
+
+    // X ticks (time) — right edge = now
+    var spanSec = (lay.plotW * state.spectroColMs) / 1000;
+    var tickStep = spanSec > 12 ? 2 : spanSec > 6 ? 1 : 0.5;
+    g.textAlign = "center";
+    g.textBaseline = "top";
+    g.fillStyle = cssVar("--muted", "#9aa8b5");
+    g.strokeStyle = "rgba(148,163,184,0.22)";
+    for (var sec = 0; sec <= spanSec + 0.001; sec += tickStep) {
+      var frac = 1 - sec / spanSec;
+      var tx = lay.plotX + frac * (lay.plotW - 1);
+      g.beginPath();
+      g.moveTo(tx, lay.plotY + lay.plotH);
+      g.lineTo(tx, lay.plotY + lay.plotH + 5);
+      g.stroke();
+      var label = sec === 0 ? t.legendNow : (-sec).toFixed(sec % 1 === 0 ? 0 : 1);
+      g.fillText(label, tx, lay.plotY + lay.plotH + 8);
+    }
+
+    // axis titles
+    g.fillStyle = cssVar("--muted", "#9aa8b5");
+    g.font = "700 11px Manrope, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "bottom";
+    g.fillText(t.axisTime, lay.plotX + lay.plotW / 2, lay.H - 2);
+
+    g.save();
+    g.translate(14, lay.plotY + lay.plotH / 2);
+    g.rotate(-Math.PI / 2);
+    g.textBaseline = "middle";
+    g.fillText(t.axisFreq, 0, 0);
+    g.restore();
+
+    // legend (top-right of plot)
+    g.font = "700 11px Manrope, sans-serif";
+    g.textAlign = "left";
+    g.textBaseline = "middle";
+    var legX = lay.plotX + 10;
+    var legY = lay.plotY + 12;
+    g.fillStyle = "rgba(5,8,10,0.55)";
+    g.fillRect(legX - 4, legY - 9, 118, 18);
+    g.strokeStyle = "#f59e0b";
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(legX, legY);
+    g.lineTo(legX + 18, legY);
+    g.stroke();
+    g.fillStyle = "#f59e0b";
+    g.fillText(t.legendDom, legX + 24, legY);
+
     state.spectroReady = true;
+  }
+
+  function clearSpectro() {
+    ensureSpectroBuffers();
+    var pg = state.spectroPlot.getContext("2d");
+    pg.fillStyle = "#05080a";
+    pg.fillRect(0, 0, state.spectroPlot.width, state.spectroPlot.height);
+    for (var i = 0; i < state.domHist.length; i++) state.domHist[i] = NaN;
+    state.spectroCols = 0;
+    drawSpectroFrame();
   }
 
   function updateDominantFreq() {
@@ -604,30 +795,30 @@
   function pushSpectroColumn() {
     var c = els.spectro;
     if (!c || !state.buf || !state.ctx) return;
-    if (!state.spectroReady) clearSpectro();
-    var g = c.getContext("2d");
-    var W = c.width;
-    var H = c.height;
-    g.drawImage(c, -1, 0);
+    var lay = ensureSpectroBuffers();
+    var plot = state.spectroPlot;
+    var pg = plot.getContext("2d");
+    var plotW = lay.plotW;
+    var plotH = lay.plotH;
+
+    pg.drawImage(plot, -1, 0);
+    // shift dominant history left
+    state.domHist.copyWithin(0, 1);
+    state.domHist[plotW - 1] = isFinite(state.domHz) ? state.domHz : NaN;
+
     var binHz = state.ctx.sampleRate / state.analyser.fftSize;
     var bin0 = Math.max(0, Math.floor(SPEC_FMIN / binHz));
     var bin1 = Math.min(state.buf.length - 1, Math.ceil(SPEC_FMAX / binHz));
-    var x = W - 1;
-    for (var y = 0; y < H; y++) {
-      var frac = y / (H - 1);
+    var x = plotW - 1;
+    for (var y = 0; y < plotH; y++) {
+      var frac = y / (plotH - 1);
       var bin = Math.round(bin1 - frac * (bin1 - bin0));
-      g.fillStyle = colorForDb(state.buf[bin]);
-      g.fillRect(x, y, 1, 1);
+      pg.fillStyle = colorForDb(state.buf[bin]);
+      pg.fillRect(x, y, 1, 1);
     }
-    // highlight SYNC / data band edge on the newest column
-    function markFreq(freq, color) {
-      var yy = ((SPEC_FMAX - freq) / (SPEC_FMAX - SPEC_FMIN)) * (H - 1);
-      g.fillStyle = color;
-      g.fillRect(x, Math.round(yy) - 1, 1, 3);
-    }
-    markFreq(PROTO.syncFreq, "rgba(59,130,246,0.9)");
-    markFreq(PROTO.dataFreqs[0], "rgba(31,191,160,0.7)");
-    markFreq(PROTO.dataFreqs[7], "rgba(31,191,160,0.7)");
+
+    state.spectroCols += 1;
+    drawSpectroFrame();
   }
 
   function drawRadar() {
