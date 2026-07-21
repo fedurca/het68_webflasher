@@ -84,6 +84,8 @@
           </div>
           <div class="spectro-controls">
             <button id="spectroLive" class="btn btn-ghost btn-sm is-active" type="button">Živě</button>
+            <button id="recPause" class="btn btn-ghost btn-sm" type="button">Pauza</button>
+            <button id="recDownload" class="btn btn-ghost btn-sm" type="button" disabled>Stáhnout WAV</button>
             <label class="spectro-field">
               <span>Měřítko</span>
               <input id="spectroZoom" type="range" min="0" max="6" value="2" />
@@ -92,7 +94,7 @@
               <span>Posun v historii</span>
               <input id="spectroScroll" type="range" min="0" max="1" value="1" />
             </label>
-            <button id="spectroClear" class="btn btn-ghost btn-sm" type="button">Smazat historii</button>
+            <button id="spectroClear" class="btn btn-ghost btn-sm" type="button">Smazat záznam</button>
           </div>
           <div class="radar-meta">
             <span id="domFreq" class="mono">dominantní —</span>

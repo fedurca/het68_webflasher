@@ -89,6 +89,20 @@
         return "spektrogram: uvolňuji paměť, zahazuji data starší než ~" + sec + " s";
       },
       spectroCleared: "historie spektrogramu smazána",
+      evWhistle: "písknutí",
+      evClap: "tlesknutí",
+      evSmack: "mlasknutí",
+      recPause: "Pauza",
+      recResume: "Pokračovat",
+      recDownload: "Stáhnout WAV",
+      recPausedStatus: "pauza záznamu",
+      wavEmpty: "není co stáhnout — nejdřív nahrávej",
+      wavSaved: function (sec) {
+        return "WAV uložen · " + sec + " s";
+      },
+      eventLog: function (name) {
+        return "event: " + name;
+      },
     },
     en: {
       locale: "en-US",
@@ -158,6 +172,20 @@
         return "spectrogram: freeing memory, dropping data older than ~" + sec + " s";
       },
       spectroCleared: "spectrogram history cleared",
+      evWhistle: "whistle",
+      evClap: "clap",
+      evSmack: "smack",
+      recPause: "Pause",
+      recResume: "Resume",
+      recDownload: "Download WAV",
+      recPausedStatus: "recording paused",
+      wavEmpty: "nothing to download — record first",
+      wavSaved: function (sec) {
+        return "WAV saved · " + sec + " s";
+      },
+      eventLog: function (name) {
+        return "event: " + name;
+      },
     },
     de: {
       locale: "de-DE",
@@ -227,6 +255,20 @@
         return "Spektrogramm: Speicher freigeben, Daten älter als ~" + sec + " s verwerfen";
       },
       spectroCleared: "Spektrogramm-Verlauf gelöscht",
+      evWhistle: "Pfiff",
+      evClap: "Klatschen",
+      evSmack: "Schmatzen",
+      recPause: "Pause",
+      recResume: "Weiter",
+      recDownload: "WAV laden",
+      recPausedStatus: "Aufnahme pausiert",
+      wavEmpty: "nichts zum Download — zuerst aufnehmen",
+      wavSaved: function (sec) {
+        return "WAV gespeichert · " + sec + " s";
+      },
+      eventLog: function (name) {
+        return "Event: " + name;
+      },
     },
   };
 
@@ -263,6 +305,8 @@
     spectroClear: document.getElementById("spectroClear"),
     spectroMem: document.getElementById("spectroMem"),
     spectroViewHint: document.getElementById("spectroViewHint"),
+    recPause: document.getElementById("recPause"),
+    recDownload: document.getElementById("recDownload"),
   };
 
   var state = {
@@ -305,6 +349,21 @@
     viewEnd: 0,
     colsPerPx: 1,
     dragScroll: null,
+    colSeq: 0,
+    events: [],
+    recPaused: false,
+    timeBuf: null,
+    rmsFloor: 0.004,
+    lastEventAt: 0,
+    whistleHold: 0,
+    micSrc: null,
+    wavProc: null,
+    wavMute: null,
+    wav: null, // Int16 ring
+    wavCap: 0,
+    wavHead: 0,
+    wavCount: 0,
+    wavRate: 0,
   };
 
   var SPEC_FMIN = 0;
@@ -422,6 +481,222 @@
     return m;
   }
 
+  function bandMeanDb(f0, f1) {
+    if (!state.ctx || !state.buf) return -140;
+    var binHz = state.ctx.sampleRate / state.analyser.fftSize;
+    var i0 = Math.max(1, Math.floor(f0 / binHz));
+    var i1 = Math.min(state.buf.length - 1, Math.ceil(f1 / binHz));
+    if (i1 <= i0) return -140;
+    var s = 0;
+    for (var i = i0; i <= i1; i++) s += state.buf[i];
+    return s / (i1 - i0 + 1);
+  }
+
+  function peakInBand(f0, f1) {
+    if (!state.ctx || !state.buf) return { db: -140, hz: 0 };
+    var binHz = state.ctx.sampleRate / state.analyser.fftSize;
+    var i0 = Math.max(1, Math.floor(f0 / binHz));
+    var i1 = Math.min(state.buf.length - 1, Math.ceil(f1 / binHz));
+    var best = -Infinity;
+    var bi = i0;
+    for (var i = i0; i <= i1; i++) {
+      if (state.buf[i] > best) {
+        best = state.buf[i];
+        bi = i;
+      }
+    }
+    return { db: best, hz: bi * binHz };
+  }
+
+  function ensureWav(rate) {
+    var maxSec = Math.max(30, Math.ceil((state.histCap * state.spectroColMs) / 1000) + 5);
+    var cap = Math.min(rate * maxSec, rate * 120);
+    if (state.wav && state.wavRate === rate && state.wavCap === cap) return;
+    state.wav = new Int16Array(cap);
+    state.wavCap = cap;
+    state.wavHead = 0;
+    state.wavCount = 0;
+    state.wavRate = rate;
+  }
+
+  function pushWavSamples(floatBuf) {
+    if (!state.wav || state.recPaused) return;
+    for (var i = 0; i < floatBuf.length; i++) {
+      var s = floatBuf[i];
+      if (s > 1) s = 1;
+      if (s < -1) s = -1;
+      state.wav[state.wavHead] = (s * 32767) | 0;
+      state.wavHead = (state.wavHead + 1) % state.wavCap;
+      if (state.wavCount < state.wavCap) state.wavCount += 1;
+    }
+  }
+
+  function trimWavToSec(sec) {
+    if (!state.wav || !state.wavRate) return;
+    var keep = Math.min(state.wavCount, Math.floor(sec * state.wavRate));
+    if (keep >= state.wavCount) return;
+    var packed = new Int16Array(state.wavCap);
+    var start = (state.wavHead - keep + state.wavCap * 4) % state.wavCap;
+    for (var i = 0; i < keep; i++) {
+      packed[i] = state.wav[(start + i) % state.wavCap];
+    }
+    state.wav = packed;
+    state.wavCount = keep;
+    state.wavHead = keep % state.wavCap;
+  }
+
+  function clearWav() {
+    if (state.wav) state.wav.fill(0);
+    state.wavHead = 0;
+    state.wavCount = 0;
+  }
+
+  function wavChronological() {
+    if (!state.wav || state.wavCount <= 0) return new Int16Array(0);
+    var out = new Int16Array(state.wavCount);
+    var start = (state.wavHead - state.wavCount + state.wavCap * 4) % state.wavCap;
+    for (var i = 0; i < state.wavCount; i++) {
+      out[i] = state.wav[(start + i) % state.wavCap];
+    }
+    return out;
+  }
+
+  function encodeWavBlob(samples, sampleRate) {
+    var n = samples.length;
+    var buf = new ArrayBuffer(44 + n * 2);
+    var v = new DataView(buf);
+    function str(o, s) {
+      for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
+    }
+    str(0, "RIFF");
+    v.setUint32(4, 36 + n * 2, true);
+    str(8, "WAVE");
+    str(12, "fmt ");
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true);
+    v.setUint32(24, sampleRate, true);
+    v.setUint32(28, sampleRate * 2, true);
+    v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true);
+    str(36, "data");
+    v.setUint32(40, n * 2, true);
+    var o = 44;
+    for (var i = 0; i < n; i++, o += 2) v.setInt16(o, samples[i], true);
+    return new Blob([buf], { type: "audio/wav" });
+  }
+
+  function downloadWav() {
+    var samples = wavChronological();
+    if (!samples.length || !state.wavRate) {
+      log(t.wavEmpty);
+      return;
+    }
+    var blob = encodeWavBlob(samples, state.wavRate);
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var sec = (samples.length / state.wavRate).toFixed(1);
+    a.href = url;
+    a.download = "het68-chirp-" + new Date().toISOString().replace(/[:.]/g, "-") + ".wav";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 2000);
+    log(t.wavSaved(sec));
+  }
+
+  function pruneEvents() {
+    var minSeq = state.colSeq - state.histCount;
+    if (state.events.length) {
+      state.events = state.events.filter(function (e) {
+        return e.seq >= minSeq;
+      });
+    }
+    if (state.events.length > 250) state.events = state.events.slice(-200);
+  }
+
+  function addEvent(type, freq) {
+    var label =
+      type === "whistle" ? t.evWhistle : type === "clap" ? t.evClap : t.evSmack;
+    state.events.push({
+      seq: state.colSeq,
+      type: type,
+      label: label,
+      freq: freq || 2500,
+    });
+    state.lastEventAt = now();
+    pruneEvents();
+    log(t.eventLog(label));
+    state.spectroDirty = true;
+  }
+
+  function detectAudioEvents() {
+    if (!state.analyser || !state.timeBuf || state.recPaused) return;
+    state.analyser.getFloatTimeDomainData(state.timeBuf);
+    var peak = 0;
+    var sum2 = 0;
+    var n = state.timeBuf.length;
+    for (var i = 0; i < n; i++) {
+      var x = state.timeBuf[i];
+      var ax = x < 0 ? -x : x;
+      if (ax > peak) peak = ax;
+      sum2 += x * x;
+    }
+    var rms = Math.sqrt(sum2 / n);
+    state.rmsFloor = state.rmsFloor * 0.995 + Math.min(rms, 0.05) * 0.005;
+
+    var eLow = bandMeanDb(80, 500);
+    var eMid = bandMeanDb(500, 3000);
+    var eHigh = bandMeanDb(3500, 12000);
+    var wh = peakInBand(1500, 4500);
+    var neigh = bandMeanDb(800, 1400);
+    var tnow = now();
+    if (tnow - state.lastEventAt < 180) return;
+
+    // Whistle: narrowband sustained tone
+    var narrow = wh.db - neigh > 14 && wh.db > (state.nf || -80) + 22;
+    if (narrow && peak > 0.02) {
+      state.whistleHold += 1;
+      if (state.whistleHold >= 5) {
+        addEvent("whistle", wh.hz);
+        state.whistleHold = 0;
+        return;
+      }
+    } else {
+      state.whistleHold = Math.max(0, state.whistleHold - 1);
+    }
+
+    // Clap: loud broadband impulse
+    var clap =
+      peak > 0.22 &&
+      rms > state.rmsFloor * 7 &&
+      eLow > -55 &&
+      eMid > -55 &&
+      eHigh > -60 &&
+      Math.abs(eLow - eHigh) < 22;
+    if (clap) {
+      addEvent("clap", 2000);
+      state.whistleHold = 0;
+      return;
+    }
+
+    // Smack / tongue click: short HF-weighted click, less energy than clap
+    var smack =
+      peak > 0.12 &&
+      peak < 0.55 &&
+      rms < peak * 0.45 &&
+      eHigh > eMid + 3 &&
+      eHigh > eLow + 5 &&
+      eHigh > -58 &&
+      rms > state.rmsFloor * 3.5;
+    if (smack) {
+      addEvent("smack", 6000);
+      state.whistleHold = 0;
+    }
+  }
+
   function poll() {
     if (!state.running) return;
     var a = state.analyser;
@@ -448,8 +723,11 @@
       isFinite(state.nf) ? state.nf.toFixed(0) : "—"
     );
 
-    updateDominantFreq();
-    pushSpectroColumn();
+    if (!state.recPaused) {
+      updateDominantFreq();
+      detectAudioEvents();
+      pushSpectroColumn();
+    }
 
     var tnow = now();
     if (state.fsm === "IDLE") {
@@ -750,6 +1028,8 @@
     state.histDom = packedDom;
     state.histCount = keep;
     state.histHead = keep % newCap;
+    pruneEvents();
+    trimWavToSec(histSpanSec() + 1);
     clampView();
     state.spectroDirty = true;
     if (reason) log(t.spectroTrim(Math.round(histSpanSec())));
@@ -796,13 +1076,8 @@
     state.histDom[at] = isFinite(domHz) ? domHz : NaN;
     state.histHead = (at + 1) % state.histCap;
     if (state.histCount < state.histCap) state.histCount += 1;
-    // Live follow: keep viewEnd at 0. If reviewing, stay put (history grows on the right of buffer).
-    if (state.viewEnd > 0) {
-      // oldest dropped when full → shift viewEnd left by 1 so viewport stays on same data
-      if (state.histCount === state.histCap) {
-        // ring overwrote oldest; logical indices shift — viewEnd measured from newest stays same
-      }
-    }
+    state.colSeq += 1;
+    if ((state.colSeq & 31) === 0) pruneEvents();
     clampView();
   }
 
@@ -835,10 +1110,18 @@
       els.spectroLive.classList.toggle("is-active", state.viewEnd === 0);
     }
     if (els.spectroMem) {
+      var wavKiB = state.wav ? Math.round((state.wavCount * 2) / 1024) : 0;
       els.spectroMem.textContent = t.spectroMem(
         histSpanSec().toFixed(1),
-        String(histBytesKiB())
+        String(histBytesKiB() + wavKiB)
       );
+    }
+    if (els.recPause) {
+      els.recPause.textContent = state.recPaused ? t.recResume : t.recPause;
+      els.recPause.classList.toggle("is-active", state.recPaused);
+    }
+    if (els.recDownload) {
+      els.recDownload.disabled = !state.wavCount;
     }
     if (els.spectroViewHint) {
       els.spectroViewHint.textContent =
@@ -1019,6 +1302,40 @@
     g.fillStyle = "#f59e0b";
     g.fillText(t.legendDom, legX + 24, legY);
 
+    // Event annotations written into the plot
+    var oldestSeq = state.colSeq - state.histCount;
+    g.font = "700 12px Manrope, sans-serif";
+    g.textBaseline = "bottom";
+    for (var ei = 0; ei < state.events.length; ei++) {
+      var ev = state.events[ei];
+      var logicE = ev.seq - oldestSeq - 1;
+      if (logicE < startLogic || logicE > endLogic) continue;
+      var xf =
+        lay.plotX +
+        ((logicE - startLogic) / Math.max(1, span - 1)) * (lay.plotW - 1);
+      var yf = freqToY(ev.freq || 2500, lay.plotY, lay.plotH);
+      if (yf < lay.plotY + 14) yf = lay.plotY + 14;
+      if (yf > lay.plotY + lay.plotH - 4) yf = lay.plotY + lay.plotH - 4;
+      var col =
+        ev.type === "whistle" ? "#38bdf8" : ev.type === "clap" ? "#f472b6" : "#c084fc";
+      g.strokeStyle = col;
+      g.globalAlpha = 0.85;
+      g.beginPath();
+      g.moveTo(xf, lay.plotY + 2);
+      g.lineTo(xf, lay.plotY + lay.plotH - 2);
+      g.stroke();
+      g.globalAlpha = 1;
+      var tw = g.measureText(ev.label).width;
+      var tx = xf + 4;
+      if (tx + tw + 8 > lay.plotX + lay.plotW) tx = xf - tw - 8;
+      if (tx < lay.plotX + 2) tx = lay.plotX + 2;
+      g.fillStyle = "rgba(5,8,10,0.72)";
+      g.fillRect(tx - 3, yf - 14, tw + 6, 16);
+      g.fillStyle = col;
+      g.textAlign = "left";
+      g.fillText(ev.label, tx, yf);
+    }
+
     state.spectroReady = true;
     state.spectroDirty = false;
     state.spectroDrawMs = performance.now() - t0;
@@ -1036,6 +1353,10 @@
     state.histCount = 0;
     state.histHead = 0;
     state.viewEnd = 0;
+    state.colSeq = 0;
+    state.events = [];
+    state.whistleHold = 0;
+    clearWav();
     state.spectroDirty = true;
     drawSpectroFrame();
   }
@@ -1137,6 +1458,12 @@
         clearSpectro();
         log(t.spectroCleared);
       });
+    }
+    if (els.recPause) {
+      els.recPause.addEventListener("click", toggleRecPause);
+    }
+    if (els.recDownload) {
+      els.recDownload.addEventListener("click", downloadWav);
     }
 
     var canvas = els.spectro;
@@ -1302,20 +1629,42 @@
       state.ctx = new (window.AudioContext || window.webkitAudioContext)();
       await state.ctx.resume();
       var src = state.ctx.createMediaStreamSource(state.stream);
+      state.micSrc = src;
       state.analyser = state.ctx.createAnalyser();
       state.analyser.fftSize = 4096;
       state.analyser.smoothingTimeConstant = 0;
       src.connect(state.analyser);
       state.buf = new Float32Array(state.analyser.frequencyBinCount);
+      state.timeBuf = new Float32Array(state.analyser.fftSize);
       state.syncBin = binOf(PROTO.syncFreq);
       state.dataBins = PROTO.dataFreqs.map(binOf);
+      ensureWav(state.ctx.sampleRate);
+      // PCM tap for WAV (silent sink — no monitoring feedback)
+      try {
+        var proc = state.ctx.createScriptProcessor(2048, 1, 1);
+        var mute = state.ctx.createGain();
+        mute.gain.value = 0;
+        src.connect(proc);
+        proc.connect(mute);
+        mute.connect(state.ctx.destination);
+        proc.onaudioprocess = function (ev) {
+          if (!state.running || state.recPaused) return;
+          pushWavSamples(ev.inputBuffer.getChannelData(0));
+        };
+        state.wavProc = proc;
+        state.wavMute = mute;
+      } catch (wavErr) {
+        log("WAV capture unavailable: " + (wavErr && wavErr.message ? wavErr.message : wavErr));
+      }
       state.running = true;
+      state.recPaused = false;
       state.fsm = "IDLE";
       state.nf = null;
       state.lastPacketEnd = 0;
       els.permWarn.hidden = true;
       els.micBtn.textContent = t.stopMic;
       setStatus("on", t.listening);
+      updateSpectroControls();
       log(
         t.micStarted(
           state.ctx.sampleRate,
@@ -1332,8 +1681,27 @@
 
   function stopMic() {
     state.running = false;
+    state.recPaused = false;
     if (state.pollTimer) clearInterval(state.pollTimer);
     state.pollTimer = 0;
+    if (state.wavProc) {
+      try {
+        state.wavProc.onaudioprocess = null;
+        state.wavProc.disconnect();
+      } catch (e1) {
+        /* ignore */
+      }
+      state.wavProc = null;
+    }
+    if (state.wavMute) {
+      try {
+        state.wavMute.disconnect();
+      } catch (e2) {
+        /* ignore */
+      }
+      state.wavMute = null;
+    }
+    state.micSrc = null;
     if (state.stream)
       state.stream.getTracks().forEach(function (tr) {
         tr.stop();
@@ -1348,7 +1716,20 @@
     if (els.domFreq) els.domFreq.textContent = t.freqDash;
     state.domHz = null;
     state.domDb = null;
+    updateSpectroControls();
     log(t.micStopped);
+  }
+
+  function toggleRecPause() {
+    if (!state.running) return;
+    state.recPaused = !state.recPaused;
+    if (state.recPaused) {
+      setStatus("", t.recPausedStatus);
+    } else {
+      setStatus("on", t.listening);
+    }
+    updateSpectroControls();
+    drawSpectroFrame();
   }
 
   function showPermWarn(text) {
