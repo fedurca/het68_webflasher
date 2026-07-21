@@ -1,39 +1,38 @@
 /**
  * het68 acoustic link ("chirp") — browser codec + software modem.
  *
- * Implements the wire format from the het68 spec (chirp.md, firmware v1.3.x):
- *   PHY  : DSSS-BPSK on a 4 kHz carrier, 500 chip/s, SF=8, 127-chip preamble
- *   CDMA : Gold codes from two degree-7 m-sequences (x^7+x^6+1, x^7+x^3+1)
- *   FRAME: fixed 31-byte plaintext, Hamming(7,4) per nibble, CRC32 (0xEDB88320)
+ * Implements the het68 spec v1.4.0 (chirp.md, ALINK_VERSION = 2):
+ *   PHY  : 31-chip BPSK preamble at 4 kHz (CDMA) + 248-chip non-coherent
+ *          2-FSK / FHSS data. Chip dwell 250 µs → one frame ≈ 69.75 ms.
+ *   CDMA : length-31 m-sequence (x^5+x^2+1), circular shift = node_id*3.
+ *   DATA : per data bit, 2-FSK between a hop-tone pair offset by NHOPS/2;
+ *          the per-chip hop base advances (FHSS) and is offset by node_id*3.
+ *   FRAME: fixed 31-byte plaintext, CRC32 (0xEDB88320), no FEC.
  *
- * TX  : fields -> 31 bytes -> 434 coded bits -> 3599 chips -> BPSK audio.
- * RX  : mic samples -> I/Q downconvert -> integrate&dump -> preamble acquisition
- *       -> despread -> Hamming decode -> CRC check -> parsed frame.
- *
- * Note: exact hardware interop needs bench validation (the spec itself flags the
- * Gold preferred-pair as unverified); TX/RX here are mutually consistent and
- * follow the documented construction.
+ * Not interoperable with v1.3 (version 1, Hamming + slow DSSS). Exact hardware
+ * interop is not bench-verified (the spec flags v1.4 as not fully validated);
+ * the browser TX/RX are mutually consistent and follow the documented design.
  */
 (function (root) {
   "use strict";
 
   var C = {
-    CARRIER_HZ: 4000,
     FS_REF: 48000,
-    CYCLES_CHIP: 8,
-    CHIP_HZ: 500,
-    CHIP_MS: 2,
-    PREAMBLE_LEN: 127,
-    DATA_SF: 8,
+    CHIP_US: 250,
+    CHIP_MS: 0.25,
+    PREAMBLE_HZ: 4000,
+    PREAMBLE_LEN: 31,
+    NHOPS: 8,
+    HOPS: [3000, 3400, 3800, 4000, 4200, 4600, 5000, 5400],
+    DATA_SF: 1,
     MAX_NODES: 8,
-    VERSION: 1,
+    VERSION: 2,
     FRAME_BYTES: 31,
     PAYLOAD_MAX: 16,
-    CODED_BITS: 434, // 62 nibbles * 7
-    DATA_CHIPS: 3472, // 434 * 8
-    TX_CHIPS: 3599, // 127 + 3472
-    DETECT_RHO: 0.3,
-    DETECT_EMIN: 1e-4,
+    DATA_BITS: 248, // 31 bytes * 8
+    TX_CHIPS: 279, // 31 + 248
+    DETECT_RHO: 0.28,
+    DETECT_EMIN: 1e-5,
   };
 
   var TYPE = { BEACON: 1, DETECT: 2, CTRL: 3, ACK: 4 };
@@ -58,68 +57,35 @@
     return (c ^ 0xffffffff) >>> 0;
   }
 
-  // ---- Hamming(7,4) ------------------------------------------------------
-  // Layout bit positions 1..7: p1 p2 d1 p3 d2 d3 d4
-  function hammingEncode(nib) {
-    var d1 = (nib >> 3) & 1;
-    var d2 = (nib >> 2) & 1;
-    var d3 = (nib >> 1) & 1;
-    var d4 = nib & 1;
-    var p1 = d1 ^ d2 ^ d4;
-    var p2 = d1 ^ d3 ^ d4;
-    var p3 = d2 ^ d3 ^ d4;
-    return [p1, p2, d1, p3, d2, d3, d4];
-  }
-
-  function hammingDecode(bits7) {
-    var b = bits7.slice();
-    var s1 = b[0] ^ b[2] ^ b[4] ^ b[6];
-    var s2 = b[1] ^ b[2] ^ b[5] ^ b[6];
-    var s3 = b[3] ^ b[4] ^ b[5] ^ b[6];
-    var syn = (s3 << 2) | (s2 << 1) | s1; // position (1..7) of the error, 0 = none
-    if (syn >= 1 && syn <= 7) b[syn - 1] ^= 1;
-    return (b[2] << 3) | (b[4] << 2) | (b[5] << 1) | b[6];
-  }
-
-  // ---- Gold codes --------------------------------------------------------
-  function mSeq(taps) {
-    var st = 0x7f; // 7-bit register, all ones
-    var out = new Uint8Array(C.PREAMBLE_LEN);
-    for (var k = 0; k < C.PREAMBLE_LEN; k++) {
-      out[k] = st & 1;
-      var fb = 0;
-      for (var i = 0; i < taps.length; i++) fb ^= (st >> (taps[i] - 1)) & 1;
-      st = ((st >> 1) | (fb << 6)) & 0x7f;
+  // ---- Preamble codes: length-31 m-sequence, per-node circular shift ------
+  var MSEQ31 = (function () {
+    // x^5 + x^2 + 1, taps at bits 5 and 2 (Fibonacci LFSR)
+    var st = 0x1f; // 5-bit register, all ones
+    var out = new Int8Array(31);
+    for (var k = 0; k < 31; k++) {
+      out[k] = st & 1 ? 1 : -1;
+      var fb = (((st >> 4) & 1) ^ ((st >> 1) & 1)) & 1;
+      st = ((st >> 1) | (fb << 4)) & 0x1f;
     }
     return out;
-  }
-
-  // Degree-7 preferred pair for a proper Gold family. The spec lists
-  // x^7+x^6+1 / x^7+x^3+1 but flags the pair as unverified; as pure LFSRs those
-  // are non-maximal and give large correlation sidelobes (unreliable
-  // acquisition). This preferred pair yields the optimal 3-valued correlation
-  // (max |R| = 17/127 ≈ 0.13), so preamble acquisition is robust.
-  var SEQ_A = mSeq([7, 1]); // x^7 + x + 1
-  var SEQ_B = mSeq([7, 6, 3, 1]); // x^7 + x^6 + x^3 + x + 1
-
-  var CODES = (function () {
-    var codes = [];
-    for (var n = 0; n < C.MAX_NODES; n++) {
-      var c = new Int8Array(C.PREAMBLE_LEN);
-      for (var k = 0; k < C.PREAMBLE_LEN; k++) {
-        var bit = SEQ_A[k] ^ SEQ_B[(k + n) % C.PREAMBLE_LEN];
-        c[k] = bit ? -1 : 1; // 1 - 2*bit
-      }
-      codes.push(c);
-    }
-    return codes;
   })();
 
   function nodeCode(n) {
-    return CODES[((n % C.MAX_NODES) + C.MAX_NODES) % C.MAX_NODES];
+    var shift = ((n % C.MAX_NODES) * 3) % C.PREAMBLE_LEN;
+    var code = new Int8Array(C.PREAMBLE_LEN);
+    for (var k = 0; k < C.PREAMBLE_LEN; k++) {
+      code[k] = MSEQ31[(k + shift) % C.PREAMBLE_LEN];
+    }
+    return code;
   }
 
-  // ---- Frame pack / parse ------------------------------------------------
+  // Data hop-tone pair for bit index `i` on node `n`.
+  function hopPair(i, n) {
+    var base = (i + n * 3) % (C.NHOPS / 2); // 0..3
+    return { lo: C.HOPS[base], hi: C.HOPS[base + C.NHOPS / 2] };
+  }
+
+  // ---- Frame pack / parse (version 2, no FEC) ----------------------------
   function packFrame(f) {
     var b = new Uint8Array(C.FRAME_BYTES);
     b[0] = C.VERSION;
@@ -148,8 +114,7 @@
   function parseFrame(b) {
     if (!b || b.length < C.FRAME_BYTES) return null;
     var crc = crc32(b, 27);
-    var wire =
-      (b[27] | (b[28] << 8) | (b[29] << 16) | (b[30] << 24)) >>> 0;
+    var wire = (b[27] | (b[28] << 8) | (b[29] << 16) | (b[30] << 24)) >>> 0;
     if (crc !== wire) return null;
     if (b[0] !== C.VERSION) return null;
     var len = Math.min(C.PAYLOAD_MAX, b[10]);
@@ -167,224 +132,327 @@
     };
   }
 
-  // ---- bits <-> chips ----------------------------------------------------
-  function frameToCodedBits(frameBytes) {
-    var bits = new Uint8Array(C.CODED_BITS);
+  // ---- bytes <-> bits (MSB first) ----------------------------------------
+  function bytesToBits(bytes) {
+    var bits = new Uint8Array(C.DATA_BITS);
     var o = 0;
     for (var i = 0; i < C.FRAME_BYTES; i++) {
-      var hi = (frameBytes[i] >> 4) & 0xf;
-      var lo = frameBytes[i] & 0xf;
-      var eh = hammingEncode(hi);
-      var el = hammingEncode(lo);
-      for (var k = 0; k < 7; k++) bits[o++] = eh[k];
-      for (var k2 = 0; k2 < 7; k2++) bits[o++] = el[k2];
+      for (var k = 7; k >= 0; k--) bits[o++] = (bytes[i] >> k) & 1;
     }
     return bits;
   }
 
-  function codedBitsToFrame(bits) {
+  function bitsToBytes(bits) {
     var out = new Uint8Array(C.FRAME_BYTES);
     var o = 0;
-    var tmp = new Array(7);
     for (var i = 0; i < C.FRAME_BYTES; i++) {
-      for (var k = 0; k < 7; k++) tmp[k] = bits[o++];
-      var hi = hammingDecode(tmp);
-      for (var k2 = 0; k2 < 7; k2++) tmp[k2] = bits[o++];
-      var lo = hammingDecode(tmp);
-      out[i] = ((hi & 0xf) << 4) | (lo & 0xf);
+      var v = 0;
+      for (var k = 0; k < 8; k++) v = (v << 1) | (bits[o++] & 1);
+      out[i] = v;
     }
     return out;
   }
 
-  /** frame fields -> Int8Array(TX_CHIPS) of chip signs (+/-1). */
-  function encodeChips(frameFields, nodeId) {
-    var frameBytes =
-      frameFields instanceof Uint8Array ? frameFields : packFrame(frameFields);
-    var code = nodeCode(nodeId);
-    var bits = frameToCodedBits(frameBytes);
-    var chips = new Int8Array(C.TX_CHIPS);
-    for (var k = 0; k < C.PREAMBLE_LEN; k++) chips[k] = code[k];
-    var o = C.PREAMBLE_LEN;
-    for (var i = 0; i < C.CODED_BITS; i++) {
-      var bitSign = bits[i] ? -1 : 1; // 1 - 2*b
-      for (var j = 0; j < C.DATA_SF; j++) {
-        chips[o++] = bitSign * code[j]; // a = (1-2b)*(1-2c)
-      }
+  // ---- Modulation --------------------------------------------------------
+  function applyEdges(out, ramp) {
+    var total = out.length;
+    for (var n = 0; n < ramp && n < total; n++) {
+      var e = 0.5 * (1 - Math.cos((Math.PI * n) / ramp));
+      out[n] *= e;
+      out[total - 1 - n] *= e;
     }
-    return { chips: chips, bytes: frameBytes };
   }
 
-  /** chip signs -> BPSK audio at `fs` (raised-cosine edges, continuous carrier). */
+  /** BPSK chips (+/-1) at the preamble carrier — used for preamble + ping. */
   function modulate(chips, fs, opts) {
     opts = opts || {};
     var gain = opts.gain == null ? 0.6 : opts.gain;
-    var chipMs = opts.chipMs || C.CHIP_MS;
-    var samplesPerChip = fs * (chipMs / 1000);
-    var total = Math.round(chips.length * samplesPerChip);
+    var spc = fs * (C.CHIP_MS / 1000);
+    var total = Math.round(chips.length * spc);
     var out = new Float32Array(total);
-    var w = 2 * Math.PI * C.CARRIER_HZ / fs;
-    var rampSamples = Math.min(Math.floor(total / 2), Math.round(fs * 0.004));
+    var w = (2 * Math.PI * C.PREAMBLE_HZ) / fs;
     for (var n = 0; n < total; n++) {
-      var chipIdx = Math.floor(n / samplesPerChip);
-      if (chipIdx >= chips.length) chipIdx = chips.length - 1;
-      var env = gain;
-      if (n < rampSamples) env *= 0.5 * (1 - Math.cos((Math.PI * n) / rampSamples));
-      else if (n > total - rampSamples)
-        env *= 0.5 * (1 - Math.cos((Math.PI * (total - n)) / rampSamples));
-      out[n] = env * chips[chipIdx] * Math.cos(w * n);
+      var ci = Math.floor(n / spc);
+      if (ci >= chips.length) ci = chips.length - 1;
+      out[n] = gain * chips[ci] * Math.cos(w * n);
     }
+    applyEdges(out, Math.min(total >> 1, Math.round(fs * 0.001)));
     return out;
+  }
+
+  /** Full v1.4 frame: BPSK preamble @4kHz + 2-FSK/FHSS data. */
+  function modulateFrame(fields, fs, opts) {
+    opts = opts || {};
+    var gain = opts.gain == null ? 0.6 : opts.gain;
+    var nodeId = fields.nodeId | 0;
+    var bytes = fields instanceof Uint8Array ? fields : packFrame(fields);
+    var bits = bytesToBits(bytes);
+    var code = nodeCode(nodeId);
+    var spc = fs * (C.CHIP_MS / 1000);
+    var total = Math.round(C.TX_CHIPS * spc);
+    var out = new Float32Array(total);
+    var wPre = (2 * Math.PI * C.PREAMBLE_HZ) / fs;
+
+    for (var n = 0; n < total; n++) {
+      var ci = Math.floor(n / spc);
+      if (ci >= C.TX_CHIPS) ci = C.TX_CHIPS - 1;
+      if (ci < C.PREAMBLE_LEN) {
+        // coherent BPSK preamble (continuous carrier)
+        out[n] = gain * code[ci] * Math.cos(wPre * n);
+      } else {
+        // 2-FSK data chip; phase resets per chip (non-coherent)
+        var bi = ci - C.PREAMBLE_LEN;
+        var pair = hopPair(bi, nodeId);
+        var f = bits[bi] ? pair.hi : pair.lo;
+        var local = n - Math.round((C.PREAMBLE_LEN + bi) * spc);
+        out[n] = gain * Math.cos((2 * Math.PI * f * local) / fs);
+      }
+    }
+    applyEdges(out, Math.min(total >> 1, Math.round(fs * 0.001)));
+    return out;
+  }
+
+  // ---- Goertzel energy ---------------------------------------------------
+  function goertzel(buf, n0, n1, f, fs) {
+    var w = (2 * Math.PI * f) / fs;
+    var coeff = 2 * Math.cos(w);
+    var s1 = 0;
+    var s2 = 0;
+    for (var i = n0; i < n1; i++) {
+      var s0 = buf[i] + coeff * s1 - s2;
+      s2 = s1;
+      s1 = s0;
+    }
+    return s1 * s1 + s2 * s2 - coeff * s1 * s2;
   }
 
   // ---- Streaming demodulator --------------------------------------------
   function Demod(fs, opts) {
     opts = opts || {};
     this.fs = fs;
-    this.w = (2 * Math.PI * C.CARRIER_HZ) / fs;
-    this.chipMs = opts.chipMs || C.CHIP_MS;
-    this.samplesPerChip = fs * (this.chipMs / 1000);
+    this.spc = fs * (C.CHIP_MS / 1000);
+    this.wPre = (2 * Math.PI * C.PREAMBLE_HZ) / fs;
     this.detectRho = opts.detectRho == null ? C.DETECT_RHO : opts.detectRho;
     this.detectEmin = opts.detectEmin == null ? C.DETECT_EMIN : opts.detectEmin;
     this.reset();
   }
 
   Demod.prototype.reset = function () {
-    this.n = 0; // global sample index
-    this.chipCount = 0; // chips finalized
-    this.accI = 0;
-    this.accQ = 0;
-    this.accCnt = 0;
-    this.nextBoundary = this.samplesPerChip;
+    this.n = 0;
+    this.chipCount = 0;
+    this.nextBoundary = this.spc;
+    this.chipBuf = new Float32Array(Math.ceil(this.spc) + 4);
+    this.chipFill = 0;
     this.histI = new Float32Array(C.PREAMBLE_LEN);
     this.histQ = new Float32Array(C.PREAMBLE_LEN);
     this.histPos = 0;
     this.histFill = 0;
-    this.state = "SEARCH";
-    this.collectI = new Float32Array(C.DATA_CHIPS);
-    this.collectQ = new Float32Array(C.DATA_CHIPS);
-    this.collected = 0;
-    this.det = null;
-    this.lastDetectChip = -1e9;
+    // Raw sample ring — big enough to hold a whole frame (preamble + data) so
+    // data chips can be re-sliced at sub-chip timing once the peak is known.
+    this.rawLen = (C.TX_CHIPS + 80) * Math.ceil(this.spc);
+    this.raw = new Float32Array(this.rawLen);
+    // Coarse trigger; the precise (node, timing) is found later by a bounded
+    // search over the buffered raw preamble.
+    this.armed = false;
+    this.armSample = 0;
+    this.armChip = 0;
+    this.armThresh = 0.5;
     this.stats = { detects: 0, decoded: 0, badCrc: 0 };
+    this.dataBits = new Uint8Array(C.DATA_BITS);
   };
 
-  Demod.prototype._onChip = function (ci, cq) {
-    // push into preamble history ring
+  Demod.prototype._pushHist = function (ci, cq) {
     this.histI[this.histPos] = ci;
     this.histQ[this.histPos] = cq;
     this.histPos = (this.histPos + 1) % C.PREAMBLE_LEN;
     if (this.histFill < C.PREAMBLE_LEN) this.histFill++;
-    this.chipCount++;
+  };
 
-    var decoded = null;
+  Demod.prototype._rawAt = function (m) {
+    var i = m % this.rawLen;
+    if (i < 0) i += this.rawLen;
+    return this.raw[i];
+  };
 
-    if (this.state === "COLLECT") {
-      this.collectI[this.collected] = ci;
-      this.collectQ[this.collected] = cq;
-      this.collected++;
-      if (this.collected >= C.DATA_CHIPS) {
-        decoded = this._decode();
-        this.state = "SEARCH";
-        this.det = null;
-      }
-      return decoded;
+  // Goertzel over the raw ring for [n0, n1).
+  Demod.prototype._toneEnergy = function (n0, n1, f) {
+    var w = (2 * Math.PI * f) / this.fs;
+    var coeff = 2 * Math.cos(w);
+    var s1 = 0;
+    var s2 = 0;
+    for (var m = n0; m < n1; m++) {
+      var s0 = this._rawAt(m) + coeff * s1 - s2;
+      s2 = s1;
+      s1 = s0;
     }
+    return s1 * s1 + s2 * s2 - coeff * s1 * s2;
+  };
 
-    if (this.histFill < C.PREAMBLE_LEN) return null;
-    if (this.chipCount - this.lastDetectChip < 8) return null;
-
-    // Acquisition: correlate 127-history against each candidate preamble code.
+  // Preamble BPSK correlation at a given data-start sample (I/Q, non-coherent).
+  Demod.prototype._preCorr = function (preStart, node) {
+    var code = nodeCode(node);
+    var spc = this.spc;
+    var sumI = 0;
+    var sumQ = 0;
     var energy = 0;
     for (var k = 0; k < C.PREAMBLE_LEN; k++) {
-      energy += this.histI[k] * this.histI[k] + this.histQ[k] * this.histQ[k];
-    }
-    if (energy < this.detectEmin) return null;
-
-    var bestRho = 0;
-    var bestCode = -1;
-    var bestPhi = 0;
-    for (var c = 0; c < C.MAX_NODES; c++) {
-      var code = CODES[c];
-      var sumI = 0;
-      var sumQ = 0;
-      // history is a ring; logical index j maps to physical (histPos + j) % N,
-      // oldest first — aligns with preamble chip order.
-      for (var j = 0; j < C.PREAMBLE_LEN; j++) {
-        var p = (this.histPos + j) % C.PREAMBLE_LEN;
-        var s = code[j];
-        sumI += this.histI[p] * s;
-        sumQ += this.histQ[p] * s;
+      var a0 = Math.round(preStart + k * spc);
+      var a1 = Math.round(preStart + (k + 1) * spc);
+      var ci = 0;
+      var cq = 0;
+      for (var m = a0; m < a1; m++) {
+        var ph = this.wPre * m;
+        var x = this._rawAt(m);
+        ci += x * Math.cos(ph);
+        cq += x * -Math.sin(ph);
       }
-      var mag2 = sumI * sumI + sumQ * sumQ;
-      var rho = mag2 / (C.PREAMBLE_LEN * energy);
-      if (rho > bestRho) {
-        bestRho = rho;
-        bestCode = c;
-        bestPhi = Math.atan2(sumQ, sumI);
+      var n = a1 - a0 || 1;
+      ci /= n;
+      cq /= n;
+      sumI += ci * code[k];
+      sumQ += cq * code[k];
+      energy += ci * ci + cq * cq;
+    }
+    if (energy <= 0) return { rho: 0, mag: 0 };
+    return { rho: (sumI * sumI + sumQ * sumQ) / (C.PREAMBLE_LEN * energy), mag: sumI * sumI + sumQ * sumQ };
+  };
+
+  Demod.prototype._finishChip = function () {
+    var N = this.chipFill;
+    if (N <= 0) return null;
+    var buf = this.chipBuf;
+
+    var ci = 0;
+    var cq = 0;
+    var startN = this.n - N;
+    for (var i = 0; i < N; i++) {
+      var ph = this.wPre * (startN + i);
+      ci += buf[i] * Math.cos(ph);
+      cq += buf[i] * -Math.sin(ph);
+    }
+    ci /= N;
+    cq /= N;
+    this._pushHist(ci, cq);
+
+    var thisChip = this.chipCount;
+    this.chipFill = 0;
+    this.chipCount++;
+
+    var out = null;
+
+    if (this.histFill >= C.PREAMBLE_LEN) {
+      var energy = 0;
+      for (var k = 0; k < C.PREAMBLE_LEN; k++) {
+        energy += this.histI[k] * this.histI[k] + this.histQ[k] * this.histQ[k];
+      }
+      if (energy >= this.detectEmin) {
+        var bestRho = 0;
+        var bestNode = -1;
+        for (var c = 0; c < C.MAX_NODES; c++) {
+          var code = nodeCode(c);
+          var sI = 0;
+          var sQ = 0;
+          for (var j = 0; j < C.PREAMBLE_LEN; j++) {
+            var p = (this.histPos + j) % C.PREAMBLE_LEN;
+            var sg = code[j];
+            sI += this.histI[p] * sg;
+            sQ += this.histQ[p] * sg;
+          }
+          var rho = (sI * sI + sQ * sQ) / (C.PREAMBLE_LEN * energy);
+          if (rho > bestRho) {
+            bestRho = rho;
+            bestNode = c;
+          }
+        }
+        if (bestRho > this.armThresh && !this.armed) {
+          this.armed = true;
+          this.armSample = this.n; // ≈ a preamble-end sample near true alignment
+          this.armChip = thisChip;
+        }
       }
     }
 
-    if (bestRho > this.detectRho && bestCode >= 0) {
-      this.stats.detects++;
-      this.lastDetectChip = this.chipCount;
-      this.det = { code: bestCode, phi: bestPhi, rho: bestRho, energy: energy };
-      this.state = "COLLECT";
-      this.collected = 0;
+    // Wait until the whole frame is buffered, then locate the true preamble by a
+    // bounded (node, sample-offset) search over the raw ring — data chips (which
+    // include a 4 kHz tone) can otherwise spoof the streaming correlator.
+    if (this.armed && this.chipCount - this.armChip >= C.DATA_BITS + 22) {
+      out = this._decodeFrame();
+      this.armed = false;
     }
+    return out;
+  };
+
+  Demod.prototype._extractBits = function (dataStart, node) {
+    var spc = this.spc;
+    for (var bi = 0; bi < C.DATA_BITS; bi++) {
+      var n0 = Math.round(dataStart + bi * spc);
+      var n1 = Math.round(dataStart + (bi + 1) * spc);
+      var pair = hopPair(bi, node);
+      var eLo = this._toneEnergy(n0, n1, pair.lo);
+      var eHi = this._toneEnergy(n0, n1, pair.hi);
+      this.dataBits[bi] = eHi > eLo ? 1 : 0;
+    }
+    return bitsToBytes(this.dataBits);
+  };
+
+  Demod.prototype._decodeFrame = function () {
+    this.stats.detects++;
+    var spc = this.spc;
+    var center = this.armSample;
+    // The coarse trigger fires on the rising edge, up to ~15 chips before the
+    // true preamble end; search mostly forward from it.
+    var dLo = -Math.round(6 * spc);
+    var dHi = Math.round(20 * spc);
+
+    // Because the 4 kHz preamble carrier is also a data hop tone, the data
+    // region can spoof the preamble correlator. Gather all strong (node, timing)
+    // candidates and let the CRC pick the real one.
+    var cands = [];
+    for (var node = 0; node < C.MAX_NODES; node++) {
+      for (var d = dLo; d <= dHi; d++) {
+        var end = center + d;
+        var r = this._preCorr(end - C.PREAMBLE_LEN * spc, node).rho;
+        if (r > 0.55) cands.push({ rho: r, node: node, end: end });
+      }
+    }
+    cands.sort(function (a, b) {
+      return b.rho - a.rho;
+    });
+
+    var tried = {};
+    var limit = Math.min(cands.length, 80);
+    for (var i = 0; i < limit; i++) {
+      var c = cands[i];
+      var key = c.node + ":" + c.end;
+      if (tried[key]) continue;
+      tried[key] = 1;
+      var bytes = this._extractBits(c.end, c.node);
+      var parsed = parseFrame(bytes);
+      if (parsed) {
+        this.stats.decoded++;
+        parsed.rho = c.rho;
+        parsed.codeIndex = c.node;
+        parsed.snrDb =
+          10 * Math.log10(c.rho / Math.max(1e-6, 1 - Math.min(0.999, c.rho)));
+        parsed.bytes = bytes;
+        return parsed;
+      }
+    }
+    this.stats.badCrc++;
     return null;
   };
 
-  Demod.prototype._decode = function () {
-    var code = CODES[this.det.code];
-    var cosphi = Math.cos(this.det.phi);
-    var sinphi = Math.sin(this.det.phi);
-    var bits = new Uint8Array(C.CODED_BITS);
-    for (var i = 0; i < C.CODED_BITS; i++) {
-      var accI = 0;
-      var accQ = 0;
-      for (var j = 0; j < C.DATA_SF; j++) {
-        var s = code[j];
-        var idx = i * C.DATA_SF + j;
-        accI += this.collectI[idx] * s;
-        accQ += this.collectQ[idx] * s;
-      }
-      // derotate by -phi and slice real part: a = (1-2b) → positive ⇒ bit 0
-      var metric = accI * cosphi + accQ * sinphi;
-      bits[i] = metric < 0 ? 1 : 0;
-    }
-    var frameBytes = codedBitsToFrame(bits);
-    var parsed = parseFrame(frameBytes);
-    if (!parsed) {
-      this.stats.badCrc++;
-      return null;
-    }
-    this.stats.decoded++;
-    parsed.rho = this.det.rho;
-    parsed.codeIndex = this.det.code;
-    parsed.energy = this.det.energy;
-    parsed.snrDb = 10 * Math.log10(this.det.rho / Math.max(1e-6, 1 - this.det.rho));
-    parsed.bytes = frameBytes;
-    return parsed;
-  };
-
-  /** Feed mono samples; returns an array of decoded frames (possibly empty). */
   Demod.prototype.push = function (samples) {
     var out = [];
     for (var i = 0; i < samples.length; i++) {
       var x = samples[i];
-      var ph = this.w * this.n;
-      this.accI += x * Math.cos(ph);
-      this.accQ += x * -Math.sin(ph);
-      this.accCnt++;
+      var ri = this.n % this.rawLen;
+      this.raw[ri] = x;
+      if (this.chipFill < this.chipBuf.length) this.chipBuf[this.chipFill++] = x;
       this.n++;
       if (this.n >= this.nextBoundary) {
-        var ci = this.accI / this.accCnt;
-        var cq = this.accQ / this.accCnt;
-        this.accI = 0;
-        this.accQ = 0;
-        this.accCnt = 0;
-        this.nextBoundary += this.samplesPerChip;
-        var d = this._onChip(ci, cq);
+        this.nextBoundary += this.spc;
+        var d = this._finishChip();
         if (d) out.push(d);
       }
     }
@@ -397,17 +465,16 @@
     TYPE_NAME: TYPE_NAME,
     FLAG: FLAG,
     crc32: crc32,
-    hammingEncode: hammingEncode,
-    hammingDecode: hammingDecode,
     nodeCode: nodeCode,
+    hopPair: hopPair,
     packFrame: packFrame,
     parseFrame: parseFrame,
-    frameToCodedBits: frameToCodedBits,
-    codedBitsToFrame: codedBitsToFrame,
-    encodeChips: encodeChips,
+    bytesToBits: bytesToBits,
+    bitsToBytes: bitsToBytes,
     modulate: modulate,
+    modulateFrame: modulateFrame,
     Demod: Demod,
-    _seq: { A: SEQ_A, B: SEQ_B },
+    _mseq: MSEQ31,
   };
 
   root.ALINK = API;
