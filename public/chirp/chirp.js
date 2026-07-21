@@ -96,8 +96,12 @@
       evWhistle: "písknutí",
       evClap: "tlesknutí",
       evSmack: "mlasknutí",
-      eventCounts: function (w, c, s) {
-        return "písknutí " + w + " · tlesknutí " + c + " · mlasknutí " + s;
+      eventsLabel: "uč. eventy",
+      evNew: function (l) {
+        return "nový event " + l;
+      },
+      evEvict: function (o, n) {
+        return "event " + o + " vyřazen → nový " + n;
       },
       recPause: "Pauza",
       recResume: "Pokračovat",
@@ -186,8 +190,12 @@
       evWhistle: "whistle",
       evClap: "clap",
       evSmack: "smack",
-      eventCounts: function (w, c, s) {
-        return "whistle " + w + " · clap " + c + " · smack " + s;
+      eventsLabel: "learned events",
+      evNew: function (l) {
+        return "new event " + l;
+      },
+      evEvict: function (o, n) {
+        return "event " + o + " evicted → new " + n;
       },
       recPause: "Pause",
       recResume: "Resume",
@@ -276,8 +284,12 @@
       evWhistle: "Pfiff",
       evClap: "Klatschen",
       evSmack: "Schmatzen",
-      eventCounts: function (w, c, s) {
-        return "Pfiff " + w + " · Klatschen " + c + " · Schmatzen " + s;
+      eventsLabel: "gelernte Events",
+      evNew: function (l) {
+        return "neues Event " + l;
+      },
+      evEvict: function (o, n) {
+        return "Event " + o + " verworfen → neu " + n;
       },
       recPause: "Pause",
       recResume: "Weiter",
@@ -375,12 +387,18 @@
     dragScroll: null,
     colSeq: 0,
     events: [],
-    eventCounts: { whistle: 0, clap: 0, smack: 0 },
+    categories: [],
+    letterNext: 0,
+    eventProfile: new Float32Array(24),
+    eventPrev: null,
+    fluxMean: 0,
+    fluxDev: 0,
+    prevFlux: 0,
+    prevPrevFlux: 0,
     recPaused: false,
     timeBuf: null,
     rmsFloor: 0.004,
     lastEventAt: 0,
-    whistleHold: 0,
     micSrc: null,
     wavProc: null,
     wavMute: null,
@@ -413,6 +431,19 @@
     3: "#fbbf24",
     4: "#60a5fa",
   };
+
+  // Learned-event tuning
+  var EVENT_BANDS = 24;
+  var EVENT_FMIN = 80;
+  var EVENT_FMAX = 18000;
+  var EVENT_MAX_CATEGORIES = 3;
+  var EVENT_MATCH_SIM = 0.86; // cosine similarity to count as the "same" event
+  var EVENT_LEARN = 0.25; // prototype adaptation rate
+  var EVENT_FLUX_K = 3.0; // adaptive threshold: mean + K*dev
+  var EVENT_FLUX_MIN = 0.25; // absolute flux floor
+  var EVENT_MIN_LOUD = 8; // ignore onsets when the band sum is tiny
+  var EVENT_REFRACTORY_MS = 160;
+  var EVENT_PALETTE = ["#f472b6", "#38bdf8", "#c084fc", "#fb923c", "#34d399", "#facc15"];
 
   function now() {
     return performance.now();
@@ -530,22 +561,6 @@
     return s / (i1 - i0 + 1);
   }
 
-  function peakInBand(f0, f1) {
-    if (!state.ctx || !state.buf) return { db: -140, hz: 0 };
-    var binHz = state.ctx.sampleRate / state.analyser.fftSize;
-    var i0 = Math.max(1, Math.floor(f0 / binHz));
-    var i1 = Math.min(state.buf.length - 1, Math.ceil(f1 / binHz));
-    var best = -Infinity;
-    var bi = i0;
-    for (var i = i0; i <= i1; i++) {
-      if (state.buf[i] > best) {
-        best = state.buf[i];
-        bi = i;
-      }
-    }
-    return { db: best, hz: bi * binHz };
-  }
-
   function ensureWav(rate) {
     var maxSec = Math.max(30, Math.ceil((state.histCap * state.spectroColMs) / 1000) + 5);
     var cap = Math.min(rate * maxSec, rate * 120);
@@ -645,16 +660,63 @@
     log(t.wavSaved(sec));
   }
 
-  function updateEventCounts() {
-    var c = { whistle: 0, clap: 0, smack: 0 };
-    for (var i = 0; i < state.events.length; i++) {
-      var ty = state.events[i].type;
-      if (c[ty] != null) c[ty] += 1;
+  // ---- Learned events (adaptive onset + online clustering) ---------------
+  //
+  // An "event" = a significant change in the signal (spectral-flux onset).
+  // Each onset is described by a coarse spectral profile and a significance
+  // (the change magnitude). Recurring profiles are clustered; we keep at most
+  // EVENT_MAX_CATEGORIES categories labeled A, B, C, … When a new, more
+  // significant category appears, the least significant one is evicted and the
+  // new one gets the next alphabet letter.
+
+  function computeBandProfile(out) {
+    // Fill `out` (Float32Array[EVENT_BANDS]) with L2-normalized band amplitudes,
+    // return total loudness (sum of amplitudes above the noise floor).
+    if (!state.buf || !state.ctx) return 0;
+    var binHz = state.ctx.sampleRate / state.analyser.fftSize;
+    var floorDb = isFinite(state.nf) ? state.nf : -100;
+    var total = 0;
+    for (var b = 0; b < EVENT_BANDS; b++) {
+      var f0 = EVENT_FMIN * Math.pow(EVENT_FMAX / EVENT_FMIN, b / EVENT_BANDS);
+      var f1 = EVENT_FMIN * Math.pow(EVENT_FMAX / EVENT_FMIN, (b + 1) / EVENT_BANDS);
+      var i0 = Math.max(1, Math.floor(f0 / binHz));
+      var i1 = Math.min(state.buf.length - 1, Math.max(i0, Math.ceil(f1 / binHz)));
+      var m = -Infinity;
+      for (var i = i0; i <= i1; i++) if (state.buf[i] > m) m = state.buf[i];
+      var amp = isFinite(m) ? Math.max(0, m - floorDb) : 0;
+      out[b] = amp;
+      total += amp;
     }
-    state.eventCounts = c;
-    if (els.eventCounts) {
-      els.eventCounts.textContent = t.eventCounts(c.whistle, c.clap, c.smack);
+    var norm = 0;
+    for (var b2 = 0; b2 < EVENT_BANDS; b2++) norm += out[b2] * out[b2];
+    norm = Math.sqrt(norm) || 1;
+    for (var b3 = 0; b3 < EVENT_BANDS; b3++) out[b3] /= norm;
+    return total;
+  }
+
+  function profileCosine(a, c) {
+    var dot = 0;
+    for (var i = 0; i < EVENT_BANDS; i++) dot += a[i] * c[i];
+    return dot; // both unit vectors → cosine similarity
+  }
+
+  function nextEventColor(idx) {
+    return EVENT_PALETTE[idx % EVENT_PALETTE.length];
+  }
+
+  function renderEventCounts() {
+    if (!els.eventCounts) return;
+    if (!state.categories.length) {
+      els.eventCounts.textContent = t.eventsLabel + ": —";
+      return;
     }
+    var sorted = state.categories.slice().sort(function (a, b) {
+      return a.letter < b.letter ? -1 : 1;
+    });
+    var parts = sorted.map(function (c) {
+      return c.letter + "×" + c.count;
+    });
+    els.eventCounts.textContent = t.eventsLabel + ": " + parts.join(" · ");
   }
 
   function pruneEvents() {
@@ -664,171 +726,179 @@
         return e.seq >= minSeq;
       });
     }
-    if (state.events.length > 250) state.events = state.events.slice(-200);
-    updateEventCounts();
+    if (state.events.length > 300) state.events = state.events.slice(-260);
   }
 
-  function addEvent(type, freq) {
-    var label =
-      type === "whistle" ? t.evWhistle : type === "clap" ? t.evClap : t.evSmack;
-    state.events.push({
-      seq: state.colSeq,
-      type: type,
-      label: label,
-      freq: freq || 2500,
-    });
-    state.lastEventAt = now();
-    pruneEvents();
-    log(t.eventLog(label));
-    state.spectroDirty = true;
-  }
-
-  /** Classify pure periodic waveform near dominant Hz; 0 = not pure / unknown. */
-  function classifyWaveform(hz) {
-    if (!state.timeBuf || !state.ctx || !isFinite(hz) || hz < 120 || hz > 6000) {
-      return SHAPE_NONE;
-    }
-    if (!isFinite(state.domDb) || state.domDb < (state.nf || -90) + 18) {
-      return SHAPE_NONE;
-    }
-    // Spectral purity: peak vs neighbors
-    var neigh = Math.max(bandMeanDb(hz * 0.55, hz * 0.85), bandMeanDb(hz * 1.15, hz * 1.6));
-    if (state.domDb - neigh < 12) return SHAPE_NONE;
-
-    var sr = state.ctx.sampleRate;
-    var period = sr / hz;
-    if (period < 10 || period * 2.5 > state.timeBuf.length) return SHAPE_NONE;
-
-    state.analyser.getFloatTimeDomainData(state.timeBuf);
-    var n = state.timeBuf.length;
-    var len = Math.max(16, Math.min(n, Math.round(period * 2)));
-    // Find a strong zero-crossing start
-    var start = 0;
-    var bestAmp = 0;
-    for (var i = 1; i < n - len; i++) {
-      if (state.timeBuf[i - 1] <= 0 && state.timeBuf[i] > 0) {
-        var amp = 0;
-        for (var j = 0; j < len; j++) {
-          var a = state.timeBuf[i + j];
-          if (a < 0) a = -a;
-          if (a > amp) amp = a;
-        }
-        if (amp > bestAmp) {
-          bestAmp = amp;
-          start = i;
-        }
+  function classifyIntoCategory(profile, significance) {
+    // Match against known categories.
+    var best = -1;
+    var bestSim = -1;
+    for (var i = 0; i < state.categories.length; i++) {
+      var sim = profileCosine(profile, state.categories[i].proto);
+      if (sim > bestSim) {
+        bestSim = sim;
+        best = i;
       }
     }
-    if (bestAmp < 0.02) return SHAPE_NONE;
-
-    // Normalize extracted window
-    var win = new Float32Array(len);
-    for (var k = 0; k < len; k++) win[k] = state.timeBuf[start + k] / bestAmp;
-
-    function templateScore(kind) {
-      var sum = 0;
-      var sumT2 = 0;
-      var sumW2 = 0;
-      for (var i2 = 0; i2 < len; i2++) {
-        var ph = (i2 / period) % 1;
-        if (ph < 0) ph += 1;
-        var tv;
-        if (kind === SHAPE_SINE) {
-          tv = Math.sin(ph * Math.PI * 2);
-        } else if (kind === SHAPE_SQUARE) {
-          tv = ph < 0.5 ? 1 : -1;
-        } else if (kind === SHAPE_SAW) {
-          tv = 2 * ph - 1;
-        } else {
-          // triangle
-          tv = ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph;
-        }
-        sum += win[i2] * tv;
-        sumT2 += tv * tv;
-        sumW2 += win[i2] * win[i2];
+    if (best >= 0 && bestSim >= EVENT_MATCH_SIM) {
+      var cat = state.categories[best];
+      // Update running prototype + significance, bump count.
+      for (var k = 0; k < EVENT_BANDS; k++) {
+        cat.proto[k] = cat.proto[k] * (1 - EVENT_LEARN) + profile[k] * EVENT_LEARN;
       }
-      var denom = Math.sqrt(sumT2 * sumW2) || 1;
-      return sum / denom;
+      cat.sig = Math.max(cat.sig * 0.9, significance);
+      cat.count += 1;
+      cat.lastSeq = state.colSeq;
+      return cat;
     }
 
-    var scores = [
-      { s: SHAPE_SINE, v: templateScore(SHAPE_SINE) },
-      { s: SHAPE_SQUARE, v: templateScore(SHAPE_SQUARE) },
-      { s: SHAPE_SAW, v: templateScore(SHAPE_SAW) },
-      { s: SHAPE_TRI, v: templateScore(SHAPE_TRI) },
-    ];
-    scores.sort(function (a, b) {
-      return b.v - a.v;
-    });
-    // Require a clear pure match
-    if (scores[0].v < 0.82) return SHAPE_NONE;
-    if (scores[0].v - scores[1].v < 0.04) return SHAPE_NONE;
-    return scores[0].s;
+    // New distinct category.
+    var newCat = {
+      letter: String.fromCharCode(65 + state.letterNext),
+      colorIdx: state.letterNext,
+      proto: profile.slice(),
+      sig: significance,
+      count: 1,
+      lastSeq: state.colSeq,
+    };
+
+    if (state.categories.length < EVENT_MAX_CATEGORIES) {
+      state.letterNext += 1;
+      state.categories.push(newCat);
+      log(t.evNew(newCat.letter));
+      return newCat;
+    }
+
+    // At capacity: evict the least significant only if the newcomer beats it.
+    var minIdx = 0;
+    for (var m = 1; m < state.categories.length; m++) {
+      if (state.categories[m].sig < state.categories[minIdx].sig) minIdx = m;
+    }
+    if (significance <= state.categories[minIdx].sig) {
+      return null; // not significant enough to be tracked
+    }
+    var evicted = state.categories[minIdx];
+    state.letterNext += 1;
+    state.categories[minIdx] = newCat;
+    log(t.evEvict(evicted.letter, newCat.letter));
+    return newCat;
   }
 
-  function detectAudioEvents() {
-    if (!state.analyser || !state.timeBuf || state.recPaused) return;
-    state.analyser.getFloatTimeDomainData(state.timeBuf);
-    var peak = 0;
-    var sum2 = 0;
-    var n = state.timeBuf.length;
-    for (var i = 0; i < n; i++) {
-      var x = state.timeBuf[i];
-      var ax = x < 0 ? -x : x;
-      if (ax > peak) peak = ax;
-      sum2 += x * x;
-    }
-    var rms = Math.sqrt(sum2 / n);
-    state.rmsFloor = state.rmsFloor * 0.995 + Math.min(rms, 0.05) * 0.005;
+  function detectSignalEvents() {
+    if (!state.buf || !state.ctx) return;
+    var loud = computeBandProfile(state.eventProfile);
 
-    var eLow = bandMeanDb(80, 500);
-    var eMid = bandMeanDb(500, 3000);
-    var eHigh = bandMeanDb(3500, 12000);
-    var wh = peakInBand(1500, 4500);
-    var neigh = bandMeanDb(800, 1400);
+    // Spectral flux: positive change vs previous profile (scaled by loudness).
+    var flux = 0;
+    if (state.eventPrev) {
+      for (var i = 0; i < EVENT_BANDS; i++) {
+        var d = state.eventProfile[i] - state.eventPrev[i];
+        if (d > 0) flux += d;
+      }
+    }
+    flux *= Math.min(1, loud / 40); // ignore flux when everything is quiet
+    var tmp = state.eventPrev;
+    state.eventPrev = state.eventProfile;
+    state.eventProfile = tmp || new Float32Array(EVENT_BANDS);
+
+    // Adaptive threshold from running mean + deviation of the flux.
+    state.fluxMean = state.fluxMean * 0.95 + flux * 0.05;
+    state.fluxDev = state.fluxDev * 0.95 + Math.abs(flux - state.fluxMean) * 0.05;
+    var thresh = state.fluxMean + EVENT_FLUX_K * state.fluxDev + EVENT_FLUX_MIN;
+
     var tnow = now();
-    if (tnow - state.lastEventAt < 180) return;
+    var isPeak = flux >= state.prevFlux; // rising edge of the flux
+    var wasPeak = state.prevFlux >= state.prevPrevFlux;
+    state.prevPrevFlux = state.prevFlux;
+    state.prevFlux = flux;
 
-    // Whistle: narrowband sustained tone
-    var narrow = wh.db - neigh > 14 && wh.db > (state.nf || -80) + 22;
-    if (narrow && peak > 0.02) {
-      state.whistleHold += 1;
-      if (state.whistleHold >= 5) {
-        addEvent("whistle", wh.hz);
-        state.whistleHold = 0;
-        return;
+    if (
+      loud > EVENT_MIN_LOUD &&
+      flux > thresh &&
+      wasPeak &&
+      !isPeak &&
+      tnow - state.lastEventAt > EVENT_REFRACTORY_MS
+    ) {
+      var significance = flux;
+      var cat = classifyIntoCategory(state.eventPrev, significance);
+      if (cat) {
+        state.lastEventAt = tnow;
+        state.events.push({
+          seq: state.colSeq,
+          letter: cat.letter,
+          color: nextEventColor(cat.colorIdx),
+          freq: isFinite(state.domHz) ? state.domHz : 2500,
+        });
+        pruneEvents();
+        renderEventCounts();
+        state.spectroDirty = true;
       }
-    } else {
-      state.whistleHold = Math.max(0, state.whistleHold - 1);
     }
+  }
 
-    // Clap: loud broadband impulse
-    var clap =
-      peak > 0.22 &&
-      rms > state.rmsFloor * 7 &&
-      eLow > -55 &&
-      eMid > -55 &&
-      eHigh > -60 &&
-      Math.abs(eLow - eHigh) < 22;
-    if (clap) {
-      addEvent("clap", 2000);
-      state.whistleHold = 0;
-      return;
-    }
+  // ---- Waveform shape via harmonic analysis ------------------------------
+  //
+  // Periodic waves have characteristic harmonic amplitude ratios (relative to
+  // the fundamental): sine → only fundamental; square → odd harmonics ∝ 1/n;
+  // saw → all harmonics ∝ 1/n; triangle → odd harmonics ∝ 1/n². We read the
+  // harmonic amplitudes from the FFT and pick the closest template.
 
-    // Smack / tongue click: short HF-weighted click, less energy than clap
-    var smack =
-      peak > 0.12 &&
-      peak < 0.55 &&
-      rms < peak * 0.45 &&
-      eHigh > eMid + 3 &&
-      eHigh > eLow + 5 &&
-      eHigh > -58 &&
-      rms > state.rmsFloor * 3.5;
-    if (smack) {
-      addEvent("smack", 6000);
-      state.whistleHold = 0;
+  function ampAtHz(hz) {
+    if (!state.buf || !state.ctx) return 0;
+    var binHz = state.ctx.sampleRate / state.analyser.fftSize;
+    var c = hz / binHz;
+    var lo = Math.max(1, Math.floor(c) - 1);
+    var hi = Math.min(state.buf.length - 1, Math.ceil(c) + 1);
+    var m = -Infinity;
+    for (var i = lo; i <= hi; i++) if (state.buf[i] > m) m = state.buf[i];
+    if (!isFinite(m)) return 0;
+    return Math.pow(10, m / 20); // dB → linear amplitude
+  }
+
+  function classifyWaveform(hz) {
+    if (!state.buf || !state.ctx || !isFinite(hz) || hz < 120 || hz > 5000) {
+      return SHAPE_NONE;
     }
+    var floorDb = isFinite(state.nf) ? state.nf : -100;
+    if (!isFinite(state.domDb) || state.domDb < floorDb + 14) return SHAPE_NONE;
+
+    // Prefer the true fundamental: if there is strong energy at hz/2, step down.
+    var f0 = hz;
+    var a0 = ampAtHz(f0);
+    for (var s = 0; s < 2; s++) {
+      var sub = f0 / 2;
+      if (sub < 120) break;
+      if (ampAtHz(sub) > a0 * 0.5) {
+        f0 = sub;
+        a0 = ampAtHz(f0);
+      } else break;
+    }
+    if (a0 <= 0) return SHAPE_NONE;
+    if (f0 * 8 > SPEC_FMAX) return SHAPE_NONE; // need room for 8 harmonics
+
+    // Harmonic amplitudes relative to the fundamental (a[0] = a1 = 1).
+    var a = new Array(8);
+    for (var n = 1; n <= 8; n++) a[n - 1] = ampAtHz(f0 * n) / a0;
+
+    // Inharmonicity guard: energy halfway between harmonics must be low.
+    var inter =
+      (ampAtHz(f0 * 1.5) + ampAtHz(f0 * 2.5) + ampAtHz(f0 * 3.5)) / (3 * a0);
+    if (inter > 0.45) return SHAPE_NONE; // noisy / inharmonic → not a pure wave
+
+    // Discriminate on the harmonic structure (fundamental excluded):
+    //   sine     → negligible harmonics (a3 ≈ 0)
+    //   saw      → strong even + odd harmonics (a2 ≈ 1/2), decay ∝ 1/n
+    //   square   → odd dominant, a3 ≈ 1/3, decay ∝ 1/n
+    //   triangle → odd dominant, a3 ≈ 1/9, decay ∝ 1/n²
+    var even = Math.sqrt(a[1] * a[1] + a[3] * a[3] + a[5] * a[5]); // a2,a4,a6
+    var odd = Math.sqrt(a[2] * a[2] + a[4] * a[4] + a[6] * a[6]); // a3,a5,a7
+
+    // Saw: prominent 2nd harmonic and a full (even+odd) series.
+    if (a[1] > 0.28 && even > 0.4 * odd) return SHAPE_SAW;
+    // Odd-dominant classes keyed off the 3rd harmonic magnitude.
+    if (a[2] > 0.2) return SHAPE_SQUARE;
+    if (a[2] > 0.055) return SHAPE_TRI;
+    return SHAPE_SINE;
   }
 
   function poll() {
@@ -860,7 +930,7 @@
     if (!state.recPaused) {
       updateDominantFreq();
       pushSpectroColumn();
-      detectAudioEvents();
+      detectSignalEvents();
     }
 
     var tnow = now();
@@ -1490,9 +1560,9 @@
       g.fillText(legendItems[li].l, legX + 22, ly);
     }
 
-    // Event annotations written into the plot
+    // Learned-event annotations written into the plot (letter labels)
     var oldestSeq = state.colSeq - state.histCount;
-    g.font = "700 12px Manrope, sans-serif";
+    g.font = "800 13px Manrope, sans-serif";
     g.textBaseline = "bottom";
     for (var ei = 0; ei < state.events.length; ei++) {
       var ev = state.events[ei];
@@ -1502,26 +1572,25 @@
         lay.plotX +
         ((logicE - startLogic) / Math.max(1, span - 1)) * (lay.plotW - 1);
       var yf = freqToY(ev.freq || 2500, lay.plotY, lay.plotH);
-      if (yf < lay.plotY + 14) yf = lay.plotY + 14;
+      if (yf < lay.plotY + 16) yf = lay.plotY + 16;
       if (yf > lay.plotY + lay.plotH - 4) yf = lay.plotY + lay.plotH - 4;
-      var col =
-        ev.type === "whistle" ? "#38bdf8" : ev.type === "clap" ? "#f472b6" : "#c084fc";
+      var col = ev.color || "#f472b6";
       g.strokeStyle = col;
-      g.globalAlpha = 0.85;
+      g.globalAlpha = 0.8;
       g.beginPath();
       g.moveTo(xf, lay.plotY + 2);
       g.lineTo(xf, lay.plotY + lay.plotH - 2);
       g.stroke();
       g.globalAlpha = 1;
-      var tw = g.measureText(ev.label).width;
+      var tw = g.measureText(ev.letter).width;
       var tx = xf + 4;
       if (tx + tw + 8 > lay.plotX + lay.plotW) tx = xf - tw - 8;
       if (tx < lay.plotX + 2) tx = lay.plotX + 2;
-      g.fillStyle = "rgba(5,8,10,0.72)";
-      g.fillRect(tx - 3, yf - 14, tw + 6, 16);
+      g.fillStyle = "rgba(5,8,10,0.78)";
+      g.fillRect(tx - 3, yf - 15, tw + 6, 17);
       g.fillStyle = col;
       g.textAlign = "left";
-      g.fillText(ev.label, tx, yf);
+      g.fillText(ev.letter, tx, yf);
     }
 
     state.spectroReady = true;
@@ -1544,10 +1613,16 @@
     state.viewEnd = 0;
     state.colSeq = 0;
     state.events = [];
+    state.categories = [];
+    state.letterNext = 0;
+    state.eventPrev = null;
+    state.fluxMean = 0;
+    state.fluxDev = 0;
+    state.prevFlux = 0;
+    state.prevPrevFlux = 0;
     state.domShape = 0;
-    state.whistleHold = 0;
     clearWav();
-    updateEventCounts();
+    renderEventCounts();
     state.spectroDirty = true;
     drawSpectroFrame();
   }
@@ -2004,7 +2079,7 @@
 
   bindSpectroControls();
   clearSpectro();
-  updateEventCounts();
+  renderEventCounts();
   drawRadar();
   log(t.ready);
 })();
