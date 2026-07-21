@@ -17,7 +17,8 @@ const STRINGS = {
     webusbUnsupported: "WebUSB není podporováno",
     pickDevice: "Vyber zařízení v dialogu…",
     unsupportedDevice: "Nepodporované zařízení (očekáván RP2040/RP2350 BOOTSEL)",
-    warnMcu: (mcu) => `Varování: detekován ${mcu}. HET68 cílí na RP2350.`,
+    warnMcu: (mcu, expected, board) =>
+      `Varování: detekován ${mcu}, ale ${board || "vybraná deska"} používá ${expected}. Zkontroluj výběr desky.`,
     boardLabel: (name) => `Deska: ${name}`,
     boardConnected: "Deska připojena",
     connected: (name) => `Připojeno: ${name}`,
@@ -47,6 +48,8 @@ const STRINGS = {
     noWebusb: "WebUSB není k dispozici — použij Chromium prohlížeč.",
     unknownDevice: "neznámé zařízení",
     boards: {
+      pico1: "RP2040 · bez Wi‑Fi",
+      pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
       pico2: "RP2350 · bez Wi‑Fi",
       pico2w: "RP2350 · CYW43439 Wi‑Fi / BT",
       pimoroni: "RP2350 · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
@@ -70,7 +73,8 @@ const STRINGS = {
     webusbUnsupported: "WebUSB is not supported",
     pickDevice: "Pick a device in the dialog…",
     unsupportedDevice: "Unsupported device (expected RP2040/RP2350 BOOTSEL)",
-    warnMcu: (mcu) => `Warning: detected ${mcu}. HET68 targets RP2350.`,
+    warnMcu: (mcu, expected, board) =>
+      `Warning: detected ${mcu}, but ${board || "the selected board"} uses ${expected}. Check the board selection.`,
     boardLabel: (name) => `Board: ${name}`,
     boardConnected: "Board connected",
     connected: (name) => `Connected: ${name}`,
@@ -100,6 +104,8 @@ const STRINGS = {
     noWebusb: "WebUSB unavailable — use a Chromium browser.",
     unknownDevice: "unknown device",
     boards: {
+      pico1: "RP2040 · no Wi‑Fi",
+      pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
       pico2: "RP2350 · no Wi‑Fi",
       pico2w: "RP2350 · CYW43439 Wi‑Fi / BT",
       pimoroni: "RP2350 · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",

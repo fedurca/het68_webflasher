@@ -19,9 +19,33 @@ const JSON_HEADERS = {
 
 const BOARDS = [
   {
+    id: "pico1",
+    label: "Raspberry Pi Pico",
+    short: "Pico",
+    mcu: "RP2040",
+    description: "RP2040 · bez Wi‑Fi",
+    assetPatterns: [/^het68-.+-pico1\.uf2$/i, /^het68-.+-pico\.uf2$/i],
+    rejectPatterns: [/pico1w/i, /picow/i, /pico2/i, /plus/i, /pimoroni/i],
+  },
+  {
+    id: "pico1w",
+    label: "Raspberry Pi Pico W",
+    short: "Pico W",
+    mcu: "RP2040",
+    description: "RP2040 · CYW43439 Wi‑Fi / BT",
+    assetPatterns: [
+      /^het68-.+-pico1w\.uf2$/i,
+      /^het68-.+-pico1-w\.uf2$/i,
+      /^het68-.+-picow\.uf2$/i,
+      /^het68-.+-pico-w\.uf2$/i,
+    ],
+    rejectPatterns: [/pico2/i, /plus/i, /pimoroni/i],
+  },
+  {
     id: "pico2",
     label: "Raspberry Pi Pico 2",
     short: "Pico 2",
+    mcu: "RP2350",
     description: "RP2350 · bez Wi‑Fi",
     assetPatterns: [/^het68-.+-pico2\.uf2$/i],
     rejectPatterns: [/pico2w/i, /pico2-w/i, /plus/i, /pimoroni/i],
@@ -30,6 +54,7 @@ const BOARDS = [
     id: "pico2w",
     label: "Raspberry Pi Pico 2 W",
     short: "Pico 2 W",
+    mcu: "RP2350",
     description: "RP2350 · CYW43439 Wi‑Fi / BT",
     assetPatterns: [/^het68-.+-pico2w\.uf2$/i, /^het68-.+-pico2-w\.uf2$/i],
     rejectPatterns: [/plus/i, /pimoroni/i],
@@ -38,6 +63,7 @@ const BOARDS = [
     id: "pimoroni",
     label: "Pimoroni Pico Plus 2 W",
     short: "Pimoroni Plus 2 W",
+    mcu: "RP2350",
     description: "RP2350 · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
     assetPatterns: [
       /^het68-.+-pico-plus2-w\.uf2$/i,
@@ -136,11 +162,12 @@ async function handleReleases(env) {
     return json({
       repo,
       source: `https://github.com/${repo}/releases`,
-      boards: BOARDS.map(({ id, label, short, description }) => ({
+      boards: BOARDS.map(({ id, label, short, description, mcu }) => ({
         id,
         label,
         short,
         description,
+        mcu,
       })),
       releases,
       latest: releases.find((r) => !r.prerelease) || releases[0] || null,

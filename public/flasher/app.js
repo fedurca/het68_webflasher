@@ -10,14 +10,37 @@ import {
 import { t, getLang } from "./i18n.js";
 
 const FALLBACK_BOARDS = [
-  { id: "pico2", label: "Raspberry Pi Pico 2", short: "Pico 2" },
-  { id: "pico2w", label: "Raspberry Pi Pico 2 W", short: "Pico 2 W" },
+  { id: "pico1", label: "Raspberry Pi Pico", short: "Pico", mcu: "RP2040" },
+  { id: "pico1w", label: "Raspberry Pi Pico W", short: "Pico W", mcu: "RP2040" },
+  { id: "pico2", label: "Raspberry Pi Pico 2", short: "Pico 2", mcu: "RP2350" },
+  { id: "pico2w", label: "Raspberry Pi Pico 2 W", short: "Pico 2 W", mcu: "RP2350" },
   {
     id: "pimoroni",
     label: "Pimoroni Pico Plus 2 W",
     short: "Pimoroni Plus 2 W",
+    mcu: "RP2350",
   },
 ];
+
+// Local metadata (board photo + MCU) keyed by board id, independent of the API.
+// Image URLs are resolved against app.js so they work from / and /en/.
+const BOARD_META = {
+  pico1: { mcu: "RP2040", img: "pico1.svg" },
+  pico1w: { mcu: "RP2040", img: "pico1w.svg" },
+  pico2: { mcu: "RP2350", img: "pico2.svg" },
+  pico2w: { mcu: "RP2350", img: "pico2w.svg" },
+  pimoroni: { mcu: "RP2350", img: "pimoroni.svg" },
+};
+
+function boardImg(id) {
+  const file = BOARD_META[id]?.img;
+  if (!file) return null;
+  return new URL(`./assets/boards/${file}`, import.meta.url).href;
+}
+
+function boardMcu(board) {
+  return board?.mcu || BOARD_META[board?.id]?.mcu || null;
+}
 
 const els = {
   boardGrid: document.getElementById("boardGrid"),
@@ -141,7 +164,12 @@ function renderBoards() {
     btn.setAttribute("aria-checked", String(board.id === state.boardId));
     const available = rel ? boardAvailability(rel, board.id) : true;
     btn.disabled = state.busy;
+    const img = boardImg(board.id);
+    const thumb = img
+      ? `<span class="board-thumb"><img src="${img}" alt="${board.label}" loading="lazy" width="200" height="150" /></span>`
+      : "";
     btn.innerHTML = `
+      ${thumb}
       <strong>${board.short || board.label}</strong>
       <small>${boardDescription(board)}</small>
       <div class="avail ${available ? "" : "missing"}">${
@@ -247,8 +275,10 @@ async function connectDevice() {
     if (!mcu) {
       throw new Error(i18n.unsupportedDevice);
     }
-    if (mcu !== "RP2350") {
-      log(i18n.warnMcu(mcu));
+    const board = state.boards.find((b) => b.id === state.boardId);
+    const expectedMcu = boardMcu(board);
+    if (expectedMcu && mcu !== expectedMcu) {
+      log(i18n.warnMcu(mcu, expectedMcu, board?.label || state.boardId));
     }
 
     state.device = device;
