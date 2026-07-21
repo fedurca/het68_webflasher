@@ -208,6 +208,35 @@ html[data-theme="light"] .spectro-wrap {
   height: auto;
   display: block;
   vertical-align: top;
+  cursor: grab;
+  touch-action: none;
+}
+#spectro:active { cursor: grabbing; }
+
+.spectro-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem 1rem;
+  margin-top: 0.75rem;
+}
+.spectro-field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 120px;
+}
+.spectro-field-grow { flex: 1; min-width: 160px; }
+.spectro-field span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.spectro-field input[type="range"] { width: 100%; }
+#spectroLive.is-active {
+  border-color: rgba(31, 191, 160, 0.55);
+  color: var(--teal);
 }
 
 .card { border: 1px solid var(--line); border-radius: 18px; background: var(--bg-card); padding: 1.1rem; }
@@ -220,7 +249,15 @@ html[data-theme="light"] .spectro-wrap {
   background: radial-gradient(circle at 50% 50%, rgba(31,191,160,0.05), transparent 70%);
   border-radius: 12px;
 }
-.radar-meta { display: flex; justify-content: space-between; margin-top: 0.6rem; color: var(--muted); }
+.radar-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.6rem;
+  color: var(--muted);
+}
 .mono { font-family: var(--mono); font-size: 0.8rem; }
 
 table.nodes { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
