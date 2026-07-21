@@ -74,7 +74,11 @@
       },
       axisFreq: "Frekvence (kHz)",
       axisTime: "Čas (s)",
-      legendDom: "dominantní f",
+      legendDom: "směs / šum",
+      legendSine: "sinus",
+      legendSquare: "obdélník",
+      legendSaw: "pila",
+      legendTri: "trojúhelník",
       legendNow: "teď",
       spectroHint: "osa Y = frekvence · osa X = čas · čára = dominantní f",
       spectroLive: "Živě",
@@ -92,6 +96,9 @@
       evWhistle: "písknutí",
       evClap: "tlesknutí",
       evSmack: "mlasknutí",
+      eventCounts: function (w, c, s) {
+        return "písknutí " + w + " · tlesknutí " + c + " · mlasknutí " + s;
+      },
       recPause: "Pauza",
       recResume: "Pokračovat",
       recDownload: "Stáhnout WAV",
@@ -157,7 +164,11 @@
       },
       axisFreq: "Frequency (kHz)",
       axisTime: "Time (s)",
-      legendDom: "dominant f",
+      legendDom: "mixed / noise",
+      legendSine: "sine",
+      legendSquare: "square",
+      legendSaw: "saw",
+      legendTri: "triangle",
       legendNow: "now",
       spectroHint: "Y = frequency · X = time · line = dominant f",
       spectroLive: "Live",
@@ -175,6 +186,9 @@
       evWhistle: "whistle",
       evClap: "clap",
       evSmack: "smack",
+      eventCounts: function (w, c, s) {
+        return "whistle " + w + " · clap " + c + " · smack " + s;
+      },
       recPause: "Pause",
       recResume: "Resume",
       recDownload: "Download WAV",
@@ -240,7 +254,11 @@
       },
       axisFreq: "Frequenz (kHz)",
       axisTime: "Zeit (s)",
-      legendDom: "dominante f",
+      legendDom: "Gemisch / Rauschen",
+      legendSine: "Sinus",
+      legendSquare: "Rechteck",
+      legendSaw: "Säge",
+      legendTri: "Dreieck",
       legendNow: "jetzt",
       spectroHint: "Y = Frequenz · X = Zeit · Linie = dominante f",
       spectroLive: "Live",
@@ -258,6 +276,9 @@
       evWhistle: "Pfiff",
       evClap: "Klatschen",
       evSmack: "Schmatzen",
+      eventCounts: function (w, c, s) {
+        return "Pfiff " + w + " · Klatschen " + c + " · Schmatzen " + s;
+      },
       recPause: "Pause",
       recResume: "Weiter",
       recDownload: "WAV laden",
@@ -305,6 +326,7 @@
     spectroClear: document.getElementById("spectroClear"),
     spectroMem: document.getElementById("spectroMem"),
     spectroViewHint: document.getElementById("spectroViewHint"),
+    eventCounts: document.getElementById("eventCounts"),
     recPause: document.getElementById("recPause"),
     recDownload: document.getElementById("recDownload"),
   };
@@ -346,11 +368,14 @@
     histHead: 0,
     histData: null, // Uint8Array length histCap * histBins
     histDom: null, // Float32Array length histCap
+    histShape: null, // Uint8Array length histCap — waveform class per column
+    domShape: 0,
     viewEnd: 0,
     colsPerPx: 1,
     dragScroll: null,
     colSeq: 0,
     events: [],
+    eventCounts: { whistle: 0, clap: 0, smack: 0 },
     recPaused: false,
     timeBuf: null,
     rmsFloor: 0.004,
@@ -375,6 +400,19 @@
   var SPEC_CAP_MAX = 16000;
   var SPEC_HEAP_RATIO = 0.78;
   var SPEC_ZOOM_STEPS = [0.25, 0.5, 1, 2, 4, 8, 16];
+  // Waveform classes for pure dominant tones
+  var SHAPE_NONE = 0;
+  var SHAPE_SINE = 1;
+  var SHAPE_SQUARE = 2;
+  var SHAPE_SAW = 3;
+  var SHAPE_TRI = 4;
+  var SHAPE_COLOR = {
+    0: "#f59e0b",
+    1: "#2dd4bf",
+    2: "#e879f9",
+    3: "#fbbf24",
+    4: "#60a5fa",
+  };
 
   function now() {
     return performance.now();
@@ -607,6 +645,18 @@
     log(t.wavSaved(sec));
   }
 
+  function updateEventCounts() {
+    var c = { whistle: 0, clap: 0, smack: 0 };
+    for (var i = 0; i < state.events.length; i++) {
+      var ty = state.events[i].type;
+      if (c[ty] != null) c[ty] += 1;
+    }
+    state.eventCounts = c;
+    if (els.eventCounts) {
+      els.eventCounts.textContent = t.eventCounts(c.whistle, c.clap, c.smack);
+    }
+  }
+
   function pruneEvents() {
     var minSeq = state.colSeq - state.histCount;
     if (state.events.length) {
@@ -615,6 +665,7 @@
       });
     }
     if (state.events.length > 250) state.events = state.events.slice(-200);
+    updateEventCounts();
   }
 
   function addEvent(type, freq) {
@@ -630,6 +681,89 @@
     pruneEvents();
     log(t.eventLog(label));
     state.spectroDirty = true;
+  }
+
+  /** Classify pure periodic waveform near dominant Hz; 0 = not pure / unknown. */
+  function classifyWaveform(hz) {
+    if (!state.timeBuf || !state.ctx || !isFinite(hz) || hz < 120 || hz > 6000) {
+      return SHAPE_NONE;
+    }
+    if (!isFinite(state.domDb) || state.domDb < (state.nf || -90) + 18) {
+      return SHAPE_NONE;
+    }
+    // Spectral purity: peak vs neighbors
+    var neigh = Math.max(bandMeanDb(hz * 0.55, hz * 0.85), bandMeanDb(hz * 1.15, hz * 1.6));
+    if (state.domDb - neigh < 12) return SHAPE_NONE;
+
+    var sr = state.ctx.sampleRate;
+    var period = sr / hz;
+    if (period < 10 || period * 2.5 > state.timeBuf.length) return SHAPE_NONE;
+
+    state.analyser.getFloatTimeDomainData(state.timeBuf);
+    var n = state.timeBuf.length;
+    var len = Math.max(16, Math.min(n, Math.round(period * 2)));
+    // Find a strong zero-crossing start
+    var start = 0;
+    var bestAmp = 0;
+    for (var i = 1; i < n - len; i++) {
+      if (state.timeBuf[i - 1] <= 0 && state.timeBuf[i] > 0) {
+        var amp = 0;
+        for (var j = 0; j < len; j++) {
+          var a = state.timeBuf[i + j];
+          if (a < 0) a = -a;
+          if (a > amp) amp = a;
+        }
+        if (amp > bestAmp) {
+          bestAmp = amp;
+          start = i;
+        }
+      }
+    }
+    if (bestAmp < 0.02) return SHAPE_NONE;
+
+    // Normalize extracted window
+    var win = new Float32Array(len);
+    for (var k = 0; k < len; k++) win[k] = state.timeBuf[start + k] / bestAmp;
+
+    function templateScore(kind) {
+      var sum = 0;
+      var sumT2 = 0;
+      var sumW2 = 0;
+      for (var i2 = 0; i2 < len; i2++) {
+        var ph = (i2 / period) % 1;
+        if (ph < 0) ph += 1;
+        var tv;
+        if (kind === SHAPE_SINE) {
+          tv = Math.sin(ph * Math.PI * 2);
+        } else if (kind === SHAPE_SQUARE) {
+          tv = ph < 0.5 ? 1 : -1;
+        } else if (kind === SHAPE_SAW) {
+          tv = 2 * ph - 1;
+        } else {
+          // triangle
+          tv = ph < 0.5 ? 4 * ph - 1 : 3 - 4 * ph;
+        }
+        sum += win[i2] * tv;
+        sumT2 += tv * tv;
+        sumW2 += win[i2] * win[i2];
+      }
+      var denom = Math.sqrt(sumT2 * sumW2) || 1;
+      return sum / denom;
+    }
+
+    var scores = [
+      { s: SHAPE_SINE, v: templateScore(SHAPE_SINE) },
+      { s: SHAPE_SQUARE, v: templateScore(SHAPE_SQUARE) },
+      { s: SHAPE_SAW, v: templateScore(SHAPE_SAW) },
+      { s: SHAPE_TRI, v: templateScore(SHAPE_TRI) },
+    ];
+    scores.sort(function (a, b) {
+      return b.v - a.v;
+    });
+    // Require a clear pure match
+    if (scores[0].v < 0.82) return SHAPE_NONE;
+    if (scores[0].v - scores[1].v < 0.04) return SHAPE_NONE;
+    return scores[0].s;
   }
 
   function detectAudioEvents() {
@@ -942,11 +1076,19 @@
   function ensureHist(cap) {
     var bins = state.histBins;
     var want = Math.max(SPEC_CAP_MIN, Math.min(SPEC_CAP_MAX, cap | 0));
-    if (state.histData && state.histCap === want && state.histDom && state.histDom.length === want) {
+    if (
+      state.histData &&
+      state.histCap === want &&
+      state.histDom &&
+      state.histDom.length === want &&
+      state.histShape &&
+      state.histShape.length === want
+    ) {
       return;
     }
     var oldData = state.histData;
     var oldDom = state.histDom;
+    var oldShape = state.histShape;
     var oldCap = state.histCap;
     var oldCount = state.histCount;
     var oldHead = state.histHead;
@@ -955,6 +1097,7 @@
     state.histCap = want;
     state.histData = new Uint8Array(want * bins);
     state.histDom = new Float32Array(want);
+    state.histShape = new Uint8Array(want);
     for (var i = 0; i < want; i++) state.histDom[i] = NaN;
 
     if (keep > 0) {
@@ -967,6 +1110,7 @@
           dst * bins
         );
         state.histDom[dst] = oldDom[srcPhys];
+        state.histShape[dst] = oldShape ? oldShape[srcPhys] : 0;
       }
       state.histCount = keep;
       state.histHead = keep % want;
@@ -985,7 +1129,9 @@
   }
 
   function histBytesKiB() {
-    return Math.round((state.histCap * state.histBins + state.histCap * 4) / 1024);
+    return Math.round(
+      (state.histCap * state.histBins + state.histCap * 4 + state.histCap) / 1024
+    );
   }
 
   function histSpanSec() {
@@ -1013,6 +1159,7 @@
     var keep = Math.min(state.histCount, newCap);
     var packed = new Uint8Array(newCap * bins);
     var packedDom = new Float32Array(newCap);
+    var packedShape = new Uint8Array(newCap);
     for (var i = 0; i < newCap; i++) packedDom[i] = NaN;
     for (var k = 0; k < keep; k++) {
       var srcLogic = state.histCount - keep + k;
@@ -1022,10 +1169,12 @@
         k * bins
       );
       packedDom[k] = state.histDom[srcPhys];
+      packedShape[k] = state.histShape ? state.histShape[srcPhys] : 0;
     }
     state.histCap = newCap;
     state.histData = packed;
     state.histDom = packedDom;
+    state.histShape = packedShape;
     state.histCount = keep;
     state.histHead = keep % newCap;
     pruneEvents();
@@ -1068,16 +1217,18 @@
     return trimmed;
   }
 
-  function pushHistColumn(colU8, domHz) {
+  function pushHistColumn(colU8, domHz, shape) {
     ensureHist(state.histCap || 8000);
     var bins = state.histBins;
     var at = state.histHead;
     state.histData.set(colU8, at * bins);
     state.histDom[at] = isFinite(domHz) ? domHz : NaN;
+    state.histShape[at] = shape || 0;
     state.histHead = (at + 1) % state.histCap;
     if (state.histCount < state.histCap) state.histCount += 1;
     state.colSeq += 1;
     if ((state.colSeq & 31) === 0) pruneEvents();
+    else if (state.histCount === state.histCap) pruneEvents();
     clampView();
   }
 
@@ -1094,6 +1245,11 @@
   function sampleHistDom(logicIdx) {
     if (logicIdx < 0 || logicIdx >= state.histCount) return NaN;
     return state.histDom[histPhys(logicIdx)];
+  }
+
+  function sampleHistShape(logicIdx) {
+    if (logicIdx < 0 || logicIdx >= state.histCount || !state.histShape) return 0;
+    return state.histShape[histPhys(logicIdx)] || 0;
   }
 
   function updateSpectroControls() {
@@ -1209,32 +1365,52 @@
     bandLine(PROTO.dataFreqs[0], "rgba(31,191,160,0.4)");
     bandLine(PROTO.dataFreqs[7], "rgba(31,191,160,0.4)");
 
-    // dominant frequency graph across visible window
-    g.strokeStyle = "#f59e0b";
-    g.lineWidth = 2;
+    // dominant frequency graph — colored by waveform class when pure
+    g.lineWidth = 2.25;
     g.lineJoin = "round";
-    g.beginPath();
-    var started = false;
+    g.lineCap = "round";
     var lastHz = NaN;
+    var lastShape = -1;
+    var segStarted = false;
+    var prevX = 0;
+    var prevY = 0;
     for (var x2 = 0; x2 < lay.plotW; x2++) {
       var logic2 = startLogic + (x2 / (lay.plotW - 1 || 1)) * (span - 1);
-      var hz = sampleHistDom(logic2 | 0);
+      var li2 = logic2 | 0;
+      var hz = sampleHistDom(li2);
       if (!isFinite(hz)) {
-        started = false;
+        segStarted = false;
+        lastShape = -1;
         continue;
       }
       lastHz = hz;
+      var sh = sampleHistShape(li2);
       var yy = freqToY(hz, lay.plotY, lay.plotH);
-      if (!started) {
-        g.moveTo(lay.plotX + x2, yy);
-        started = true;
+      var xx = lay.plotX + x2;
+      if (!segStarted || sh !== lastShape) {
+        if (segStarted) {
+          g.strokeStyle = SHAPE_COLOR[lastShape] || SHAPE_COLOR[0];
+          g.beginPath();
+          g.moveTo(prevX, prevY);
+          g.lineTo(xx, yy);
+          g.stroke();
+        }
+        segStarted = true;
+        lastShape = sh;
+        prevX = xx;
+        prevY = yy;
       } else {
-        g.lineTo(lay.plotX + x2, yy);
+        g.strokeStyle = SHAPE_COLOR[sh] || SHAPE_COLOR[0];
+        g.beginPath();
+        g.moveTo(prevX, prevY);
+        g.lineTo(xx, yy);
+        g.stroke();
+        prevX = xx;
+        prevY = yy;
       }
     }
-    g.stroke();
     if (isFinite(lastHz)) {
-      g.fillStyle = "#f59e0b";
+      g.fillStyle = SHAPE_COLOR[lastShape] || SHAPE_COLOR[0];
       g.beginPath();
       g.arc(
         lay.plotX + lay.plotW - 1,
@@ -1289,18 +1465,30 @@
     g.font = "700 11px Manrope, sans-serif";
     g.textAlign = "left";
     g.textBaseline = "middle";
-    var legX = lay.plotX + 10;
-    var legY = lay.plotY + 12;
-    g.fillStyle = "rgba(5,8,10,0.55)";
-    g.fillRect(legX - 4, legY - 9, 118, 18);
-    g.strokeStyle = "#f59e0b";
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(legX, legY);
-    g.lineTo(legX + 18, legY);
-    g.stroke();
-    g.fillStyle = "#f59e0b";
-    g.fillText(t.legendDom, legX + 24, legY);
+    var legendItems = [
+      { c: SHAPE_COLOR[SHAPE_NONE], l: t.legendDom },
+      { c: SHAPE_COLOR[SHAPE_SINE], l: t.legendSine },
+      { c: SHAPE_COLOR[SHAPE_SQUARE], l: t.legendSquare },
+      { c: SHAPE_COLOR[SHAPE_SAW], l: t.legendSaw },
+      { c: SHAPE_COLOR[SHAPE_TRI], l: t.legendTri },
+    ];
+    var legX = lay.plotX + 8;
+    var legY0 = lay.plotY + 10;
+    var rowH = 15;
+    var legW = 118;
+    g.fillStyle = "rgba(5,8,10,0.62)";
+    g.fillRect(legX - 4, legY0 - 10, legW, legendItems.length * rowH + 8);
+    for (var li = 0; li < legendItems.length; li++) {
+      var ly = legY0 + li * rowH;
+      g.strokeStyle = legendItems[li].c;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(legX, ly);
+      g.lineTo(legX + 16, ly);
+      g.stroke();
+      g.fillStyle = legendItems[li].c;
+      g.fillText(legendItems[li].l, legX + 22, ly);
+    }
 
     // Event annotations written into the plot
     var oldestSeq = state.colSeq - state.histCount;
@@ -1350,13 +1538,16 @@
     ensureHist(state.histCap || 8000);
     state.histData.fill(0);
     for (var i = 0; i < state.histCap; i++) state.histDom[i] = NaN;
+    if (state.histShape) state.histShape.fill(0);
     state.histCount = 0;
     state.histHead = 0;
     state.viewEnd = 0;
     state.colSeq = 0;
     state.events = [];
+    state.domShape = 0;
     state.whistleHold = 0;
     clearWav();
+    updateEventCounts();
     state.spectroDirty = true;
     drawSpectroFrame();
   }
@@ -1376,12 +1567,17 @@
     }
     state.domHz = peakBin * binHz;
     state.domDb = peakDb;
+    state.domShape = classifyWaveform(state.domHz);
     // Live readout only when following live edge
     if (state.viewEnd === 0) {
-      els.domFreq.textContent = t.freqLine(
-        fmtHz(state.domHz),
-        isFinite(peakDb) ? peakDb.toFixed(0) : "—"
-      );
+      var shapeName = "";
+      if (state.domShape === SHAPE_SINE) shapeName = " · " + t.legendSine;
+      else if (state.domShape === SHAPE_SQUARE) shapeName = " · " + t.legendSquare;
+      else if (state.domShape === SHAPE_SAW) shapeName = " · " + t.legendSaw;
+      else if (state.domShape === SHAPE_TRI) shapeName = " · " + t.legendTri;
+      els.domFreq.textContent =
+        t.freqLine(fmtHz(state.domHz), isFinite(peakDb) ? peakDb.toFixed(0) : "—") +
+        shapeName;
     }
   }
 
@@ -1403,7 +1599,7 @@
       var bin = Math.round(bin1 - frac * (bin1 - bin0));
       col[i] = dbToU8(state.buf[bin]);
     }
-    pushHistColumn(col, state.domHz);
+    pushHistColumn(col, state.domHz, state.domShape);
 
     // Redraw: always when live; when reviewing, only refresh mem readout occasionally
     if (state.viewEnd === 0) {
@@ -1808,6 +2004,7 @@
 
   bindSpectroControls();
   clearSpectro();
+  updateEventCounts();
   drawRadar();
   log(t.ready);
 })();

@@ -77,7 +77,7 @@
         <div class="card spectro-card">
           <div class="card-head">
             <h2>Spectrogram</h2>
-            <span class="hint">scroll / scale · orange = dominant&nbsp;f</span>
+            <span class="hint">scroll / scale · line color = waveform shape</span>
           </div>
           <div class="spectro-wrap">
             <canvas id="spectro" width="960" height="340" aria-label="Realtime spectrogram"></canvas>
@@ -98,6 +98,7 @@
           </div>
           <div class="radar-meta">
             <span id="domFreq" class="mono">dominant —</span>
+            <span id="eventCounts" class="mono">whistle 0 · clap 0 · smack 0</span>
             <span id="spectroViewHint" class="hint">now</span>
             <span id="spectroMem" class="mono">memory —</span>
           </div>
