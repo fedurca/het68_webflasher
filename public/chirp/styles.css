@@ -238,6 +238,10 @@ html[data-theme="light"] .spectro-wrap {
   border-color: rgba(31, 191, 160, 0.55);
   color: var(--teal);
 }
+#recPause.is-active {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #f59e0b;
+}
 
 .card { border: 1px solid var(--line); border-radius: 18px; background: var(--bg-card); padding: 1.1rem; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.85rem; }
