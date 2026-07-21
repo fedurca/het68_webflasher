@@ -238,7 +238,6 @@ html[data-theme="light"] .spectro-wrap {
   border-color: rgba(31, 191, 160, 0.55);
   color: var(--teal);
 }
-.radar-meta { flex-wrap: wrap; gap: 0.5rem 1rem; }
 
 .card { border: 1px solid var(--line); border-radius: 18px; background: var(--bg-card); padding: 1.1rem; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.85rem; }
@@ -250,7 +249,15 @@ html[data-theme="light"] .spectro-wrap {
   background: radial-gradient(circle at 50% 50%, rgba(31,191,160,0.05), transparent 70%);
   border-radius: 12px;
 }
-.radar-meta { display: flex; justify-content: space-between; margin-top: 0.6rem; color: var(--muted); }
+.radar-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.6rem;
+  color: var(--muted);
+}
 .mono { font-family: var(--mono); font-size: 0.8rem; }
 
 table.nodes { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
