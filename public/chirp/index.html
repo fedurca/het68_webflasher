@@ -77,7 +77,7 @@
         <div class="card spectro-card">
           <div class="card-head">
             <h2>Spektrogram</h2>
-            <span class="hint">posun / měřítko · oranžová = dominantní&nbsp;f</span>
+            <span class="hint">posun / měřítko · barva čáry = tvar vlny</span>
           </div>
           <div class="spectro-wrap">
             <canvas id="spectro" width="960" height="340" aria-label="Realtime spektrogram"></canvas>
@@ -98,6 +98,7 @@
           </div>
           <div class="radar-meta">
             <span id="domFreq" class="mono">dominantní —</span>
+            <span id="eventCounts" class="mono">písknutí 0 · tlesknutí 0 · mlasknutí 0</span>
             <span id="spectroViewHint" class="hint">teď</span>
             <span id="spectroMem" class="mono">paměť —</span>
           </div>
