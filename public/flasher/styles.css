@@ -794,3 +794,12 @@ select:focus {
     transition: none;
   }
 }
+
+.build-meta {
+  grid-column: 1 / -1;
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}

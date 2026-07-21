@@ -50,6 +50,11 @@ jobs:
       - name: Fetch latest qr_scrambler
         run: npm run fetch:qr
 
+      # wrangler-action runs `wrangler deploy` directly (npm predeploy is not
+      # triggered), so stamp the build info explicitly before deploying.
+      - name: Generate build info
+        run: npm run build:info
+
       # Pinned to a full commit SHA (cloudflare/wrangler-action v3.15.0) for
       # supply-chain safety; bump deliberately when upgrading.
       - name: Deploy

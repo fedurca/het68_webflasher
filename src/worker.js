@@ -346,7 +346,7 @@ async function serveFlasherHost(request, env) {
   let path = url.pathname;
 
   // Shared root assets (not under /flasher/)
-  const sharedRoot = new Set(["/lang.js"]);
+  const sharedRoot = new Set(["/lang.js", "/build-info.json"]);
 
   if (path === "/" || path === "" || path === "/index.html") {
     path = "/flasher/index.html";

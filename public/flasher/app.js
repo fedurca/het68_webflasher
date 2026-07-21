@@ -61,6 +61,7 @@ const els = {
   log: document.getElementById("log"),
   logDetails: document.getElementById("logDetails"),
   browserWarning: document.getElementById("browserWarning"),
+  buildMeta: document.getElementById("buildMeta"),
 };
 
 const state = {
@@ -529,6 +530,39 @@ function applyTheme(theme) {
   }
 }
 
+function buildAgeString(fromIso) {
+  const then = new Date(fromIso).getTime();
+  if (!isFinite(then)) return null;
+  const mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 48) return `${hrs} h`;
+  return `${Math.floor(hrs / 24)} d`;
+}
+
+function renderBuildMeta() {
+  const el = els.buildMeta;
+  if (!el) return;
+  const i18n = t();
+  fetch("/build-info.json", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((info) => {
+      if (!info || !info.version) return;
+      const parts = [`v${info.version}`];
+      const date = new Date(info.deployedAt);
+      if (!isNaN(date.getTime())) {
+        parts.push(`${i18n.buildDeployed} ${date.toLocaleDateString(i18n.locale)}`);
+        const age = buildAgeString(info.deployedAt);
+        if (age) parts.push(i18n.buildAgo(age));
+      }
+      if (info.commit) parts.push(info.commit);
+      el.textContent = parts.join(" · ");
+      el.hidden = false;
+      el.title = info.deployedAt || "";
+    })
+    .catch(() => {});
+}
+
 function bindThemeToggle() {
   const btn = document.getElementById("themeToggle");
   if (!btn) return;
@@ -585,6 +619,7 @@ function init() {
   els.flashBtn.addEventListener("click", () => runFlash());
 
   bindThemeToggle();
+  renderBuildMeta();
   bindUsbEvents();
   renderBoards();
   loadReleases();

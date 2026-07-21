@@ -60,6 +60,8 @@ const STRINGS = {
     capCapsLog: (d) => `Schopnosti — ${d}`,
     capApiLog: (perm, paired) =>
       `WebUSB API — oprávnění: ${perm}, spárovaná zařízení: ${paired}`,
+    buildDeployed: "nasazeno",
+    buildAgo: (s) => `před ${s}`,
     boards: {
       het68: "Firemní zařízení · RP2350 · Wi‑Fi / BT",
       pico1: "RP2040 · bez Wi‑Fi",
@@ -130,6 +132,8 @@ const STRINGS = {
     capCapsLog: (d) => `Capabilities — ${d}`,
     capApiLog: (perm, paired) =>
       `WebUSB API — permission: ${perm}, paired devices: ${paired}`,
+    buildDeployed: "deployed",
+    buildAgo: (s) => `${s} ago`,
     boards: {
       het68: "Enterprise appliance · RP2350 · Wi‑Fi / BT",
       pico1: "RP2040 · no Wi‑Fi",
@@ -200,6 +204,8 @@ const STRINGS = {
     capCapsLog: (d) => `Fähigkeiten — ${d}`,
     capApiLog: (perm, paired) =>
       `WebUSB-API — Berechtigung: ${perm}, gekoppelte Geräte: ${paired}`,
+    buildDeployed: "bereitgestellt",
+    buildAgo: (s) => `vor ${s}`,
     boards: {
       het68: "Enterprise-Gerät · RP2350 · Wi‑Fi / BT",
       pico1: "RP2040 · kein Wi‑Fi",
