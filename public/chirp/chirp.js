@@ -725,8 +725,8 @@
 
     if (!state.recPaused) {
       updateDominantFreq();
-      detectAudioEvents();
       pushSpectroColumn();
+      detectAudioEvents();
     }
 
     var tnow = now();
