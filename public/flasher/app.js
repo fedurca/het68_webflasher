@@ -43,6 +43,7 @@ function boardMcu(board) {
 }
 
 const els = {
+  browserCheck: document.getElementById("browserCheck"),
   boardGrid: document.getElementById("boardGrid"),
   releaseSelect: document.getElementById("releaseSelect"),
   refreshReleases: document.getElementById("refreshReleases"),
@@ -105,6 +106,106 @@ function isChromium() {
   const firefox = /Firefox/.test(ua);
   const safari = /Safari/.test(ua) && !/Chrome|Chromium|Edg|Brave/.test(ua);
   return chromium && !firefox && !safari;
+}
+
+/** Probe the actual browser APIs (not just the UA string). */
+function probeCapabilities() {
+  const nav = navigator;
+  const usb = nav.usb;
+  const caps = {
+    userAgent: nav.userAgent || "?",
+    secureContext: window.isSecureContext === true,
+    webusb: !!usb,
+    requestDevice: !!(usb && typeof usb.requestDevice === "function"),
+    getDevices: !!(usb && typeof usb.getDevices === "function"),
+    webhid: !!nav.hid,
+    chromium: isChromium(),
+    brands: null,
+    platform: null,
+    mobile: null,
+    usbPermission: null,
+    pairedDevices: null,
+  };
+  const uaData = nav.userAgentData;
+  if (uaData) {
+    if (Array.isArray(uaData.brands)) {
+      caps.brands = uaData.brands
+        .map((b) => `${b.brand} ${b.version}`)
+        .join(", ");
+    }
+    caps.platform = uaData.platform || null;
+    caps.mobile = typeof uaData.mobile === "boolean" ? uaData.mobile : null;
+  }
+  // Flashing needs WebUSB transfers in a secure context.
+  caps.supported = caps.webusb && caps.requestDevice && caps.secureContext;
+  return caps;
+}
+
+/** Enrich with async APIs (permission state + already-authorized devices). */
+async function probeCapabilitiesAsync(caps) {
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      const st = await navigator.permissions.query({ name: "usb" });
+      caps.usbPermission = st.state;
+    } catch (_) {
+      caps.usbPermission = "unsupported";
+    }
+  } else {
+    caps.usbPermission = "unsupported";
+  }
+  if (caps.getDevices) {
+    try {
+      const devs = await navigator.usb.getDevices();
+      caps.pairedDevices = devs.length;
+    } catch (_) {
+      caps.pairedDevices = null;
+    }
+  }
+  return caps;
+}
+
+function capabilityReason(i18n, caps) {
+  if (caps.supported) return i18n.capReasonOk;
+  if (!caps.secureContext) return i18n.capReasonInsecure;
+  if (!caps.webusb) return i18n.capReasonNoUsb;
+  if (!caps.requestDevice) return i18n.capReasonNoApi;
+  return i18n.capReasonNoUsb;
+}
+
+function renderBrowserCheck(caps) {
+  const i18n = t();
+  const el = els.browserCheck;
+  if (!el) return;
+  el.hidden = false;
+  el.classList.toggle("ok", caps.supported);
+  el.classList.toggle("bad", !caps.supported);
+  const head = caps.supported ? i18n.capSupported : i18n.capUnsupported;
+  const sub = capabilityReason(i18n, caps);
+  el.innerHTML = `
+    <span class="dot" aria-hidden="true"></span>
+    <span class="bc-text">
+      <strong>${head}</strong>
+      <span class="bc-sub">${sub}</span>
+    </span>`;
+}
+
+function logBrowserCheck(caps) {
+  const i18n = t();
+  log(i18n.capUaLog(caps.userAgent));
+  log(i18n.capSupportLog(caps.supported ? i18n.capYes : i18n.capNo));
+  const detail = [
+    `webusb=${caps.webusb}`,
+    `secureContext=${caps.secureContext}`,
+    `requestDevice=${caps.requestDevice}`,
+    `getDevices=${caps.getDevices}`,
+    `webhid=${caps.webhid}`,
+    caps.brands ? `brands=[${caps.brands}]` : `chromium=${caps.chromium}`,
+    caps.platform ? `platform=${caps.platform}` : null,
+    caps.mobile != null ? `mobile=${caps.mobile}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  log(i18n.capCapsLog(detail));
 }
 
 function selectedRelease() {
@@ -451,12 +552,25 @@ function bindUsbEvents() {
 function init() {
   void getLang();
   const i18n = t();
-  state.webUsb = !!navigator.usb && isChromium();
+
+  const caps = probeCapabilities();
+  state.webUsb = caps.supported;
+  renderBrowserCheck(caps);
+  logBrowserCheck(caps);
   if (!state.webUsb) {
     els.browserWarning.hidden = false;
     els.connectBtn.disabled = true;
     els.flashBtn.disabled = true;
   }
+  // Enrich the report with async APIs (permission state, paired devices).
+  probeCapabilitiesAsync(caps).then((full) => {
+    log(
+      i18n.capApiLog(
+        String(full.usbPermission),
+        full.pairedDevices == null ? "n/a" : String(full.pairedDevices)
+      )
+    );
+  });
 
   els.refreshReleases.addEventListener("click", () => loadReleases());
   els.releaseSelect.addEventListener("change", () => {
