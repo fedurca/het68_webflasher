@@ -77,14 +77,27 @@
         <div class="card spectro-card">
           <div class="card-head">
             <h2>Spektrogram</h2>
-            <span class="hint">Y = frekvence · X = čas · oranžová čára = dominantní&nbsp;f</span>
+            <span class="hint">posun / měřítko · oranžová = dominantní&nbsp;f</span>
           </div>
           <div class="spectro-wrap">
             <canvas id="spectro" width="960" height="340" aria-label="Realtime spektrogram"></canvas>
           </div>
+          <div class="spectro-controls">
+            <button id="spectroLive" class="btn btn-ghost btn-sm is-active" type="button">Živě</button>
+            <label class="spectro-field">
+              <span>Měřítko</span>
+              <input id="spectroZoom" type="range" min="0" max="6" value="2" />
+            </label>
+            <label class="spectro-field spectro-field-grow">
+              <span>Posun v historii</span>
+              <input id="spectroScroll" type="range" min="0" max="1" value="1" />
+            </label>
+            <button id="spectroClear" class="btn btn-ghost btn-sm" type="button">Smazat historii</button>
+          </div>
           <div class="radar-meta">
             <span id="domFreq" class="mono">dominantní —</span>
-            <span class="hint">legenda v grafu · 0–20&nbsp;kHz</span>
+            <span id="spectroViewHint" class="hint">teď</span>
+            <span id="spectroMem" class="mono">paměť —</span>
           </div>
         </div>
 

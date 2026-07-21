@@ -77,14 +77,27 @@
         <div class="card spectro-card">
           <div class="card-head">
             <h2>Spektrogramm</h2>
-            <span class="hint">Y = Frequenz · X = Zeit · orange Linie = dominante&nbsp;f</span>
+            <span class="hint">Scrollen / Maßstab · orange = dominante&nbsp;f</span>
           </div>
           <div class="spectro-wrap">
             <canvas id="spectro" width="960" height="340" aria-label="Echtzeit-Spektrogramm"></canvas>
           </div>
+          <div class="spectro-controls">
+            <button id="spectroLive" class="btn btn-ghost btn-sm is-active" type="button">Live</button>
+            <label class="spectro-field">
+              <span>Maßstab</span>
+              <input id="spectroZoom" type="range" min="0" max="6" value="2" />
+            </label>
+            <label class="spectro-field spectro-field-grow">
+              <span>Verlauf scrollen</span>
+              <input id="spectroScroll" type="range" min="0" max="1" value="1" />
+            </label>
+            <button id="spectroClear" class="btn btn-ghost btn-sm" type="button">Verlauf löschen</button>
+          </div>
           <div class="radar-meta">
             <span id="domFreq" class="mono">dominant —</span>
-            <span class="hint">Legende im Diagramm · 0–20&nbsp;kHz</span>
+            <span id="spectroViewHint" class="hint">jetzt</span>
+            <span id="spectroMem" class="mono">Speicher —</span>
           </div>
         </div>
 

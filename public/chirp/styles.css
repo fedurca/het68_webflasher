@@ -208,7 +208,37 @@ html[data-theme="light"] .spectro-wrap {
   height: auto;
   display: block;
   vertical-align: top;
+  cursor: grab;
+  touch-action: none;
 }
+#spectro:active { cursor: grabbing; }
+
+.spectro-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem 1rem;
+  margin-top: 0.75rem;
+}
+.spectro-field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 120px;
+}
+.spectro-field-grow { flex: 1; min-width: 160px; }
+.spectro-field span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.spectro-field input[type="range"] { width: 100%; }
+#spectroLive.is-active {
+  border-color: rgba(31, 191, 160, 0.55);
+  color: var(--teal);
+}
+.radar-meta { flex-wrap: wrap; gap: 0.5rem 1rem; }
 
 .card { border: 1px solid var(--line); border-radius: 18px; background: var(--bg-card); padding: 1.1rem; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.85rem; }
