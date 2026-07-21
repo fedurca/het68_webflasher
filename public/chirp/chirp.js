@@ -393,8 +393,7 @@
     eventPrev: null,
     fluxMean: 0,
     fluxDev: 0,
-    prevFlux: 0,
-    prevPrevFlux: 0,
+    eventArmed: false,
     recPaused: false,
     timeBuf: null,
     rmsFloor: 0.004,
@@ -439,10 +438,11 @@
   var EVENT_MAX_CATEGORIES = 3;
   var EVENT_MATCH_SIM = 0.86; // cosine similarity to count as the "same" event
   var EVENT_LEARN = 0.25; // prototype adaptation rate
-  var EVENT_FLUX_K = 3.0; // adaptive threshold: mean + K*dev
-  var EVENT_FLUX_MIN = 0.25; // absolute flux floor
-  var EVENT_MIN_LOUD = 8; // ignore onsets when the band sum is tiny
-  var EVENT_REFRACTORY_MS = 160;
+  var EVENT_FLUX_K = 2.2; // adaptive threshold: mean + K*dev
+  var EVENT_FLUX_MIN = 0.12; // absolute flux floor (normalized-profile units)
+  var EVENT_MIN_LOUD = 6; // ignore onsets when the band sum is tiny
+  var EVENT_REFRACTORY_MS = 140;
+  var EVENT_ARM_RATIO = 0.4; // disarm once flux falls below thresh*ratio
   var EVENT_PALETTE = ["#f472b6", "#38bdf8", "#c084fc", "#fb923c", "#34d399", "#facc15"];
 
   function now() {
@@ -788,7 +788,10 @@
     if (!state.buf || !state.ctx) return;
     var loud = computeBandProfile(state.eventProfile);
 
-    // Spectral flux: positive change vs previous profile (scaled by loudness).
+    // Spectral flux: positive change of the (loudness-normalized) profile.
+    // Normalized so it responds to a *shape* change (new frequency content),
+    // not merely to a tone getting louder — this is what "significant change"
+    // means here. Range ≈ 0 (steady) … ~1.4 (silence → strong tone).
     var flux = 0;
     if (state.eventPrev) {
       for (var i = 0; i < EVENT_BANDS; i++) {
@@ -796,43 +799,44 @@
         if (d > 0) flux += d;
       }
     }
-    flux *= Math.min(1, loud / 40); // ignore flux when everything is quiet
     var tmp = state.eventPrev;
     state.eventPrev = state.eventProfile;
     state.eventProfile = tmp || new Float32Array(EVENT_BANDS);
 
-    // Adaptive threshold from running mean + deviation of the flux.
+    // Adaptive threshold from a slow running mean + deviation of the flux.
     state.fluxMean = state.fluxMean * 0.95 + flux * 0.05;
     state.fluxDev = state.fluxDev * 0.95 + Math.abs(flux - state.fluxMean) * 0.05;
     var thresh = state.fluxMean + EVENT_FLUX_K * state.fluxDev + EVENT_FLUX_MIN;
 
     var tnow = now();
-    var isPeak = flux >= state.prevFlux; // rising edge of the flux
-    var wasPeak = state.prevFlux >= state.prevPrevFlux;
-    state.prevPrevFlux = state.prevFlux;
-    state.prevFlux = flux;
+    var quiet = loud <= EVENT_MIN_LOUD;
 
-    if (
-      loud > EVENT_MIN_LOUD &&
-      flux > thresh &&
-      wasPeak &&
-      !isPeak &&
-      tnow - state.lastEventAt > EVENT_REFRACTORY_MS
-    ) {
-      var significance = flux;
-      var cat = classifyIntoCategory(state.eventPrev, significance);
-      if (cat) {
+    // Rising-edge trigger with hysteresis: fire when flux first crosses the
+    // threshold, then re-arm only after it falls well below it. Robust for both
+    // impulsive (clap) and sustained (tone) onsets without a fixed window.
+    if (!state.eventArmed) {
+      if (
+        !quiet &&
+        flux > thresh &&
+        tnow - state.lastEventAt > EVENT_REFRACTORY_MS
+      ) {
+        state.eventArmed = true;
         state.lastEventAt = tnow;
-        state.events.push({
-          seq: state.colSeq,
-          letter: cat.letter,
-          color: nextEventColor(cat.colorIdx),
-          freq: isFinite(state.domHz) ? state.domHz : 2500,
-        });
-        pruneEvents();
-        renderEventCounts();
-        state.spectroDirty = true;
+        var cat = classifyIntoCategory(state.eventPrev, flux);
+        if (cat) {
+          state.events.push({
+            seq: state.colSeq,
+            letter: cat.letter,
+            color: nextEventColor(cat.colorIdx),
+            freq: isFinite(state.domHz) ? state.domHz : 2500,
+          });
+          pruneEvents();
+          renderEventCounts();
+          state.spectroDirty = true;
+        }
       }
+    } else if (flux < thresh * EVENT_ARM_RATIO || quiet) {
+      state.eventArmed = false;
     }
   }
 
@@ -844,15 +848,20 @@
   // harmonic amplitudes from the FFT and pick the closest template.
 
   function ampAtHz(hz) {
+    // Energy-summed amplitude over a small window (±2 bins). Summing energy in
+    // the linear domain (instead of taking the max dB bin) keeps fundamental
+    // and harmonic amplitudes on the same footing, so their ratios are stable
+    // regardless of how a peak straddles FFT bins.
     if (!state.buf || !state.ctx) return 0;
     var binHz = state.ctx.sampleRate / state.analyser.fftSize;
     var c = hz / binHz;
-    var lo = Math.max(1, Math.floor(c) - 1);
-    var hi = Math.min(state.buf.length - 1, Math.ceil(c) + 1);
-    var m = -Infinity;
-    for (var i = lo; i <= hi; i++) if (state.buf[i] > m) m = state.buf[i];
-    if (!isFinite(m)) return 0;
-    return Math.pow(10, m / 20); // dB → linear amplitude
+    var lo = Math.max(1, Math.round(c) - 2);
+    var hi = Math.min(state.buf.length - 1, Math.round(c) + 2);
+    var e = 0;
+    for (var i = lo; i <= hi; i++) {
+      if (isFinite(state.buf[i])) e += Math.pow(10, state.buf[i] / 10); // |X|²
+    }
+    return Math.sqrt(e);
   }
 
   function classifyWaveform(hz) {
@@ -874,30 +883,37 @@
       } else break;
     }
     if (a0 <= 0) return SHAPE_NONE;
-    if (f0 * 8 > SPEC_FMAX) return SHAPE_NONE; // need room for 8 harmonics
+
+    // Use as many harmonics as fit under the analysed band (need the 3rd).
+    var maxH = Math.min(8, Math.floor((SPEC_FMAX - 1) / f0));
+    if (maxH < 3) return SHAPE_NONE;
 
     // Harmonic amplitudes relative to the fundamental (a[0] = a1 = 1).
-    var a = new Array(8);
-    for (var n = 1; n <= 8; n++) a[n - 1] = ampAtHz(f0 * n) / a0;
+    var a = [1, 0, 0, 0, 0, 0, 0, 0];
+    for (var n = 2; n <= maxH; n++) a[n - 1] = ampAtHz(f0 * n) / a0;
 
     // Inharmonicity guard: energy halfway between harmonics must be low.
-    var inter =
-      (ampAtHz(f0 * 1.5) + ampAtHz(f0 * 2.5) + ampAtHz(f0 * 3.5)) / (3 * a0);
-    if (inter > 0.45) return SHAPE_NONE; // noisy / inharmonic → not a pure wave
+    var inter = (ampAtHz(f0 * 1.5) + ampAtHz(f0 * 2.5)) / (2 * a0);
+    if (inter > 0.5) return SHAPE_NONE; // noisy / inharmonic → not a pure wave
 
     // Discriminate on the harmonic structure (fundamental excluded):
     //   sine     → negligible harmonics (a3 ≈ 0)
     //   saw      → strong even + odd harmonics (a2 ≈ 1/2), decay ∝ 1/n
     //   square   → odd dominant, a3 ≈ 1/3, decay ∝ 1/n
     //   triangle → odd dominant, a3 ≈ 1/9, decay ∝ 1/n²
+    var a2 = a[1];
+    var a3 = a[2];
     var even = Math.sqrt(a[1] * a[1] + a[3] * a[3] + a[5] * a[5]); // a2,a4,a6
     var odd = Math.sqrt(a[2] * a[2] + a[4] * a[4] + a[6] * a[6]); // a3,a5,a7
 
+    // Below this, no harmonic stands out from the fundamental → pure sine.
+    if (a3 < 0.05 && a2 < 0.12) return SHAPE_SINE;
     // Saw: prominent 2nd harmonic and a full (even+odd) series.
-    if (a[1] > 0.28 && even > 0.4 * odd) return SHAPE_SAW;
-    // Odd-dominant classes keyed off the 3rd harmonic magnitude.
-    if (a[2] > 0.2) return SHAPE_SQUARE;
-    if (a[2] > 0.055) return SHAPE_TRI;
+    if (a2 > 0.25 && even > 0.45 * odd) return SHAPE_SAW;
+    // Odd-dominant classes keyed off the 3rd-harmonic magnitude:
+    //   square a3 ≈ 0.33, triangle a3 ≈ 0.11 → split near the geometric mean.
+    if (a3 >= 0.19) return SHAPE_SQUARE;
+    if (a3 >= 0.05) return SHAPE_TRI;
     return SHAPE_SINE;
   }
 
@@ -1618,8 +1634,7 @@
     state.eventPrev = null;
     state.fluxMean = 0;
     state.fluxDev = 0;
-    state.prevFlux = 0;
-    state.prevPrevFlux = 0;
+    state.eventArmed = false;
     state.domShape = 0;
     clearWav();
     renderEventCounts();
