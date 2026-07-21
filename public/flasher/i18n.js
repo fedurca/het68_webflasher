@@ -61,6 +61,7 @@ const STRINGS = {
     capApiLog: (perm, paired) =>
       `WebUSB API — oprávnění: ${perm}, spárovaná zařízení: ${paired}`,
     boards: {
+      het68: "Firemní zařízení · RP2350 · Wi‑Fi / BT",
       pico1: "RP2040 · bez Wi‑Fi",
       pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
       pico2: "RP2350 · bez Wi‑Fi",
@@ -130,6 +131,7 @@ const STRINGS = {
     capApiLog: (perm, paired) =>
       `WebUSB API — permission: ${perm}, paired devices: ${paired}`,
     boards: {
+      het68: "Enterprise appliance · RP2350 · Wi‑Fi / BT",
       pico1: "RP2040 · no Wi‑Fi",
       pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
       pico2: "RP2350 · no Wi‑Fi",
@@ -199,6 +201,7 @@ const STRINGS = {
     capApiLog: (perm, paired) =>
       `WebUSB-API — Berechtigung: ${perm}, gekoppelte Geräte: ${paired}`,
     boards: {
+      het68: "Enterprise-Gerät · RP2350 · Wi‑Fi / BT",
       pico1: "RP2040 · kein Wi‑Fi",
       pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
       pico2: "RP2350 · kein Wi‑Fi",

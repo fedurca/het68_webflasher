@@ -19,6 +19,20 @@ const JSON_HEADERS = {
 
 const BOARDS = [
   {
+    id: "het68",
+    label: "het68 board",
+    short: "het68 board",
+    mcu: "RP2350",
+    description: "Firemní zařízení · RP2350 · Wi‑Fi / BT",
+    // Virtual platform — ships the same firmware as the Pimoroni Plus 2 W.
+    assetPatterns: [
+      /^het68-.+-pico-plus2-w\.uf2$/i,
+      /^het68-.+-pimoroni.*\.uf2$/i,
+      /^het68-.+-plus2-w\.uf2$/i,
+    ],
+    rejectPatterns: [],
+  },
+  {
     id: "pico1",
     label: "Raspberry Pi Pico",
     short: "Pico",

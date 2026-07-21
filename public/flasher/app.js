@@ -10,6 +10,7 @@ import {
 import { t, getLang } from "./i18n.js";
 
 const FALLBACK_BOARDS = [
+  { id: "het68", label: "het68 board", short: "het68 board", mcu: "RP2350" },
   { id: "pico1", label: "Raspberry Pi Pico", short: "Pico", mcu: "RP2040" },
   { id: "pico1w", label: "Raspberry Pi Pico W", short: "Pico W", mcu: "RP2040" },
   { id: "pico2", label: "Raspberry Pi Pico 2", short: "Pico 2", mcu: "RP2350" },
@@ -25,6 +26,7 @@ const FALLBACK_BOARDS = [
 // Local metadata (board photo + MCU) keyed by board id, independent of the API.
 // Image URLs are resolved against app.js so they work from / and /en/.
 const BOARD_META = {
+  het68: { mcu: "RP2350", img: "het68.svg" },
   pico1: { mcu: "RP2040", img: "pico1.png" },
   pico1w: { mcu: "RP2040", img: "pico1w.png" },
   pico2: { mcu: "RP2350", img: "pico2.png" },
@@ -64,7 +66,7 @@ const els = {
 const state = {
   boards: FALLBACK_BOARDS,
   releases: [],
-  boardId: "pico2",
+  boardId: "het68",
   tag: "",
   device: null,
   busy: false,

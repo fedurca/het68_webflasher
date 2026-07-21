@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 — 6-channel spatial acoustics platform for Raspberry Pi Pico 2. Open-source firmware, WebUSB flasher, direction-of-arrival sensing."
+      content="het68 — 6-channel spatial acoustics platform for edge deployments. Open-source firmware, web flasher, direction-of-arrival sensing."
     />
     <title>het68 — spatial acoustics</title>
     <link rel="alternate" hreflang="cs" href="https://het68.cz/" />
@@ -40,7 +40,7 @@
         <nav class="site-nav" id="siteNav" aria-label="Main navigation">
           <a href="#project">Project</a>
           <a href="#scenarios">Scenarios</a>
-          <a href="#makers">For makers</a>
+          <a href="#hardware">Hardware</a>
           <a href="#business">For business</a>
           <a href="#contact">Contact</a>
           <a class="nav-flasher" href="https://flasher.het68.cz/en/">Flasher</a>
@@ -73,7 +73,7 @@
             <p class="overline">Spatial acoustics · 6 microphones</p>
             <h1>Hears direction.<br />Detects before<br />you see it.</h1>
             <p class="lead">
-              het68 is a 6-channel spatial acoustics platform on Raspberry Pi Pico&nbsp;2 (RP2350).
+              het68 is a 6-channel spatial acoustics platform for edge deployments.
               It senses sound in time and space — and turns it into data that matters.
             </p>
             <div class="hero-actions">
@@ -120,21 +120,20 @@
         <div class="wrap project-grid">
           <header class="section-head project-head">
             <p class="offer-kicker teal">Open source</p>
-            <h2>Firmware and hardware for Pico&nbsp;2</h2>
+            <h2>het68 firmware and hardware</h2>
             <p>
               Open-source project
               <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
                 >github.com/fedurca/het68</a
               >
-              — a 6-channel I2S USB sound card and spatial acoustics platform for Raspberry Pi
-              Pico&nbsp;2 (RP2350).
+              — a 6-channel I2S USB sound card and spatial acoustics platform.
             </p>
           </header>
 
           <div class="project-card">
             <h3>What the firmware does</h3>
             <p>
-              Pico&nbsp;2 becomes a 6-channel USB microphone (UAC2). It captures six independent
+              The het68 device becomes a 6-channel USB microphone (UAC2). It captures six independent
               I2S lines from ICS-43434 MEMS mics, moves samples with DMA, and streams them to the
               host via TinyUSB.
             </p>
@@ -142,7 +141,7 @@
               <li>USB Audio Class 2.0 · isochronous IN</li>
               <li>6 channels · 48&nbsp;kHz · 24-bit packed (<code>S24_3LE</code>)</li>
               <li>PIO + DMA capture, pipeline for DOA / detection</li>
-              <li>Release UF2 for Pico&nbsp;2 and Pimoroni Pico Plus&nbsp;2&nbsp;W</li>
+              <li>Signed firmware images · deployed via the web flasher</li>
             </ul>
           </div>
 
@@ -168,7 +167,7 @@
             <dl class="spec-list">
               <div>
                 <dt>MCU</dt>
-                <dd>RP2350 (Pico 2 / Pico 2 W / Pimoroni Plus 2 W)</dd>
+                <dd>RP2350 · dual-core</dd>
               </div>
               <div>
                 <dt>Audio</dt>
@@ -176,7 +175,7 @@
               </div>
               <div>
                 <dt>Flasher</dt>
-                <dd><a href="https://flasher.het68.cz/en/">flasher.het68.cz</a> · WebUSB / BOOTSEL</dd>
+                <dd><a href="https://flasher.het68.cz/en/">flasher.het68.cz</a> · WebUSB</dd>
               </div>
               <div>
                 <dt>Source</dt>
@@ -276,13 +275,13 @@
 
       <section class="section offers" id="how">
         <div class="wrap offers-grid">
-          <article class="offer-card offer-hw" id="makers">
+          <article class="offer-card offer-hw" id="hardware">
             <div class="offer-copy">
               <p class="offer-kicker teal">Hardware</p>
-              <h2>For makers and developers</h2>
+              <h2>het68 sensor appliance</h2>
               <ul class="checklist">
                 <li>6 MEMS mics + on-device processing</li>
-                <li>USB‑C OTG and Wi‑Fi board variants</li>
+                <li>USB‑C and Wi‑Fi connectivity</li>
                 <li>Open-source firmware on GitHub</li>
                 <li>
                   Web flasher:

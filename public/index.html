@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 — 6kanálová platforma prostorové akustiky pro Raspberry Pi Pico 2. Open-source firmware, WebUSB flasher, detekce směru zvuku."
+      content="het68 — 6kanálová platforma prostorové akustiky pro edge nasazení. Open-source firmware, webový flasher, detekce směru zvuku."
     />
     <title>het68 — prostorová akustika</title>
     <link rel="alternate" hreflang="cs" href="https://het68.cz/" />
@@ -40,7 +40,7 @@
         <nav class="site-nav" id="siteNav" aria-label="Hlavní navigace">
           <a href="#projekt">Projekt</a>
           <a href="#scenare">Scénáře</a>
-          <a href="#kutily">Pro kutily</a>
+          <a href="#hardware">Hardware</a>
           <a href="#firmy">Pro firmy</a>
           <a href="#kontakt">Kontakt</a>
           <a class="nav-flasher" href="https://flasher.het68.cz/">Flasher</a>
@@ -73,7 +73,7 @@
             <p class="overline">Prostorová akustika · 6 mikrofonů</p>
             <h1>Slyší směr.<br />Detekuje dřív,<br />než uvidíte.</h1>
             <p class="lead">
-              het68 je 6kanálová platforma prostorové akustiky na Raspberry Pi Pico&nbsp;2 (RP2350).
+              het68 je 6kanálová platforma prostorové akustiky pro edge nasazení.
               Vnímá zvuk v čase i prostoru a přináší data, která dávají smysl.
             </p>
             <div class="hero-actions">
@@ -120,21 +120,20 @@
         <div class="wrap project-grid">
           <header class="section-head project-head">
             <p class="offer-kicker teal">Open source</p>
-            <h2>Firmware a hardware pro Pico&nbsp;2</h2>
+            <h2>Firmware a hardware het68</h2>
             <p>
               Open-source projekt
               <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
                 >github.com/fedurca/het68</a
               >
-              — 6kanálová I2S USB zvuková karta a platforma prostorové akustiky pro Raspberry Pi
-              Pico&nbsp;2 (RP2350).
+              — 6kanálová I2S USB zvuková karta a platforma prostorové akustiky.
             </p>
           </header>
 
           <div class="project-card">
             <h3>Co firmware dělá</h3>
             <p>
-              Pico&nbsp;2 se chová jako 6kanálové USB mikrofonní zařízení (UAC2). Zachytává šest
+              Zařízení het68 se chová jako 6kanálové USB mikrofonní zařízení (UAC2). Zachytává šest
               nezávislých I2S linek z MEMS mikrofonů ICS-43434, data přesouvá DMA a streamuje je do
               hostitele přes TinyUSB.
             </p>
@@ -142,7 +141,7 @@
               <li>USB Audio Class 2.0 · isochronní IN</li>
               <li>6 kanálů · 48&nbsp;kHz · 24-bit packed (<code>S24_3LE</code>)</li>
               <li>PIO + DMA capture, produktový řetězec pro DOA / detekci</li>
-              <li>Release UF2 pro Pico&nbsp;2 a Pimoroni Pico Plus&nbsp;2&nbsp;W</li>
+              <li>Podepsané firmware image · nasazení přes web flasher</li>
             </ul>
           </div>
 
@@ -168,7 +167,7 @@
             <dl class="spec-list">
               <div>
                 <dt>MCU</dt>
-                <dd>RP2350 (Pico 2 / Pico 2 W / Pimoroni Plus 2 W)</dd>
+                <dd>RP2350 · dvoujádrový</dd>
               </div>
               <div>
                 <dt>Audio</dt>
@@ -176,7 +175,7 @@
               </div>
               <div>
                 <dt>Flasher</dt>
-                <dd><a href="https://flasher.het68.cz/">flasher.het68.cz</a> · WebUSB / BOOTSEL</dd>
+                <dd><a href="https://flasher.het68.cz/">flasher.het68.cz</a> · WebUSB</dd>
               </div>
               <div>
                 <dt>Licence / zdroj</dt>
@@ -276,13 +275,13 @@
 
       <section class="section offers" id="jak">
         <div class="wrap offers-grid">
-          <article class="offer-card offer-hw" id="kutily">
+          <article class="offer-card offer-hw" id="hardware">
             <div class="offer-copy">
               <p class="offer-kicker teal">Hardware</p>
-              <h2>Pro kutily a vývojáře</h2>
+              <h2>Senzorové zařízení het68</h2>
               <ul class="checklist">
                 <li>6 MEMS mikrofonů + lokální zpracování</li>
-                <li>USB‑C OTG i Wi‑Fi varianta</li>
+                <li>USB‑C a Wi‑Fi konektivita</li>
                 <li>Open-source firmware na GitHubu</li>
                 <li>
                   Web flasher:

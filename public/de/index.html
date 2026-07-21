@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 — 6-Kanal-Plattform für räumliche Akustik auf Raspberry Pi Pico 2. Open-Source-Firmware, WebUSB-Flasher, Richtungserkennung."
+      content="het68 — 6-Kanal-Plattform für räumliche Akustik für Edge-Deployments. Open-Source-Firmware, Web-Flasher, Richtungserkennung."
     />
     <title>het68 — räumliche Akustik</title>
     <link rel="alternate" hreflang="cs" href="https://het68.cz/" />
@@ -40,10 +40,10 @@
         <nav class="site-nav" id="siteNav" aria-label="Hauptnavigation">
           <a href="#projekt">Projekt</a>
           <a href="#szenarien">Szenarien</a>
-          <a href="#maker">Für Maker</a>
+          <a href="#hardware">Hardware</a>
           <a href="#firmen">Für Firmen</a>
           <a href="#kontakt">Kontakt</a>
-          <a class="nav-flasher" href="https://flasher.het68.cz/en/">Flasher</a>
+          <a class="nav-flasher" href="https://flasher.het68.cz/de/">Flasher</a>
         </nav>
 
         <div class="header-tools">
@@ -73,12 +73,11 @@
             <p class="overline">Räumliche Akustik · 6 Mikrofone</p>
             <h1>Hört die Richtung.<br />Erkennt früher,<br />als Sie sehen.</h1>
             <p class="lead">
-              het68 ist eine 6-Kanal-Plattform für räumliche Akustik auf dem Raspberry Pi
-              Pico&nbsp;2 (RP2350). Sie erfasst Schall in Zeit und Raum — und liefert Daten, die
-              zählen.
+              het68 ist eine 6-Kanal-Plattform für räumliche Akustik für Edge-Deployments.
+              Sie erfasst Schall in Zeit und Raum — und liefert Daten, die zählen.
             </p>
             <div class="hero-actions">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/en/">Flasher öffnen</a>
+              <a class="btn btn-teal" href="https://flasher.het68.cz/de/">Flasher öffnen</a>
               <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
                 >GitHub-Repo</a
               >
@@ -121,21 +120,20 @@
         <div class="wrap project-grid">
           <header class="section-head project-head">
             <p class="offer-kicker teal">Open Source</p>
-            <h2>Firmware und Hardware für Pico&nbsp;2</h2>
+            <h2>het68 Firmware und Hardware</h2>
             <p>
               Open-Source-Projekt
               <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
                 >github.com/fedurca/het68</a
               >
-              — 6-Kanal-I2S-USB-Soundkarte und Plattform für räumliche Akustik auf dem Raspberry Pi
-              Pico&nbsp;2 (RP2350).
+              — 6-Kanal-I2S-USB-Soundkarte und Plattform für räumliche Akustik.
             </p>
           </header>
 
           <div class="project-card">
             <h3>Was die Firmware macht</h3>
             <p>
-              Der Pico&nbsp;2 wird zu einem 6-Kanal-USB-Mikrofon (UAC2). Er erfasst sechs
+              Das het68-Gerät wird zu einem 6-Kanal-USB-Mikrofon (UAC2). Es erfasst sechs
               unabhängige I2S-Leitungen von ICS-43434-MEMS-Mikrofonen, bewegt Samples per DMA und
               streamt sie über TinyUSB an den Host.
             </p>
@@ -143,14 +141,14 @@
               <li>USB Audio Class 2.0 · isochron IN</li>
               <li>6 Kanäle · 48&nbsp;kHz · 24-bit packed (<code>S24_3LE</code>)</li>
               <li>PIO + DMA Capture, Pipeline für DOA / Detektion</li>
-              <li>Release-UF2 für Pico&nbsp;2 und Pimoroni Pico Plus&nbsp;2&nbsp;W</li>
+              <li>Signierte Firmware-Images · Bereitstellung über den Web-Flasher</li>
             </ul>
           </div>
 
           <div class="project-card">
             <h3>Schnellzugriff</h3>
             <div class="project-links">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/en/">Web-Flasher</a>
+              <a class="btn btn-teal" href="https://flasher.het68.cz/de/">Web-Flasher</a>
               <a
                 class="btn btn-ghost"
                 href="https://github.com/fedurca/het68"
@@ -169,7 +167,7 @@
             <dl class="spec-list">
               <div>
                 <dt>MCU</dt>
-                <dd>RP2350 (Pico 2 / Pico 2 W / Pimoroni Plus 2 W)</dd>
+                <dd>RP2350 · Dual-Core</dd>
               </div>
               <div>
                 <dt>Audio</dt>
@@ -178,7 +176,7 @@
               <div>
                 <dt>Flasher</dt>
                 <dd>
-                  <a href="https://flasher.het68.cz/en/">flasher.het68.cz</a> · WebUSB / BOOTSEL
+                  <a href="https://flasher.het68.cz/de/">flasher.het68.cz</a> · WebUSB
                 </dd>
               </div>
               <div>
@@ -282,17 +280,17 @@
 
       <section class="section offers" id="wie">
         <div class="wrap offers-grid">
-          <article class="offer-card offer-hw" id="maker">
+          <article class="offer-card offer-hw" id="hardware">
             <div class="offer-copy">
               <p class="offer-kicker teal">Hardware</p>
-              <h2>Für Maker und Entwickler</h2>
+              <h2>het68 Sensor-Appliance</h2>
               <ul class="checklist">
                 <li>6 MEMS-Mikrofone + lokale Verarbeitung</li>
-                <li>USB‑C OTG und Wi‑Fi-Boardvarianten</li>
+                <li>USB‑C- und Wi‑Fi-Konnektivität</li>
                 <li>Open-Source-Firmware auf GitHub</li>
                 <li>
                   Web-Flasher:
-                  <a href="https://flasher.het68.cz/en/">flasher.het68.cz</a>
+                  <a href="https://flasher.het68.cz/de/">flasher.het68.cz</a>
                 </li>
               </ul>
             </div>
@@ -305,7 +303,7 @@
                 <p class="price-note">Kostenloser Versand · 30 Tage Rückgabe · 2 Jahre Garantie</p>
               </div>
               <div class="offer-actions">
-                <a class="btn btn-teal" href="https://flasher.het68.cz/en/">Firmware flashen</a>
+                <a class="btn btn-teal" href="https://flasher.het68.cz/de/">Firmware flashen</a>
                 <a class="btn btn-ghost" href="#kontakt">Hardware anfragen</a>
               </div>
             </div>
@@ -357,7 +355,7 @@
             <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=het68%20Firmenservice"
               >Service anfragen</a
             >
-            <a class="btn btn-ghost" href="https://flasher.het68.cz/en/">Flasher</a>
+            <a class="btn btn-ghost" href="https://flasher.het68.cz/de/">Flasher</a>
           </div>
         </div>
       </section>
@@ -373,7 +371,7 @@
         <div class="footer-links">
           <a href="/" hreflang="cs">Česky</a>
           <a href="/en/" hreflang="en">English</a>
-          <a href="https://flasher.het68.cz/en/">Flasher</a>
+          <a href="https://flasher.het68.cz/de/">Flasher</a>
         </div>
       </div>
     </footer>
