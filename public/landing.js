@@ -41,6 +41,13 @@
     de: { deployed: "bereitgestellt", ago: (s) => `vor ${s}` },
   };
 
+  function fmtDateTime(d) {
+    const p = (n) => (n < 10 ? "0" : "") + n;
+    return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(
+      d.getHours()
+    )}:${p(d.getMinutes())}`;
+  }
+
   function ageString(fromIso) {
     const then = new Date(fromIso).getTime();
     if (!isFinite(then)) return null;
@@ -63,7 +70,7 @@
         const date = new Date(info.deployedAt);
         const parts = [`v${info.version}`];
         if (!isNaN(date.getTime())) {
-          parts.push(`${i18n.deployed} ${date.toLocaleDateString(locale)}`);
+          parts.push(`${i18n.deployed} ${fmtDateTime(date)}`);
           const age = ageString(info.deployedAt);
           if (age) parts.push(i18n.ago(age));
         }

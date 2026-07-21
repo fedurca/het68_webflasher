@@ -540,6 +540,13 @@ function buildAgeString(fromIso) {
   return `${Math.floor(hrs / 24)} d`;
 }
 
+function fmtBuildDateTime(d) {
+  const p = (n) => (n < 10 ? "0" : "") + n;
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(
+    d.getHours()
+  )}:${p(d.getMinutes())}`;
+}
+
 function renderBuildMeta() {
   const el = els.buildMeta;
   if (!el) return;
@@ -551,7 +558,7 @@ function renderBuildMeta() {
       const parts = [`v${info.version}`];
       const date = new Date(info.deployedAt);
       if (!isNaN(date.getTime())) {
-        parts.push(`${i18n.buildDeployed} ${date.toLocaleDateString(i18n.locale)}`);
+        parts.push(`${i18n.buildDeployed} ${fmtBuildDateTime(date)}`);
         const age = buildAgeString(info.deployedAt);
         if (age) parts.push(i18n.buildAgo(age));
       }

@@ -2070,6 +2070,23 @@
     }
   });
 
+  function fmtDateTime(d) {
+    function p(n) {
+      return (n < 10 ? "0" : "") + n;
+    }
+    return (
+      p(d.getDate()) +
+      "." +
+      p(d.getMonth() + 1) +
+      "." +
+      d.getFullYear() +
+      " " +
+      p(d.getHours()) +
+      ":" +
+      p(d.getMinutes())
+    );
+  }
+
   (function buildMeta() {
     var el = els.buildMeta;
     if (!el) return;
@@ -2082,7 +2099,7 @@
         var parts = ["v" + info.version];
         var d = new Date(info.deployedAt);
         if (!isNaN(d.getTime())) {
-          parts.push(t.deployed + " " + d.toLocaleDateString(t.locale));
+          parts.push(t.deployed + " " + fmtDateTime(d));
         }
         if (info.commit) parts.push(info.commit);
         el.textContent = parts.join(" · ");
