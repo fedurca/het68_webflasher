@@ -25,11 +25,11 @@ const FALLBACK_BOARDS = [
 // Local metadata (board photo + MCU) keyed by board id, independent of the API.
 // Image URLs are resolved against app.js so they work from / and /en/.
 const BOARD_META = {
-  pico1: { mcu: "RP2040", img: "pico1.svg" },
-  pico1w: { mcu: "RP2040", img: "pico1w.svg" },
-  pico2: { mcu: "RP2350", img: "pico2.svg" },
-  pico2w: { mcu: "RP2350", img: "pico2w.svg" },
-  pimoroni: { mcu: "RP2350", img: "pimoroni.svg" },
+  pico1: { mcu: "RP2040", img: "pico1.png" },
+  pico1w: { mcu: "RP2040", img: "pico1w.png" },
+  pico2: { mcu: "RP2350", img: "pico2.png" },
+  pico2w: { mcu: "RP2350", img: "pico2w.png" },
+  pimoroni: { mcu: "RP2350", img: "pimoroni.png" },
 };
 
 function boardImg(id) {
@@ -166,7 +166,7 @@ function renderBoards() {
     btn.disabled = state.busy;
     const img = boardImg(board.id);
     const thumb = img
-      ? `<span class="board-thumb"><img src="${img}" alt="${board.label}" loading="lazy" width="200" height="150" /></span>`
+      ? `<span class="board-thumb"><img src="${img}" alt="${board.label}" loading="lazy" width="380" height="470" /></span>`
       : "";
     btn.innerHTML = `
       ${thumb}

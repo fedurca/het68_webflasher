@@ -389,19 +389,22 @@ main.wrap {
 }
 
 .board-thumb {
-  display: block;
-  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 0.4rem;
+  padding: 0.5rem;
   margin-bottom: 0.65rem;
+  height: 172px;
 }
 
 .board-thumb img {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: 104px;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
   object-fit: contain;
 }
 
