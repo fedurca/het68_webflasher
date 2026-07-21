@@ -74,6 +74,20 @@
       </section>
 
       <section class="grid">
+        <div class="card spectro-card">
+          <div class="card-head">
+            <h2>Spectrogram</h2>
+            <span class="hint">realtime · 0–20&nbsp;kHz · column = time</span>
+          </div>
+          <div class="spectro-wrap">
+            <canvas id="spectro" width="900" height="280" aria-label="Realtime spectrogram"></canvas>
+          </div>
+          <div class="radar-meta">
+            <span id="domFreq" class="mono">dominant —</span>
+            <span class="hint">strongest bin in the captured spectrum</span>
+          </div>
+        </div>
+
         <div class="card radar-card">
           <div class="card-head">
             <h2>Radar</h2>

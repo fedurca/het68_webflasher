@@ -188,7 +188,27 @@ a { color: var(--teal); }
 .banner-warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-text); }
 
 .grid { display: grid; gap: 1rem; margin-top: 1.5rem; }
-@media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } .radar-card { grid-column: 1 / -1; } }
+@media (min-width: 720px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+  .radar-card,
+  .spectro-card { grid-column: 1 / -1; }
+}
+
+.spectro-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+}
+html[data-theme="light"] .spectro-wrap {
+  background: rgba(15, 23, 32, 0.06);
+}
+#spectro {
+  width: 100%;
+  height: auto;
+  display: block;
+  vertical-align: top;
+}
 
 .card { border: 1px solid var(--line); border-radius: 18px; background: var(--bg-card); padding: 1.1rem; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.85rem; }

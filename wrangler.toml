@@ -18,6 +18,10 @@ BASIC_AUTH_PASS = "dev"
 
 # Custom Domains (zóna het68.cz musí být na stejném Cloudflare účtu).
 # Po úpravě stačí: npx wrangler deploy
+#
+# www.het68.cz stays as a custom domain so Cloudflare still terminates TLS and
+# routes traffic here; the Worker issues 301 → https://het68.cz/... (DNS alone
+# cannot rewrite the Host header / strip www).
 [[routes]]
 pattern = "het68.cz"
 custom_domain = true
