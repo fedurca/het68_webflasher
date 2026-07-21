@@ -58,7 +58,7 @@
 
   /** Canonical path for a language on the current host. */
   function pathForLang(lang) {
-    // Both the marketing site and the flasher ship CS / EN / DE.
+    // Marketing site, flasher, and chirp all ship CS / EN / DE at / /en/ /de/.
     if (lang === "en") return "/en/";
     if (lang === "de") return "/de/";
     return "/";

@@ -15,10 +15,164 @@
     symbolMs: 60,
   };
 
-  var SYNC_MARGIN = 16; // dB above noise floor for a SYNC tone
-  var DATA_MARGIN = 12; // dB above noise floor for a data symbol
-  var REFRACTORY_MS = 140; // ignore new SYNC right after a packet
-  var SOUND_SPEED = 343; // m/s (for reference / future ToF)
+  var SYNC_MARGIN = 16;
+  var DATA_MARGIN = 12;
+  var REFRACTORY_MS = 140;
+  var THEME_KEY = "het68-theme";
+
+  var STRINGS = {
+    cs: {
+      locale: "cs-CZ",
+      idle: "nečinné",
+      listening: "poslouchám",
+      askingMic: "žádám o mikrofon…",
+      error: "chyba",
+      startMic: "Spustit mikrofon",
+      stopMic: "Zastavit mikrofon",
+      signalDash: "signál —",
+      signalLine: function (sig, noise) {
+        return "signál " + sig + " dB · šum " + noise + " dB";
+      },
+      detections: function (n) {
+        return "detekcí: " + n;
+      },
+      emptyNodes: "Zatím nic nezachyceno.",
+      needTwoNodes: "Potřeba alespoň 2 nody.",
+      phone: "telefon",
+      waitingChirp: "Čekám na chirp…",
+      noGetUserMedia: "Tento prohlížeč nepodporuje přístup k mikrofonu (getUserMedia).",
+      needHttps: "Mikrofon vyžaduje zabezpečený kontext (HTTPS).",
+      micFailed: function (msg) {
+        return "Přístup k mikrofonu selhal: " + msg;
+      },
+      micStarted: function (sr, bin) {
+        return "mikrofon spuštěn · sample " + sr + " Hz · bin " + bin + " Hz";
+      },
+      micStopped: "mikrofon zastaven",
+      packetIncomplete: function (s) {
+        return "packet neúplný [" + s + "]";
+      },
+      checksumFail: function (d0, d1, d2, chk) {
+        return "kontrolní součet nesouhlasí [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]";
+      },
+      decoded: function (id, level) {
+        return "dekódováno id=" + id + " · signál " + level + " dB";
+      },
+      emitLog: function (idc, d0, d1, d2, chk) {
+        return "emit id=" + idc + " symbols [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]";
+      },
+      calibNoSignal: "kalibrace: zatím žádný signál",
+      calibrated: function (db) {
+        return "kalibrováno: " + db + " dB = 1 m";
+      },
+      nodesCleared: "nody vymazány",
+      ready: "het68 chirp dekodér připraven · protokol v1 (SYNC 14,5 kHz + 8-FSK 15–18,5 kHz)",
+      deployed: "nasazeno",
+    },
+    en: {
+      locale: "en-US",
+      idle: "idle",
+      listening: "listening",
+      askingMic: "requesting microphone…",
+      error: "error",
+      startMic: "Start microphone",
+      stopMic: "Stop microphone",
+      signalDash: "signal —",
+      signalLine: function (sig, noise) {
+        return "signal " + sig + " dB · noise " + noise + " dB";
+      },
+      detections: function (n) {
+        return "detections: " + n;
+      },
+      emptyNodes: "Nothing captured yet.",
+      needTwoNodes: "Need at least 2 nodes.",
+      phone: "phone",
+      waitingChirp: "Waiting for chirp…",
+      noGetUserMedia: "This browser does not support microphone access (getUserMedia).",
+      needHttps: "Microphone requires a secure context (HTTPS).",
+      micFailed: function (msg) {
+        return "Microphone access failed: " + msg;
+      },
+      micStarted: function (sr, bin) {
+        return "microphone started · sample " + sr + " Hz · bin " + bin + " Hz";
+      },
+      micStopped: "microphone stopped",
+      packetIncomplete: function (s) {
+        return "incomplete packet [" + s + "]";
+      },
+      checksumFail: function (d0, d1, d2, chk) {
+        return "checksum mismatch [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]";
+      },
+      decoded: function (id, level) {
+        return "decoded id=" + id + " · signal " + level + " dB";
+      },
+      emitLog: function (idc, d0, d1, d2, chk) {
+        return "emit id=" + idc + " symbols [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]";
+      },
+      calibNoSignal: "calibration: no signal yet",
+      calibrated: function (db) {
+        return "calibrated: " + db + " dB = 1 m";
+      },
+      nodesCleared: "nodes cleared",
+      ready: "het68 chirp decoder ready · protocol v1 (SYNC 14.5 kHz + 8-FSK 15–18.5 kHz)",
+      deployed: "deployed",
+    },
+    de: {
+      locale: "de-DE",
+      idle: "inaktiv",
+      listening: "hört zu",
+      askingMic: "Mikrofon wird angefordert…",
+      error: "Fehler",
+      startMic: "Mikrofon starten",
+      stopMic: "Mikrofon stoppen",
+      signalDash: "Signal —",
+      signalLine: function (sig, noise) {
+        return "Signal " + sig + " dB · Rauschen " + noise + " dB";
+      },
+      detections: function (n) {
+        return "Erkennungen: " + n;
+      },
+      emptyNodes: "Noch nichts erfasst.",
+      needTwoNodes: "Mindestens 2 Nodes nötig.",
+      phone: "Telefon",
+      waitingChirp: "Warte auf Chirp…",
+      noGetUserMedia: "Dieser Browser unterstützt keinen Mikrofonzugriff (getUserMedia).",
+      needHttps: "Mikrofon erfordert einen sicheren Kontext (HTTPS).",
+      micFailed: function (msg) {
+        return "Mikrofonzugriff fehlgeschlagen: " + msg;
+      },
+      micStarted: function (sr, bin) {
+        return "Mikrofon gestartet · Sample " + sr + " Hz · Bin " + bin + " Hz";
+      },
+      micStopped: "Mikrofon gestoppt",
+      packetIncomplete: function (s) {
+        return "unvollständiges Paket [" + s + "]";
+      },
+      checksumFail: function (d0, d1, d2, chk) {
+        return "Checksumme falsch [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]";
+      },
+      decoded: function (id, level) {
+        return "dekodiert id=" + id + " · Signal " + level + " dB";
+      },
+      emitLog: function (idc, d0, d1, d2, chk) {
+        return "emit id=" + idc + " Symbole [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]";
+      },
+      calibNoSignal: "Kalibrierung: noch kein Signal",
+      calibrated: function (db) {
+        return "kalibriert: " + db + " dB = 1 m";
+      },
+      nodesCleared: "Nodes gelöscht",
+      ready: "het68 Chirp-Decoder bereit · Protokoll v1 (SYNC 14,5 kHz + 8-FSK 15–18,5 kHz)",
+      deployed: "deployed",
+    },
+  };
+
+  function pageLang() {
+    var lang = (document.documentElement.lang || "cs").slice(0, 2).toLowerCase();
+    return STRINGS[lang] ? lang : "cs";
+  }
+
+  var t = STRINGS[pageLang()];
 
   var els = {
     micBtn: document.getElementById("micBtn"),
@@ -37,6 +191,7 @@
     emitLoop: document.getElementById("emitLoop"),
     log: document.getElementById("log"),
     buildMeta: document.getElementById("buildMeta"),
+    themeToggle: document.getElementById("themeToggle"),
   };
 
   var state = {
@@ -58,7 +213,7 @@
     nf: null,
     detections: 0,
     lastLevel: null,
-    refLevel: -42, // dB at 1 m (calibratable)
+    refLevel: -42,
     nodes: new Map(),
   };
 
@@ -66,9 +221,14 @@
     return performance.now();
   }
 
+  function cssVar(name, fallback) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+
   function log(msg) {
-    var t = new Date().toISOString().slice(11, 23);
-    els.log.textContent += (els.log.textContent ? "\n" : "") + "[" + t + "] " + msg;
+    var stamp = new Date().toISOString().slice(11, 23);
+    els.log.textContent += (els.log.textContent ? "\n" : "") + "[" + stamp + "] " + msg;
     els.log.scrollTop = els.log.scrollHeight;
   }
 
@@ -77,7 +237,34 @@
     els.statusPill.textContent = text;
   }
 
-  // ---- Emitter (this phone acts as a node) -------------------------------
+  // ---- Theme --------------------------------------------------------------
+  function currentTheme() {
+    var cur = document.documentElement.dataset.theme;
+    return cur === "light" ? "light" : "dark";
+  }
+
+  function applyTheme(theme) {
+    var next = theme === "light" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch (e) {
+      /* ignore */
+    }
+    if (els.themeToggle) {
+      els.themeToggle.textContent = next === "light" ? "\u263e" : "\u2600";
+      els.themeToggle.setAttribute("aria-pressed", String(next === "light"));
+    }
+  }
+
+  if (els.themeToggle) {
+    applyTheme(currentTheme());
+    els.themeToggle.addEventListener("click", function () {
+      applyTheme(currentTheme() === "light" ? "dark" : "light");
+    });
+  }
+
+  // ---- Emitter ------------------------------------------------------------
   var emitCtx = null;
   var emitLoopTimer = 0;
 
@@ -117,7 +304,7 @@
     var end = t0 + seq.length * sym;
     osc.start(t0);
     osc.stop(end + 0.03);
-    log("emit id=" + idc + " symbols [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]");
+    log(t.emitLog(idc, d0, d1, d2, chk));
   }
 
   // ---- Decoder ------------------------------------------------------------
@@ -155,9 +342,10 @@
     state.nf = state.nf == null ? bandMin : bandMin < state.nf ? bandMin : state.nf * 0.95 + bandMin * 0.05;
 
     var strongest = Math.max(syncLvl, dMax);
-    els.levelMeter.textContent =
-      "signál " + (isFinite(strongest) ? strongest.toFixed(0) : "—") + " dB · šum " +
-      (isFinite(state.nf) ? state.nf.toFixed(0) : "—") + " dB";
+    els.levelMeter.textContent = t.signalLine(
+      isFinite(strongest) ? strongest.toFixed(0) : "—",
+      isFinite(state.nf) ? state.nf.toFixed(0) : "—"
+    );
 
     var tnow = now();
     if (state.fsm === "IDLE") {
@@ -170,7 +358,6 @@
         state.t0 = tnow;
         state.syms = [];
         state.levels = [];
-        // First data symbol center: one symbol after SYNC start + half a symbol.
         state.nextAt = tnow + PROTO.symbolMs * 1.5;
       }
     } else if (state.fsm === "CAP") {
@@ -195,12 +382,12 @@
   function finishPacket() {
     var s = state.syms;
     if (s.length < 4 || s.some(function (x) { return x < 0; })) {
-      log("packet neúplný [" + s.join(" ") + "]");
+      log(t.packetIncomplete(s.join(" ")));
       return;
     }
     var d0 = s[0], d1 = s[1], d2 = s[2], chk = s[3];
     if ((d0 + d1 + d2) % 8 !== chk) {
-      log("kontrolní součet nesouhlasí [" + d0 + " " + d1 + " " + d2 + " · chk " + chk + "]");
+      log(t.checksumFail(d0, d1, d2, chk));
       return;
     }
     var id = d0 * 64 + d1 * 8 + d2;
@@ -208,8 +395,8 @@
     state.detections += 1;
     state.lastLevel = level;
     upsertNode(id, level);
-    els.detMeta.textContent = "detekcí: " + state.detections;
-    log("dekódováno id=" + id + " · signál " + level.toFixed(1) + " dB");
+    els.detMeta.textContent = t.detections(state.detections);
+    log(t.decoded(id, level.toFixed(1)));
   }
 
   function distanceFromLevel(level) {
@@ -218,23 +405,21 @@
   }
 
   function upsertNode(id, level) {
-    var t = Date.now();
+    var ts = Date.now();
     var n = state.nodes.get(id);
     if (!n) {
-      n = { id: id, firstSeen: t, count: 0 };
+      n = { id: id, firstSeen: ts, count: 0 };
       state.nodes.set(id, n);
     }
     n.level = level;
     n.dist = distanceFromLevel(level);
-    n.lastSeen = t;
+    n.lastSeen = ts;
     n.count += 1;
     renderNodes();
     renderMatrix();
   }
 
-  // ---- Geometry (single-mic estimate) ------------------------------------
   function nodeAngle(id) {
-    // Stable pseudo-random bearing from the ID (direction is not measurable).
     var h = (id * 2654435761) % 360;
     if (h < 0) h += 360;
     return (h / 360) * 2 * Math.PI;
@@ -245,7 +430,6 @@
     return { x: Math.cos(a) * n.dist, y: Math.sin(a) * n.dist };
   }
 
-  // ---- Rendering ----------------------------------------------------------
   function fmtDist(d) {
     return d < 10 ? d.toFixed(2) + " m" : d.toFixed(1) + " m";
   }
@@ -265,14 +449,22 @@
   function renderNodes() {
     var list = nodesSorted();
     if (!list.length) {
-      els.nodesBody.innerHTML = '<tr class="empty"><td colspan="4">Zatím nic nezachyceno.</td></tr>';
+      els.nodesBody.innerHTML =
+        '<tr class="empty"><td colspan="4">' + t.emptyNodes + "</td></tr>";
       return;
     }
     els.nodesBody.innerHTML = list
       .map(function (n) {
         return (
-          "<tr><td class='node-id'>#" + n.id + "</td><td>" + fmtDist(n.dist) +
-          "</td><td>" + n.level.toFixed(0) + " dB</td><td>" + ago(n.lastSeen) + "</td></tr>"
+          "<tr><td class='node-id'>#" +
+          n.id +
+          "</td><td>" +
+          fmtDist(n.dist) +
+          "</td><td>" +
+          n.level.toFixed(0) +
+          " dB</td><td>" +
+          ago(n.lastSeen) +
+          "</td></tr>"
         );
       })
       .join("");
@@ -281,12 +473,14 @@
   function renderMatrix() {
     var list = nodesSorted();
     if (list.length < 2) {
-      els.matrix.textContent = "Potřeba alespoň 2 nody.";
+      els.matrix.textContent = t.needTwoNodes;
       return;
     }
     var pts = list.map(nodePoint);
     var html = "<table><thead><tr><th></th>";
-    list.forEach(function (n) { html += "<th>#" + n.id + "</th>"; });
+    list.forEach(function (n) {
+      html += "<th>#" + n.id + "</th>";
+    });
     html += "</tr></thead><tbody>";
     for (var i = 0; i < list.length; i++) {
       html += "<tr><th>#" + list[i].id + "</th>";
@@ -308,21 +502,24 @@
   function drawRadar() {
     var c = els.radar;
     var ctx = c.getContext("2d");
-    var W = c.width, H = c.height;
-    var cx = W / 2, cy = H / 2;
+    var W = c.width,
+      H = c.height;
+    var cx = W / 2,
+      cy = H / 2;
     var pad = 46;
     var maxR = Math.min(W, H) / 2 - pad;
     ctx.clearRect(0, 0, W, H);
 
     var list = nodesSorted();
     var maxDist = 4;
-    list.forEach(function (n) { if (n.dist > maxDist) maxDist = n.dist; });
+    list.forEach(function (n) {
+      if (n.dist > maxDist) maxDist = n.dist;
+    });
     maxDist = Math.ceil(maxDist);
     var scale = maxR / maxDist;
 
-    // rings
-    ctx.strokeStyle = "rgba(148,163,184,0.22)";
-    ctx.fillStyle = "rgba(154,168,181,0.8)";
+    ctx.strokeStyle = cssVar("--radar-ring", "rgba(148,163,184,0.22)");
+    ctx.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.8)");
     ctx.font = "18px Manrope, sans-serif";
     ctx.textAlign = "left";
     var rings = 4;
@@ -333,21 +530,20 @@
       ctx.stroke();
       ctx.fillText(((maxDist * k) / rings).toFixed(0) + " m", cx + 4, cy - rr + 16);
     }
-    // cross
     ctx.beginPath();
-    ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy);
-    ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR);
+    ctx.moveTo(cx - maxR, cy);
+    ctx.lineTo(cx + maxR, cy);
+    ctx.moveTo(cx, cy - maxR);
+    ctx.lineTo(cx, cy + maxR);
     ctx.stroke();
 
-    // phone center
-    ctx.fillStyle = "#3b82f6";
+    ctx.fillStyle = cssVar("--blue", "#3b82f6");
     ctx.beginPath();
     ctx.arc(cx, cy, 9, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(154,168,181,0.9)";
-    ctx.fillText("telefon", cx + 14, cy + 5);
+    ctx.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.9)");
+    ctx.fillText(t.phone, cx + 14, cy + 5);
 
-    // nodes
     ctx.textAlign = "center";
     list.forEach(function (n) {
       var a = nodeAngle(n.id);
@@ -355,45 +551,43 @@
       var x = cx + Math.cos(a) * r;
       var y = cy + Math.sin(a) * r;
       var fresh = Date.now() - n.lastSeen < 4000;
-      ctx.fillStyle = fresh ? "#1fbfa0" : "rgba(31,191,160,0.4)";
+      ctx.fillStyle = fresh ? cssVar("--teal", "#1fbfa0") : "rgba(31,191,160,0.4)";
       ctx.beginPath();
       ctx.arc(x, y, 11, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#eef3f6";
+      ctx.fillStyle = cssVar("--radar-node-text", "#eef3f6");
       ctx.font = "700 18px Manrope, sans-serif";
       ctx.fillText("#" + n.id, x, y - 16);
       ctx.font = "15px Manrope, sans-serif";
-      ctx.fillStyle = "rgba(154,168,181,0.9)";
+      ctx.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.9)");
       ctx.fillText(fmtDist(n.dist), x, y + 28);
     });
 
     if (!list.length) {
-      ctx.fillStyle = "rgba(154,168,181,0.7)";
+      ctx.fillStyle = cssVar("--radar-waiting", "rgba(154,168,181,0.7)");
       ctx.font = "20px Manrope, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Čekám na chirp…", cx, cy - maxR - 12);
+      ctx.fillText(t.waitingChirp, cx, cy - maxR - 12);
     }
   }
 
   function drawLoop() {
     drawRadar();
-    // keep "last seen" fresh
     if (state.nodes.size) renderNodes();
     state.raf = requestAnimationFrame(drawLoop);
   }
 
-  // ---- Mic lifecycle ------------------------------------------------------
   async function startMic() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showPermWarn("Tento prohlížeč nepodporuje přístup k mikrofonu (getUserMedia).");
+      showPermWarn(t.noGetUserMedia);
       return;
     }
     if (!window.isSecureContext) {
-      showPermWarn("Mikrofon vyžaduje zabezpečený kontext (HTTPS).");
+      showPermWarn(t.needHttps);
       return;
     }
     try {
-      setStatus("", "žádám o mikrofon…");
+      setStatus("", t.askingMic);
       state.stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
@@ -416,17 +610,19 @@
       state.nf = null;
       state.lastPacketEnd = 0;
       els.permWarn.hidden = true;
-      els.micBtn.textContent = "Zastavit mikrofon";
-      setStatus("on", "poslouchám");
+      els.micBtn.textContent = t.stopMic;
+      setStatus("on", t.listening);
       log(
-        "mikrofon spuštěn · sample " + state.ctx.sampleRate + " Hz · bin " +
-        (state.ctx.sampleRate / state.analyser.fftSize).toFixed(1) + " Hz"
+        t.micStarted(
+          state.ctx.sampleRate,
+          (state.ctx.sampleRate / state.analyser.fftSize).toFixed(1)
+        )
       );
       state.pollTimer = setInterval(poll, 12);
       if (!state.raf) drawLoop();
     } catch (e) {
-      showPermWarn("Přístup k mikrofonu selhal: " + (e && e.message ? e.message : e));
-      setStatus("err", "chyba");
+      showPermWarn(t.micFailed(e && e.message ? e.message : e));
+      setStatus("err", t.error);
     }
   }
 
@@ -434,14 +630,18 @@
     state.running = false;
     if (state.pollTimer) clearInterval(state.pollTimer);
     state.pollTimer = 0;
-    if (state.stream) state.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (state.stream)
+      state.stream.getTracks().forEach(function (tr) {
+        tr.stop();
+      });
     state.stream = null;
-    if (state.ctx) state.ctx.close().catch(function () {});
+    if (state.ctx)
+      state.ctx.close().catch(function () {});
     state.ctx = null;
-    els.micBtn.textContent = "Spustit mikrofon";
-    setStatus("", "nečinné");
-    els.levelMeter.textContent = "signál —";
-    log("mikrofon zastaven");
+    els.micBtn.textContent = t.startMic;
+    setStatus("", t.idle);
+    els.levelMeter.textContent = t.signalDash;
+    log(t.micStopped);
   }
 
   function showPermWarn(text) {
@@ -449,7 +649,6 @@
     els.permWarn.hidden = false;
   }
 
-  // ---- Wiring -------------------------------------------------------------
   els.micBtn.addEventListener("click", function () {
     if (state.running) stopMic();
     else startMic();
@@ -457,7 +656,7 @@
 
   els.calibrateBtn.addEventListener("click", function () {
     if (state.lastLevel == null) {
-      log("kalibrace: zatím žádný signál");
+      log(t.calibNoSignal);
       return;
     }
     state.refLevel = state.lastLevel;
@@ -466,16 +665,16 @@
     });
     renderNodes();
     renderMatrix();
-    log("kalibrováno: " + state.refLevel.toFixed(1) + " dB = 1 m");
+    log(t.calibrated(state.refLevel.toFixed(1)));
   });
 
   els.clearBtn.addEventListener("click", function () {
     state.nodes.clear();
     state.detections = 0;
-    els.detMeta.textContent = "detekcí: 0";
+    els.detMeta.textContent = t.detections(0);
     renderNodes();
     renderMatrix();
-    log("nody vymazány");
+    log(t.nodesCleared);
   });
 
   els.emitBtn.addEventListener("click", function () {
@@ -489,23 +688,27 @@
     }
     if (els.emitLoop.checked) {
       emitLoopTimer = setInterval(function () {
-        emitChirp(parseInt(els.emitId.value, 10) || 0, (parseInt(els.emitGain.value, 10) || 0) / 100);
+        emitChirp(
+          parseInt(els.emitId.value, 10) || 0,
+          (parseInt(els.emitGain.value, 10) || 0) / 100
+        );
       }, 2000);
     }
   });
 
-  // ---- Build metadata -----------------------------------------------------
   (function buildMeta() {
     var el = els.buildMeta;
     if (!el) return;
     fetch("/build-info.json", { cache: "no-store" })
-      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
       .then(function (info) {
         if (!info || !info.version) return;
         var parts = ["v" + info.version];
         var d = new Date(info.deployedAt);
         if (!isNaN(d.getTime())) {
-          parts.push("nasazeno " + d.toLocaleDateString("cs-CZ"));
+          parts.push(t.deployed + " " + d.toLocaleDateString(t.locale));
         }
         if (info.commit) parts.push(info.commit);
         el.textContent = parts.join(" · ");
@@ -515,7 +718,6 @@
       .catch(function () {});
   })();
 
-  // initial paint
   drawRadar();
-  log("het68 chirp dekodér připraven · protokol v1 (SYNC 14,5 kHz + 8-FSK 15–18,5 kHz)");
+  log(t.ready);
 })();

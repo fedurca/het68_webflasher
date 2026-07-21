@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="het68 Chirp-Decoder — nutzt das Telefonmikrofon, dekodiert akustische Chirps lokal im Browser und zeigt Node-IDs, Position und Entfernung."
+    />
+    <title>het68 — Chirp-Decoder</title>
+    <link rel="alternate" hreflang="cs" href="https://chirp.het68.cz/" />
+    <link rel="alternate" hreflang="en" href="https://chirp.het68.cz/en/" />
+    <link rel="alternate" hreflang="de" href="https://chirp.het68.cz/de/" />
+    <script>
+      try {
+        var t = localStorage.getItem("het68-theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <div class="brand">
+          <a class="logo" href="https://het68.cz/de/">het68</a>
+          <p class="tagline">Chirp-Decoder</p>
+        </div>
+        <div class="header-right">
+          <nav class="top-links">
+            <a href="https://het68.cz/de/">Web</a>
+            <a href="https://flasher.het68.cz/de/">Flasher</a>
+          </nav>
+          <div class="lang-switch" aria-label="Sprache">
+            <a href="/" hreflang="cs" lang="cs">CZ</a>
+            <a href="/en/" hreflang="en" lang="en">EN</a>
+            <a class="is-active" href="/de/" hreflang="de" lang="de">DE</a>
+          </div>
+          <button
+            id="themeToggle"
+            class="theme-toggle"
+            type="button"
+            aria-label="Helles/dunkles Design umschalten"
+            title="Helles / dunkles Design"
+          ></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <p class="overline">Akustische Sync · lokale Dekodierung</p>
+        <h1>Nodes hören.</h1>
+        <p class="lead">
+          Nutzt das Telefonmikrofon und dekodiert akustische Chirps, mit denen sich het68-Nodes
+          synchronisieren — direkt im Browser. Zeigt erfasste <strong>Node-IDs</strong>, geschätzte
+          <strong>Position</strong> und <strong>Entfernung</strong>. Nichts wird hochgeladen —
+          alles bleibt lokal.
+        </p>
+        <div class="controls">
+          <button id="micBtn" class="btn btn-teal" type="button">Mikrofon starten</button>
+          <span id="statusPill" class="pill">inaktiv</span>
+        </div>
+        <div id="permWarn" class="banner banner-warn" hidden></div>
+      </section>
+
+      <section class="grid">
+        <div class="card radar-card">
+          <div class="card-head">
+            <h2>Radar</h2>
+            <span class="hint">Telefon in der Mitte · Ringe = Entfernung</span>
+          </div>
+          <canvas id="radar" width="640" height="640" aria-label="Node-Radar"></canvas>
+          <div class="radar-meta">
+            <span id="levelMeter" class="mono">Signal —</span>
+            <span id="detMeta" class="mono">Erkennungen: 0</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Nodes</h2>
+            <button
+              id="calibrateBtn"
+              class="btn btn-ghost btn-sm"
+              type="button"
+              title="1-m-Referenz aus dem letzten Signal setzen"
+            >
+              1 m kalibrieren
+            </button>
+          </div>
+          <table class="nodes" id="nodesTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Entfernung</th>
+                <th>Signal</th>
+                <th>Zuletzt</th>
+              </tr>
+            </thead>
+            <tbody id="nodesBody">
+              <tr class="empty">
+                <td colspan="4">Noch nichts erfasst.</td>
+              </tr>
+            </tbody>
+          </table>
+          <button id="clearBtn" class="btn btn-ghost btn-sm" type="button">Nodes löschen</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Gegenseitige Entfernungen</h2>
+            <span class="hint">Schätzung mit einem Mikrofon</span>
+          </div>
+          <div id="matrix" class="matrix">Mindestens 2 Nodes nötig.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Test-Chirp senden</h2>
+            <span class="hint">dieses Telefon als Node</span>
+          </div>
+          <div class="emit-row">
+            <label class="field">
+              <span>Node-ID (0–511)</span>
+              <input id="emitId" type="number" min="0" max="511" value="42" />
+            </label>
+            <label class="field">
+              <span>Lautstärke</span>
+              <input id="emitGain" type="range" min="0" max="100" value="60" />
+            </label>
+          </div>
+          <div class="emit-actions">
+            <button id="emitBtn" class="btn btn-blue" type="button">Chirp senden</button>
+            <label class="check">
+              <input type="checkbox" id="emitLoop" />
+              Alle 2 s wiederholen
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <details class="log-box" id="logDetails">
+        <summary>Log</summary>
+        <pre id="log" aria-live="polite"></pre>
+      </details>
+
+      <p class="proto-note">
+        het68 Chirp-Protokoll v1: SYNC-Ton 14,5&nbsp;kHz + 4 Datensymbole (8‑FSK, 15,0–18,5&nbsp;kHz,
+        60&nbsp;ms/Symbol). ID = 3 Symbole (0–511), 1 Prüfsymbol. Position mit einem Mikrofon ist eine
+        Schätzung (Richtung nicht messbar); Entfernung aus akustischer Dämpfung — nach Kalibrierung
+        auf 1&nbsp;m.
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="https://het68.cz/de/">het68</a>
+        <p>Chirp-Decoder · lokale DSP</p>
+        <div class="footer-links">
+          <a href="/" hreflang="cs">Česky</a>
+          <a href="/en/" hreflang="en">English</a>
+          <a href="https://het68.cz/de/">Web</a>
+        </div>
+        <p class="build-meta" id="buildMeta" hidden></p>
+      </div>
+    </footer>
+
+    <script src="/lang.js"></script>
+    <script src="../chirp.js"></script>
+  </body>
+</html>
