@@ -97,6 +97,13 @@
       evClap: "tlesknutí",
       evSmack: "mlasknutí",
       eventsLabel: "uč. eventy",
+      chirpsLabel: "chirpy:",
+      chirpRxTx: function (rx, tx) {
+        return "přijato " + rx + " · odesláno " + tx;
+      },
+      domLine: function (a, b, c) {
+        return "f  0,1s" + a + "  1s" + b + "  10s" + c;
+      },
       evNew: function (l) {
         return "nový event " + l;
       },
@@ -205,6 +212,13 @@
       evClap: "clap",
       evSmack: "smack",
       eventsLabel: "learned events",
+      chirpsLabel: "chirps:",
+      chirpRxTx: function (rx, tx) {
+        return "rx " + rx + " · tx " + tx;
+      },
+      domLine: function (a, b, c) {
+        return "f  0.1s" + a + "  1s" + b + "  10s" + c;
+      },
       evNew: function (l) {
         return "new event " + l;
       },
@@ -313,6 +327,13 @@
       evClap: "Klatschen",
       evSmack: "Schmatzen",
       eventsLabel: "gelernte Events",
+      chirpsLabel: "Chirps:",
+      chirpRxTx: function (rx, tx) {
+        return "empf. " + rx + " · gesend. " + tx;
+      },
+      domLine: function (a, b, c) {
+        return "f  0,1s" + a + "  1s" + b + "  10s" + c;
+      },
       evNew: function (l) {
         return "neues Event " + l;
       },
@@ -436,6 +457,10 @@
     demod: null,
     rx: [],
     peers: new Map(),
+    chirpRx: 0,
+    chirpTx: 0,
+    domRing: [],
+    lastDomDraw: 0,
     rxStats: { decoded: 0, badCrc: 0, detects: 0 },
     rxTick: 0,
     queue: [],
@@ -666,18 +691,17 @@
       return 0;
     }
     var ctx = txAudioContext();
-    var enc = ALINK.encodeChips(fields, fields.nodeId);
-    var samples = ALINK.modulate(enc.chips, ctx.sampleRate, {
+    var samples = ALINK.modulateFrame(fields, ctx.sampleRate, {
       gain: Math.max(0.02, Math.min(1, gain == null ? 0.6 : gain)),
     });
     return playSamples(samples, ctx, "frame");
   }
 
-  /** Short preamble-only ping (~0.25 s) — quick audible TX/mic check. */
+  /** Short preamble-only ping (~8 ms) — quick audible TX/mic check. */
   function transmitPreamble(nodeId, gain) {
     if (typeof ALINK === "undefined") return 0;
     var ctx = txAudioContext();
-    var code = ALINK.nodeCode(nodeId); // Int8Array(127) of ±1
+    var code = ALINK.nodeCode(nodeId); // Int8Array(31) of ±1
     var samples = ALINK.modulate(code, ctx.sampleRate, {
       gain: Math.max(0.02, Math.min(1, gain == null ? 0.6 : gain)),
     });
@@ -838,19 +862,21 @@
     return EVENT_PALETTE[idx % EVENT_PALETTE.length];
   }
 
-  function renderEventCounts() {
+  function pad(str, w) {
+    str = String(str);
+    while (str.length < w) str = " " + str;
+    return str;
+  }
+
+  // Chirp counters (replaces the old learned-event counting).
+  function renderChirpCounts() {
     if (!els.eventCounts) return;
-    if (!state.categories.length) {
-      els.eventCounts.textContent = t.eventsLabel + ": —";
-      return;
-    }
-    var sorted = state.categories.slice().sort(function (a, b) {
-      return a.letter < b.letter ? -1 : 1;
-    });
-    var parts = sorted.map(function (c) {
-      return c.letter + "×" + c.count;
-    });
-    els.eventCounts.textContent = t.eventsLabel + ": " + parts.join(" · ");
+    els.eventCounts.textContent =
+      t.chirpsLabel + " " + t.chirpRxTx(pad(state.chirpRx, 3), pad(state.chirpTx, 3));
+  }
+  // Back-compat alias (older call sites).
+  function renderEventCounts() {
+    renderChirpCounts();
   }
 
   function pruneEvents() {
@@ -1065,7 +1091,7 @@
     if (!state.recPaused) {
       updateDominantFreq();
       pushSpectroColumn();
-      detectSignalEvents();
+      renderDominant();
     }
   }
 
@@ -1121,9 +1147,11 @@
     peer.type = frame.typeName;
     peer.at = frame.at;
 
+    state.chirpRx += 1;
     renderReceived();
     renderPeers();
     renderRxStats();
+    renderChirpCounts();
     log(
       "RX " + frame.typeName + " node " + frame.nodeId + " seq " + frame.seq +
         " rho " + frame.rho.toFixed(2) + " pl[" + frame.len + "] " + bytesToText(frame.payload)
@@ -1179,10 +1207,13 @@
   function clearReceived() {
     state.rx = [];
     state.peers.clear();
+    state.chirpRx = 0;
+    state.chirpTx = 0;
     if (state.demod) state.demod.stats = { detects: 0, decoded: 0, badCrc: 0 };
     renderReceived();
     renderPeers();
     renderRxStats();
+    renderChirpCounts();
     log(t.rxCleared);
   }
 
@@ -1247,9 +1278,11 @@
 
   function doTransmit(fields) {
     var dur = transmitFrame(fields, txGainValue());
+    state.chirpTx += 1;
+    renderChirpCounts();
     log(
       "TX " + (ALINK.TYPE_NAME[fields.type] || "?") + " node " + fields.nodeId +
-        " seq " + fields.seq + " · " + dur.toFixed(1) + " s"
+        " seq " + fields.seq + " · " + (dur * 1000).toFixed(0) + " ms"
     );
     if (els.txSeqAuto && els.txSeqAuto.checked) {
       els.txSeq.value = String((fields.seq + 1) & 0xff);
@@ -1259,7 +1292,7 @@
   function doTransmitShort() {
     var node = parseInt(els.txNode.value, 10) || 0;
     var dur = transmitPreamble(node, txGainValue());
-    log("TX ping node " + node + " · " + dur.toFixed(2) + " s");
+    log("TX ping node " + node + " · " + (dur * 1000).toFixed(0) + " ms");
   }
 
   function renderQueue() {
@@ -1772,39 +1805,6 @@
       g.fillText(legendItems[li].l, legX + 22, ly);
     }
 
-    // Learned-event annotations written into the plot (letter labels)
-    var oldestSeq = state.colSeq - state.histCount;
-    g.font = "800 13px Manrope, sans-serif";
-    g.textBaseline = "bottom";
-    for (var ei = 0; ei < state.events.length; ei++) {
-      var ev = state.events[ei];
-      var logicE = ev.seq - oldestSeq - 1;
-      if (logicE < startLogic || logicE > endLogic) continue;
-      var xf =
-        lay.plotX +
-        ((logicE - startLogic) / Math.max(1, span - 1)) * (lay.plotW - 1);
-      var yf = freqToY(ev.freq || 2500, lay.plotY, lay.plotH);
-      if (yf < lay.plotY + 16) yf = lay.plotY + 16;
-      if (yf > lay.plotY + lay.plotH - 4) yf = lay.plotY + lay.plotH - 4;
-      var col = ev.color || "#f472b6";
-      g.strokeStyle = col;
-      g.globalAlpha = 0.8;
-      g.beginPath();
-      g.moveTo(xf, lay.plotY + 2);
-      g.lineTo(xf, lay.plotY + lay.plotH - 2);
-      g.stroke();
-      g.globalAlpha = 1;
-      var tw = g.measureText(ev.letter).width;
-      var tx = xf + 4;
-      if (tx + tw + 8 > lay.plotX + lay.plotW) tx = xf - tw - 8;
-      if (tx < lay.plotX + 2) tx = lay.plotX + 2;
-      g.fillStyle = "rgba(5,8,10,0.78)";
-      g.fillRect(tx - 3, yf - 15, tw + 6, 17);
-      g.fillStyle = col;
-      g.textAlign = "left";
-      g.fillText(ev.letter, tx, yf);
-    }
-
     state.spectroReady = true;
     state.spectroDirty = false;
     state.spectroDrawMs = performance.now() - t0;
@@ -1854,17 +1854,44 @@
     state.domHz = peakBin * binHz;
     state.domDb = peakDb;
     state.domShape = classifyWaveform(state.domHz);
-    // Live readout only when following live edge
-    if (state.viewEnd === 0) {
-      var shapeName = "";
-      if (state.domShape === SHAPE_SINE) shapeName = " · " + t.legendSine;
-      else if (state.domShape === SHAPE_SQUARE) shapeName = " · " + t.legendSquare;
-      else if (state.domShape === SHAPE_SAW) shapeName = " · " + t.legendSaw;
-      else if (state.domShape === SHAPE_TRI) shapeName = " · " + t.legendTri;
-      els.domFreq.textContent =
-        t.freqLine(fmtHz(state.domHz), isFinite(peakDb) ? peakDb.toFixed(0) : "—") +
-        shapeName;
+    // Record into the time ring for windowed (100 ms / 1 s / 10 s) readouts.
+    var tnow = now();
+    state.domRing.push({ t: tnow, hz: state.domHz, db: peakDb });
+    var cutoff = tnow - 10000;
+    while (state.domRing.length && state.domRing[0].t < cutoff) state.domRing.shift();
+  }
+
+  function domAvg(ms) {
+    var tnow = now();
+    var from = tnow - ms;
+    var sum = 0;
+    var cnt = 0;
+    for (var i = state.domRing.length - 1; i >= 0; i--) {
+      var e = state.domRing[i];
+      if (e.t < from) break;
+      sum += e.hz;
+      cnt++;
     }
+    return cnt ? sum / cnt : NaN;
+  }
+
+  function fmtHzFixed(hz) {
+    if (!isFinite(hz) || hz <= 0) return pad("—", 8);
+    var s = hz >= 1000 ? (hz / 1000).toFixed(2) + "k" : Math.round(hz) + "";
+    return pad(s, 8);
+  }
+
+  // Slow, readable readout of the dominant frequency over three windows.
+  function renderDominant() {
+    if (!els.domFreq) return;
+    var tnow = now();
+    if (tnow - state.lastDomDraw < 300) return; // ≤ ~3 Hz refresh
+    state.lastDomDraw = tnow;
+    els.domFreq.textContent = t.domLine(
+      fmtHzFixed(domAvg(100)),
+      fmtHzFixed(domAvg(1000)),
+      fmtHzFixed(domAvg(10000))
+    );
   }
 
   function pushSpectroColumn() {
@@ -2130,9 +2157,12 @@
     state.ctx = null;
     els.micBtn.textContent = t.startMic;
     setStatus("", t.idle);
-    if (els.domFreq) els.domFreq.textContent = t.freqDash;
+    if (els.domFreq) {
+      els.domFreq.textContent = t.domLine(pad("—", 8), pad("—", 8), pad("—", 8));
+    }
     state.domHz = null;
     state.domDb = null;
+    state.domRing = [];
     updateSpectroControls();
     log(t.micStopped);
   }
@@ -2250,11 +2280,12 @@
 
   bindSpectroControls();
   clearSpectro();
-  renderEventCounts();
+  renderChirpCounts();
   renderReceived();
   renderPeers();
   renderRxStats();
   renderQueue();
   updatePayloadLen();
+  if (els.domFreq) els.domFreq.textContent = t.domLine(pad("—", 8), pad("—", 8), pad("—", 8));
   log(t.ready);
 })();

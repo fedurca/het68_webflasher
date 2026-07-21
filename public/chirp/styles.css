@@ -313,14 +313,22 @@ table.nodes td { white-space: nowrap; }
 }
 .radar-meta {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  gap: 0.4rem 1.4rem;
   margin-top: 0.6rem;
   color: var(--muted);
 }
-.mono { font-family: var(--mono); font-size: 0.8rem; }
+/* Monospace + tabular digits + preserved spaces so padded readouts keep a
+   fixed column layout and never shift when a single value changes. */
+.mono {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+#domFreq, #eventCounts, #spectroMem { display: inline-block; }
 
 table.nodes { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 table.nodes th {

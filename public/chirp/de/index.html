@@ -98,7 +98,7 @@
           </div>
           <div class="radar-meta">
             <span id="domFreq" class="mono">dominant —</span>
-            <span id="eventCounts" class="mono">gelernte Events: —</span>
+            <span id="eventCounts" class="mono">Chirps: empf. 0 · gesend. 0</span>
             <span id="spectroViewHint" class="hint">jetzt</span>
             <span id="spectroMem" class="mono">Speicher —</span>
           </div>
@@ -190,12 +190,12 @@
             <label class="check"><input type="checkbox" id="txSeqAuto" checked /> auto seq++</label>
           </div>
           <div class="emit-actions">
-            <button id="txSend" class="btn btn-blue" type="button">Frame senden (~7,2 s)</button>
-            <button id="txShort" class="btn btn-teal btn-sm" type="button">Kurztest (~0,25 s)</button>
+            <button id="txSend" class="btn btn-blue" type="button">Frame senden (~70 ms)</button>
+            <button id="txShort" class="btn btn-teal btn-sm" type="button">Kurztest (~8 ms)</button>
             <button id="txStop" class="btn btn-ghost btn-sm" type="button">Stopp</button>
             <button id="txQueueAdd" class="btn btn-ghost btn-sm" type="button">Zur Warteschlange</button>
           </div>
-          <p id="txInfo" class="hint">Ein voller Spec-Frame dauert ~7,2 s (127+3472 Chips). Für eine schnelle Prüfung Kurztest nutzen.</p>
+          <p id="txInfo" class="hint">Ein Spec-1.4.0-Frame dauert ~70 ms (279 Chips × 250 µs).</p>
         </div>
 
         <div class="card">
@@ -215,10 +215,12 @@
       </details>
 
       <p class="proto-note">
-        het68 Chirp-Link (Spec 1.3.1): DSSS‑BPSK auf 4&nbsp;kHz-Träger, 500&nbsp;Chip/s, SF&nbsp;8,
-        127‑Chip-Präambel (Gold-Codes, 8&nbsp;Nodes). 31‑Byte-Frame (Version, Node, Typ, Seq, Flags,
-        Key/Nonce, 0–16&nbsp;B Payload) mit Hamming&nbsp;(7,4) FEC und CRC32. Ein Frame ≈&nbsp;7,2&nbsp;s
-        in der Luft. Empfang und Senden laufen lokal im Browser über Mikrofon und Lautsprecher.
+        het68 Chirp-Link (Spec 1.4.0, Version 2): 31‑Chip-BPSK-Präambel bei 4&nbsp;kHz (CDMA
+        m‑Sequenz, 8&nbsp;Nodes) + 248 Datenchips nicht‑kohärentes 2‑FSK mit Frequenzsprung
+        (3–5,4&nbsp;kHz). 250&nbsp;µs-Chips → Frame ≈&nbsp;70&nbsp;ms. 31‑Byte-Frame (Version, Node,
+        Typ, Seq, Flags, Key/Nonce, 0–16&nbsp;B Payload), nur CRC32 (kein FEC). Empfang und Senden
+        laufen lokal im Browser. Hinweis: ohne FEC und mit kurzen Chips ist die Dekodierung über die
+        Luft rauschempfindlich (die Spec setzt auf Wiederholung); 48&nbsp;kHz und kurze Distanz sind am besten.
       </p>
     </main>
 
