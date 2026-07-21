@@ -422,7 +422,7 @@ async function serveChirpHost(request, env) {
   const url = new URL(request.url);
   let path = url.pathname;
 
-  const sharedRoot = new Set(["/build-info.json"]);
+  const sharedRoot = new Set(["/build-info.json", "/lang.js"]);
 
   if (path === "/" || path === "" || path === "/index.html") {
     path = "/chirp/index.html";
@@ -490,6 +490,13 @@ function flasherPathForLang(lang) {
   return null; // cs → stay on /
 }
 
+/** Locale path for chirp decoder (CS / EN / DE). */
+function chirpPathForLang(lang) {
+  if (lang === "en") return "/en/";
+  if (lang === "de") return "/de/";
+  return null; // cs → stay on /
+}
+
 function localeRedirect(request, url, pathForLang) {
   if (url.pathname !== "/" && url.pathname !== "") return null;
   if (url.searchParams.has("lang")) return null;
@@ -526,6 +533,8 @@ export default {
 
     // chirp.het68.cz — acoustic chirp decoder (no Basic Auth)
     if (isChirpHost(host)) {
+      const redirect = localeRedirect(request, url, chirpPathForLang);
+      if (redirect) return redirect;
       return serveChirpHost(request, env);
     }
 

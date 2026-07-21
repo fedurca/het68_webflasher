@@ -8,6 +8,18 @@
       content="het68 chirp dekodér — snímá mikrofon telefonu, lokálně v prohlížeči dekóduje audio chirpy a zobrazuje ID nodů, jejich polohu a vzdálenost."
     />
     <title>het68 — chirp dekodér</title>
+    <link rel="alternate" hreflang="cs" href="https://chirp.het68.cz/" />
+    <link rel="alternate" hreflang="en" href="https://chirp.het68.cz/en/" />
+    <link rel="alternate" hreflang="de" href="https://chirp.het68.cz/de/" />
+    <script>
+      try {
+        var t = localStorage.getItem("het68-theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -19,8 +31,28 @@
   <body>
     <header class="site-header">
       <div class="wrap header-inner">
-        <a class="logo" href="https://het68.cz/">het68</a>
-        <p class="tagline">chirp dekodér</p>
+        <div class="brand">
+          <a class="logo" href="https://het68.cz/">het68</a>
+          <p class="tagline">chirp dekodér</p>
+        </div>
+        <div class="header-right">
+          <nav class="top-links">
+            <a href="https://het68.cz/">Web</a>
+            <a href="https://flasher.het68.cz/">Flasher</a>
+          </nav>
+          <div class="lang-switch" aria-label="Jazyk">
+            <a class="is-active" href="/" hreflang="cs" lang="cs">CZ</a>
+            <a href="/en/" hreflang="en" lang="en">EN</a>
+            <a href="/de/" hreflang="de" lang="de">DE</a>
+          </div>
+          <button
+            id="themeToggle"
+            class="theme-toggle"
+            type="button"
+            aria-label="Přepnout světlý/tmavý motiv"
+            title="Světlý / tmavý motiv"
+          ></button>
+        </div>
       </div>
     </header>
 
@@ -57,16 +89,28 @@
         <div class="card">
           <div class="card-head">
             <h2>Nody</h2>
-            <button id="calibrateBtn" class="btn btn-ghost btn-sm" type="button" title="Nastav referenci vzdálenosti 1 m z posledního signálu">
+            <button
+              id="calibrateBtn"
+              class="btn btn-ghost btn-sm"
+              type="button"
+              title="Nastav referenci vzdálenosti 1 m z posledního signálu"
+            >
               Kalibrovat 1 m
             </button>
           </div>
           <table class="nodes" id="nodesTable">
             <thead>
-              <tr><th>ID</th><th>Vzdálenost</th><th>Signál</th><th>Naposledy</th></tr>
+              <tr>
+                <th>ID</th>
+                <th>Vzdálenost</th>
+                <th>Signál</th>
+                <th>Naposledy</th>
+              </tr>
             </thead>
             <tbody id="nodesBody">
-              <tr class="empty"><td colspan="4">Zatím nic nezachyceno.</td></tr>
+              <tr class="empty">
+                <td colspan="4">Zatím nic nezachyceno.</td>
+              </tr>
             </tbody>
           </table>
           <button id="clearBtn" class="btn btn-ghost btn-sm" type="button">Vymazat nody</button>
@@ -121,10 +165,16 @@
       <div class="wrap footer-inner">
         <a class="logo" href="https://het68.cz/">het68</a>
         <p>chirp dekodér · lokální DSP</p>
+        <div class="footer-links">
+          <a href="/en/" hreflang="en">English</a>
+          <a href="/de/" hreflang="de">Deutsch</a>
+          <a href="https://het68.cz/">Web</a>
+        </div>
         <p class="build-meta" id="buildMeta" hidden></p>
       </div>
     </footer>
 
+    <script src="/lang.js"></script>
     <script src="./chirp.js"></script>
   </body>
 </html>
