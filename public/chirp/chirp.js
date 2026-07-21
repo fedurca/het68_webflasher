@@ -109,9 +109,10 @@
         return "dekódováno " + d + " · CRC chyb " + b + " · detekcí " + det;
       },
       rxCleared: "přijaté chirpy vymazány",
-      txAir: function (s) {
-        return "vysílání ~" + s + " s (dle spec ~7,2 s / rámec)";
+      txBusy: function (kind, left) {
+        return (kind === "ping" ? "ping" : "rámec") + " · vysílám " + left + " s";
       },
+      txStopped: "vysílání zastaveno",
       queueEmpty: "Zásobník je prázdný.",
       qLoad: "Načíst",
       qSend: "Vyslat",
@@ -216,9 +217,10 @@
         return "decoded " + d + " · CRC errors " + b + " · detects " + det;
       },
       rxCleared: "received chirps cleared",
-      txAir: function (s) {
-        return "air-time ~" + s + " s (spec ~7.2 s / frame)";
+      txBusy: function (kind, left) {
+        return (kind === "ping" ? "ping" : "frame") + " · transmitting " + left + " s";
       },
+      txStopped: "transmission stopped",
       queueEmpty: "Queue is empty.",
       qLoad: "Load",
       qSend: "Send",
@@ -323,9 +325,10 @@
         return "dekodiert " + d + " · CRC-Fehler " + b + " · Detektionen " + det;
       },
       rxCleared: "empfangene Chirps gelöscht",
-      txAir: function (s) {
-        return "Sendedauer ~" + s + " s (Spec ~7,2 s / Frame)";
+      txBusy: function (kind, left) {
+        return (kind === "ping" ? "Ping" : "Frame") + " · sende " + left + " s";
       },
+      txStopped: "Übertragung gestoppt",
       queueEmpty: "Warteschlange leer.",
       qLoad: "Laden",
       qSend: "Senden",
@@ -399,6 +402,8 @@
     txPayloadLen: document.getElementById("txPayloadLen"),
     txGain: document.getElementById("txGain"),
     txSend: document.getElementById("txSend"),
+    txShort: document.getElementById("txShort"),
+    txStop: document.getElementById("txStop"),
     txQueueAdd: document.getElementById("txQueueAdd"),
     txInfo: document.getElementById("txInfo"),
     queueList: document.getElementById("queueList"),
@@ -563,8 +568,14 @@
   }
 
   // ---- Transmitter (ALINK DSSS-BPSK per het68 chirp spec) ----------------
+  //
+  // A full spec frame is 127 preamble + 3472 data chips × 2 ms = ~7.2 s on
+  // air — a long steady 4 kHz buzz by design (DSSS processing gain). That is
+  // not a bug; for a quick audible check use the short preamble-only ping.
   var txCtx = null;
-  var txActiveUntil = 0;
+  var txSource = null;
+  var txEndTimer = 0;
+  var txCountTimer = 0;
 
   function txAudioContext() {
     if (!txCtx) {
@@ -580,7 +591,75 @@
     return txCtx;
   }
 
-  /** Transmit one ALINK frame; returns air-time seconds. */
+  function txBusy() {
+    return !!txSource;
+  }
+
+  function stopTx() {
+    if (txSource) {
+      try {
+        txSource.onended = null;
+        txSource.stop();
+      } catch (e) {
+        /* already stopped */
+      }
+      try {
+        txSource.disconnect();
+      } catch (e2) {
+        /* ignore */
+      }
+      txSource = null;
+    }
+    if (txEndTimer) {
+      clearTimeout(txEndTimer);
+      txEndTimer = 0;
+    }
+    if (txCountTimer) {
+      clearInterval(txCountTimer);
+      txCountTimer = 0;
+    }
+    setTxEnabled(true);
+  }
+
+  function setTxEnabled(on) {
+    if (els.txSend) els.txSend.disabled = !on;
+    if (els.txShort) els.txShort.disabled = !on;
+    if (els.txStop) els.txStop.disabled = on;
+  }
+
+  /** Play modulated samples as a single (non-overlapping) transmission. */
+  function playSamples(samples, ctx, label) {
+    stopTx(); // never overlap
+    var audio = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+    audio.getChannelData(0).set(samples);
+    var srcNode = ctx.createBufferSource();
+    srcNode.buffer = audio;
+    srcNode.connect(ctx.destination);
+    var dur = samples.length / ctx.sampleRate;
+    srcNode.onended = function () {
+      if (txSource === srcNode) stopTx();
+    };
+    srcNode.start();
+    txSource = srcNode;
+    setTxEnabled(false);
+    // Safety stop + live countdown.
+    txEndTimer = setTimeout(function () {
+      if (txSource === srcNode) stopTx();
+    }, dur * 1000 + 250);
+    var endAt = now() + dur * 1000;
+    if (txCountTimer) clearInterval(txCountTimer);
+    txCountTimer = setInterval(function () {
+      var left = Math.max(0, (endAt - now()) / 1000);
+      if (els.txInfo) els.txInfo.textContent = t.txBusy(label, left.toFixed(1));
+      if (left <= 0 && txCountTimer) {
+        clearInterval(txCountTimer);
+        txCountTimer = 0;
+      }
+    }, 100);
+    return dur;
+  }
+
+  /** Transmit one full ALINK frame; returns air-time seconds. */
   function transmitFrame(fields, gain) {
     if (typeof ALINK === "undefined") {
       log("ALINK unavailable");
@@ -591,16 +670,18 @@
     var samples = ALINK.modulate(enc.chips, ctx.sampleRate, {
       gain: Math.max(0.02, Math.min(1, gain == null ? 0.6 : gain)),
     });
-    var audio = ctx.createBuffer(1, samples.length, ctx.sampleRate);
-    audio.getChannelData(0).set(samples);
-    var srcNode = ctx.createBufferSource();
-    audio.copyToChannel ? audio.copyToChannel(samples, 0) : null;
-    srcNode.buffer = audio;
-    srcNode.connect(ctx.destination);
-    srcNode.start();
-    var dur = samples.length / ctx.sampleRate;
-    txActiveUntil = now() + dur * 1000;
-    return dur;
+    return playSamples(samples, ctx, "frame");
+  }
+
+  /** Short preamble-only ping (~0.25 s) — quick audible TX/mic check. */
+  function transmitPreamble(nodeId, gain) {
+    if (typeof ALINK === "undefined") return 0;
+    var ctx = txAudioContext();
+    var code = ALINK.nodeCode(nodeId); // Int8Array(127) of ±1
+    var samples = ALINK.modulate(code, ctx.sampleRate, {
+      gain: Math.max(0.02, Math.min(1, gain == null ? 0.6 : gain)),
+    });
+    return playSamples(samples, ctx, "ping");
   }
 
   function bandMeanDb(f0, f1) {
@@ -1160,17 +1241,25 @@
     updatePayloadLen();
   }
 
+  function txGainValue() {
+    return els.txGain ? (parseInt(els.txGain.value, 10) || 60) / 100 : 0.6;
+  }
+
   function doTransmit(fields) {
-    var gain = els.txGain ? (parseInt(els.txGain.value, 10) || 60) / 100 : 0.6;
-    var dur = transmitFrame(fields, gain);
+    var dur = transmitFrame(fields, txGainValue());
     log(
       "TX " + (ALINK.TYPE_NAME[fields.type] || "?") + " node " + fields.nodeId +
         " seq " + fields.seq + " · " + dur.toFixed(1) + " s"
     );
-    if (els.txInfo) els.txInfo.textContent = t.txAir(dur.toFixed(1));
     if (els.txSeqAuto && els.txSeqAuto.checked) {
-      els.txSeq.value = String(((fields.seq + 1) & 0xff));
+      els.txSeq.value = String((fields.seq + 1) & 0xff);
     }
+  }
+
+  function doTransmitShort() {
+    var node = parseInt(els.txNode.value, 10) || 0;
+    var dur = transmitPreamble(node, txGainValue());
+    log("TX ping node " + node + " · " + dur.toFixed(2) + " s");
   }
 
   function renderQueue() {
@@ -2077,6 +2166,15 @@
   if (els.txSend) {
     els.txSend.addEventListener("click", function () {
       doTransmit(currentTxFields());
+    });
+  }
+
+  if (els.txShort) els.txShort.addEventListener("click", doTransmitShort);
+  if (els.txStop) {
+    els.txStop.disabled = true;
+    els.txStop.addEventListener("click", function () {
+      stopTx();
+      if (els.txInfo) els.txInfo.textContent = t.txStopped;
     });
   }
 
