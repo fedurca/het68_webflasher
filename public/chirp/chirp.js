@@ -455,6 +455,7 @@
     domHz: null,
     domDb: null,
     demod: null,
+    rs: null,
     rx: [],
     peers: new Map(),
     chirpRx: 0,
@@ -2057,7 +2058,17 @@
           autoGainControl: false,
         },
       });
-      state.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Prefer a 48 kHz context (spec sample rate). If the device forces a
+      // different rate (often 44.1 kHz), the ALINK demod still runs at 48 kHz
+      // and the mic block is resampled — the modem's 250 µs chips are unreliable
+      // at other rates.
+      try {
+        state.ctx = new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: 48000,
+        });
+      } catch (rateErr) {
+        state.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      }
       await state.ctx.resume();
       var src = state.ctx.createMediaStreamSource(state.stream);
       state.micSrc = src;
@@ -2068,10 +2079,13 @@
       state.buf = new Float32Array(state.analyser.frequencyBinCount);
       state.timeBuf = new Float32Array(state.analyser.fftSize);
       ensureWav(state.ctx.sampleRate);
-      // ALINK receiver over the raw mono mic stream.
+      // ALINK receiver always runs at 48 kHz; resample the mic if needed.
+      var micRate = state.ctx.sampleRate;
       if (typeof ALINK !== "undefined") {
-        state.demod = new ALINK.Demod(state.ctx.sampleRate);
+        state.demod = new ALINK.Demod(48000);
+        state.rs = micRate === 48000 ? null : new ALINK.Resampler(micRate, 48000);
       }
+      log("RX sample rate " + micRate + " Hz" + (micRate === 48000 ? "" : " → 48000 (resampled)"));
       // PCM tap: feeds the WAV recorder and the ALINK demodulator.
       try {
         var proc = state.ctx.createScriptProcessor(2048, 1, 1);
@@ -2085,7 +2099,8 @@
           var ch = ev.inputBuffer.getChannelData(0);
           pushWavSamples(ch);
           if (state.demod) {
-            var frames = state.demod.push(ch);
+            var fed = state.rs ? state.rs.process(ch) : ch;
+            var frames = state.demod.push(fed);
             for (var fi = 0; fi < frames.length; fi++) handleFrame(frames[fi]);
             if (frames.length || (state.demod.stats.detects && !(state.rxTick++ & 15))) {
               renderRxStats();
@@ -2143,6 +2158,7 @@
     }
     state.micSrc = null;
     state.demod = null;
+    state.rs = null;
     if (state.ageTimer) {
       clearInterval(state.ageTimer);
       state.ageTimer = 0;

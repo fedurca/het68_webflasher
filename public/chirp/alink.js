@@ -256,7 +256,10 @@
     this.armed = false;
     this.armSample = 0;
     this.armChip = 0;
-    this.armThresh = 0.5;
+    // Coarse arm threshold is intentionally low; the precise (node, timing)
+    // search + CRC still validate, so off-grid frames that give a weaker
+    // streaming peak are not missed.
+    this.armThresh = 0.38;
     this.stats = { detects: 0, decoded: 0, badCrc: 0 };
     this.dataBits = new Uint8Array(C.DATA_BITS);
   };
@@ -459,8 +462,40 @@
     return out;
   };
 
+  // ---- Streaming linear resampler (mic rate -> 48 kHz demod rate) --------
+  function Resampler(inRate, outRate) {
+    this.step = inRate / outRate; // input samples advanced per output sample
+    this.t = 0;
+    this.buf = new Float32Array(0);
+    this.passthrough = inRate === outRate;
+  }
+  Resampler.prototype.process = function (input) {
+    if (this.passthrough) return input;
+    var b = new Float32Array(this.buf.length + input.length);
+    b.set(this.buf, 0);
+    b.set(input, this.buf.length);
+    var out = [];
+    var t = this.t;
+    while (Math.floor(t) + 1 < b.length) {
+      var i = Math.floor(t);
+      var f = t - i;
+      out.push(b[i] * (1 - f) + b[i + 1] * f);
+      t += this.step;
+    }
+    var consumed = Math.floor(t);
+    if (consumed > 0) {
+      this.buf = Float32Array.from(b.subarray(consumed));
+      t -= consumed;
+    } else {
+      this.buf = b;
+    }
+    this.t = t;
+    return Float32Array.from(out);
+  };
+
   var API = {
     CONST: C,
+    Resampler: Resampler,
     TYPE: TYPE,
     TYPE_NAME: TYPE_NAME,
     FLAG: FLAG,
