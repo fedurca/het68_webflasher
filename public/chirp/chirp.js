@@ -68,6 +68,10 @@
       nodesCleared: "nody vymazány",
       ready: "het68 chirp dekodér připraven · protokol v1 (SYNC 14,5 kHz + 8-FSK 15–18,5 kHz)",
       deployed: "nasazeno",
+      freqDash: "dominantní —",
+      freqLine: function (hz, db) {
+        return "dominantní " + hz + " · " + db + " dB";
+      },
     },
     en: {
       locale: "en-US",
@@ -116,6 +120,10 @@
       nodesCleared: "nodes cleared",
       ready: "het68 chirp decoder ready · protocol v1 (SYNC 14.5 kHz + 8-FSK 15–18.5 kHz)",
       deployed: "deployed",
+      freqDash: "dominant —",
+      freqLine: function (hz, db) {
+        return "dominant " + hz + " · " + db + " dB";
+      },
     },
     de: {
       locale: "de-DE",
@@ -164,6 +172,10 @@
       nodesCleared: "Nodes gelöscht",
       ready: "het68 Chirp-Decoder bereit · Protokoll v1 (SYNC 14,5 kHz + 8-FSK 15–18,5 kHz)",
       deployed: "deployed",
+      freqDash: "dominant —",
+      freqLine: function (hz, db) {
+        return "dominant " + hz + " · " + db + " dB";
+      },
     },
   };
 
@@ -192,6 +204,8 @@
     log: document.getElementById("log"),
     buildMeta: document.getElementById("buildMeta"),
     themeToggle: document.getElementById("themeToggle"),
+    spectro: document.getElementById("spectro"),
+    domFreq: document.getElementById("domFreq"),
   };
 
   var state = {
@@ -215,7 +229,15 @@
     lastLevel: null,
     refLevel: -42,
     nodes: new Map(),
+    domHz: null,
+    domDb: null,
+    spectroReady: false,
   };
+
+  var SPEC_FMIN = 0;
+  var SPEC_FMAX = 20000;
+  var SPEC_DB_MIN = -100;
+  var SPEC_DB_MAX = -20;
 
   function now() {
     return performance.now();
@@ -346,6 +368,9 @@
       isFinite(strongest) ? strongest.toFixed(0) : "—",
       isFinite(state.nf) ? state.nf.toFixed(0) : "—"
     );
+
+    updateDominantFreq();
+    pushSpectroColumn();
 
     var tnow = now();
     if (state.fsm === "IDLE") {
@@ -499,6 +524,112 @@
     els.matrix.innerHTML = html;
   }
 
+  function fmtHz(hz) {
+    if (!isFinite(hz) || hz < 0) return "—";
+    if (hz >= 1000) return (hz / 1000).toFixed(hz >= 10000 ? 2 : 3) + " kHz";
+    return Math.round(hz) + " Hz";
+  }
+
+  function colorForDb(db) {
+    var x = (db - SPEC_DB_MIN) / (SPEC_DB_MAX - SPEC_DB_MIN);
+    if (x < 0) x = 0;
+    if (x > 1) x = 1;
+    // dark → teal → yellow → white
+    var r, g, b;
+    if (x < 0.35) {
+      var a = x / 0.35;
+      r = Math.round(8 + a * 20);
+      g = Math.round(12 + a * 80);
+      b = Math.round(18 + a * 70);
+    } else if (x < 0.7) {
+      var a2 = (x - 0.35) / 0.35;
+      r = Math.round(28 + a2 * 3);
+      g = Math.round(92 + a2 * 99);
+      b = Math.round(88 + a2 * 72);
+    } else {
+      var a3 = (x - 0.7) / 0.3;
+      r = Math.round(31 + a3 * 224);
+      g = Math.round(191 + a3 * 64);
+      b = Math.round(160 + a3 * 95);
+    }
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  function clearSpectro() {
+    var c = els.spectro;
+    if (!c) return;
+    var g = c.getContext("2d");
+    g.fillStyle = cssVar("--bg", "#05080a");
+    g.fillRect(0, 0, c.width, c.height);
+    // frequency guide lines for chirp band
+    g.strokeStyle = "rgba(148,163,184,0.18)";
+    g.fillStyle = cssVar("--radar-label", "rgba(154,168,181,0.7)");
+    g.font = "12px Manrope, sans-serif";
+    g.textAlign = "left";
+    var marks = [0, 5000, 10000, 14500, 18500, 20000];
+    for (var i = 0; i < marks.length; i++) {
+      var f = marks[i];
+      if (f < SPEC_FMIN || f > SPEC_FMAX) continue;
+      var y = ((SPEC_FMAX - f) / (SPEC_FMAX - SPEC_FMIN)) * (c.height - 1);
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(c.width, y);
+      g.stroke();
+      g.fillText(f >= 1000 ? f / 1000 + "k" : String(f), 4, y + 11);
+    }
+    state.spectroReady = true;
+  }
+
+  function updateDominantFreq() {
+    if (!state.buf || !state.ctx || !els.domFreq) return;
+    var binHz = state.ctx.sampleRate / state.analyser.fftSize;
+    var lo = Math.max(1, Math.floor(80 / binHz)); // skip DC / rumble
+    var hi = Math.min(state.buf.length - 1, Math.floor(SPEC_FMAX / binHz));
+    var peakBin = lo;
+    var peakDb = -Infinity;
+    for (var i = lo; i <= hi; i++) {
+      if (state.buf[i] > peakDb) {
+        peakDb = state.buf[i];
+        peakBin = i;
+      }
+    }
+    state.domHz = peakBin * binHz;
+    state.domDb = peakDb;
+    els.domFreq.textContent = t.freqLine(
+      fmtHz(state.domHz),
+      isFinite(peakDb) ? peakDb.toFixed(0) : "—"
+    );
+  }
+
+  function pushSpectroColumn() {
+    var c = els.spectro;
+    if (!c || !state.buf || !state.ctx) return;
+    if (!state.spectroReady) clearSpectro();
+    var g = c.getContext("2d");
+    var W = c.width;
+    var H = c.height;
+    g.drawImage(c, -1, 0);
+    var binHz = state.ctx.sampleRate / state.analyser.fftSize;
+    var bin0 = Math.max(0, Math.floor(SPEC_FMIN / binHz));
+    var bin1 = Math.min(state.buf.length - 1, Math.ceil(SPEC_FMAX / binHz));
+    var x = W - 1;
+    for (var y = 0; y < H; y++) {
+      var frac = y / (H - 1);
+      var bin = Math.round(bin1 - frac * (bin1 - bin0));
+      g.fillStyle = colorForDb(state.buf[bin]);
+      g.fillRect(x, y, 1, 1);
+    }
+    // highlight SYNC / data band edge on the newest column
+    function markFreq(freq, color) {
+      var yy = ((SPEC_FMAX - freq) / (SPEC_FMAX - SPEC_FMIN)) * (H - 1);
+      g.fillStyle = color;
+      g.fillRect(x, Math.round(yy) - 1, 1, 3);
+    }
+    markFreq(PROTO.syncFreq, "rgba(59,130,246,0.9)");
+    markFreq(PROTO.dataFreqs[0], "rgba(31,191,160,0.7)");
+    markFreq(PROTO.dataFreqs[7], "rgba(31,191,160,0.7)");
+  }
+
   function drawRadar() {
     var c = els.radar;
     var ctx = c.getContext("2d");
@@ -641,6 +772,9 @@
     els.micBtn.textContent = t.startMic;
     setStatus("", t.idle);
     els.levelMeter.textContent = t.signalDash;
+    if (els.domFreq) els.domFreq.textContent = t.freqDash;
+    state.domHz = null;
+    state.domDb = null;
     log(t.micStopped);
   }
 
@@ -718,6 +852,7 @@
       .catch(function () {});
   })();
 
+  clearSpectro();
   drawRadar();
   log(t.ready);
 })();

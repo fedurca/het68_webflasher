@@ -1,10 +1,15 @@
 /**
  * HET68 — Cloudflare Worker
  *
- * - het68.cz / www → static marketing site (Basic Auth)
+ * - www.* → 301 strip to apex (www.het68.cz → het68.cz) before auth/routing
+ * - het68.cz → static marketing site (Basic Auth)
  * - flasher.het68.cz → web flasher (no auth)
  * - qr.het68.cz → QR scrambler from fedurca/qr_scrambler (no auth)
+ * - chirp.het68.cz → acoustic chirp decoder (no auth)
  * - /api/* → GitHub Releases proxy (flasher host, or /flasher path in dev)
+ *
+ * Note: DNS alone cannot strip "www" from the hostname — the www custom domain
+ * still points here so this Worker can issue the canonical redirect.
  */
 
 const GITHUB_API = "https://api.github.com";
@@ -509,9 +514,38 @@ function localeRedirect(request, url, pathForLang) {
   return Response.redirect(new URL(dest, url).toString(), 302);
 }
 
+/** Raw request host (Host / X-Forwarded-Host), without flasher/qr/chirp preference. */
+function rawRequestHostname(request) {
+  const url = new URL(request.url);
+  const candidates = [
+    request.headers.get("X-Forwarded-Host")?.split(",")[0]?.trim(),
+    request.headers.get("Host"),
+    url.hostname,
+  ]
+    .filter(Boolean)
+    .map((h) => h.split(":")[0].toLowerCase());
+  return candidates[0] || url.hostname.toLowerCase();
+}
+
+/** 301 www.example.com → example.com (path + query preserved). */
+function wwwCanonicalRedirect(request) {
+  const host = rawRequestHostname(request);
+  if (!host.startsWith("www.")) return null;
+  const apex = host.slice(4);
+  if (!apex) return null;
+  const url = new URL(request.url);
+  const dest = new URL(url.pathname + url.search + url.hash, `https://${apex}`);
+  return Response.redirect(dest.toString(), 301);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // Canonical host: always strip www (before Basic Auth).
+    const wwwRedirect = wwwCanonicalRedirect(request);
+    if (wwwRedirect) return wwwRedirect;
+
     const host = requestHostname(request);
 
     // API available on both hosts
