@@ -68,6 +68,9 @@
       nodesCleared: "nody vymazány",
       ready: "het68 chirp dekodér připraven · protokol v1 (SYNC 14,5 kHz + 8-FSK 15–18,5 kHz)",
       deployed: "nasazeno",
+      buildAgo: function (s) {
+        return "před " + s;
+      },
       freqDash: "dominantní —",
       freqLine: function (hz, db) {
         return "dominantní " + hz + " · " + db + " dB";
@@ -187,6 +190,9 @@
       nodesCleared: "nodes cleared",
       ready: "het68 chirp decoder ready · protocol v1 (SYNC 14.5 kHz + 8-FSK 15–18.5 kHz)",
       deployed: "deployed",
+      buildAgo: function (s) {
+        return s + " ago";
+      },
       freqDash: "dominant —",
       freqLine: function (hz, db) {
         return "dominant " + hz + " · " + db + " dB";
@@ -305,7 +311,10 @@
       },
       nodesCleared: "Nodes gelöscht",
       ready: "het68 Chirp-Decoder bereit · Protokoll v1 (SYNC 14,5 kHz + 8-FSK 15–18,5 kHz)",
-      deployed: "deployed",
+      deployed: "bereitgestellt",
+      buildAgo: function (s) {
+        return "vor " + s;
+      },
       freqDash: "dominant —",
       freqLine: function (hz, db) {
         return "dominant " + hz + " · " + db + " dB";
@@ -2320,6 +2329,16 @@
     });
   }
 
+  function buildAgeString(fromIso) {
+    var then = new Date(fromIso).getTime();
+    if (!isFinite(then)) return null;
+    var mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
+    if (mins < 60) return mins + " min";
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 48) return hrs + " h";
+    return Math.floor(hrs / 24) + " d";
+  }
+
   function fmtDateTime(d) {
     function p(n) {
       return (n < 10 ? "0" : "") + n;
@@ -2338,6 +2357,8 @@
   }
 
   (function buildMeta() {
+    var yearEl = document.getElementById("year");
+    if (yearEl) yearEl.textContent = String(new Date().getFullYear());
     var el = els.buildMeta;
     if (!el) return;
     fetch("/build-info.json", { cache: "no-store" })
@@ -2350,6 +2371,8 @@
         var d = new Date(info.deployedAt);
         if (!isNaN(d.getTime())) {
           parts.push(t.deployed + " " + fmtDateTime(d));
+          var age = buildAgeString(info.deployedAt);
+          if (age) parts.push(t.buildAgo(age));
         }
         if (info.commit) parts.push(info.commit);
         el.textContent = parts.join(" · ");

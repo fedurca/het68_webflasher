@@ -548,6 +548,8 @@ function fmtBuildDateTime(d) {
 }
 
 function renderBuildMeta() {
+  const yearEl = document.getElementById("year");
+  if (yearEl) yearEl.textContent = String(new Date().getFullYear());
   const el = els.buildMeta;
   if (!el) return;
   const i18n = t();

@@ -444,10 +444,35 @@
   setInterval(function () { if (state.rx.length) renderRx(); }, 1000);
 
   (function buildMeta() {
+    var yearEl = document.getElementById("year");
+    if (yearEl) yearEl.textContent = String(new Date().getFullYear());
+    function fmtDT(d) {
+      var p = function (n) { return (n < 10 ? "0" : "") + n; };
+      return p(d.getDate()) + "." + p(d.getMonth() + 1) + "." + d.getFullYear() +
+        " " + p(d.getHours()) + ":" + p(d.getMinutes());
+    }
+    function ageStr(iso) {
+      var then = new Date(iso).getTime();
+      if (!isFinite(then)) return null;
+      var mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
+      if (mins < 60) return mins + " min";
+      var hrs = Math.floor(mins / 60);
+      return hrs < 48 ? hrs + " h" : Math.floor(hrs / 24) + " d";
+    }
+    if (!els.buildMeta) return;
     fetch("/build-info.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (info) {
       if (!info || !info.version) return;
-      els.buildMeta.textContent = "v" + info.version + (info.commit ? " · " + info.commit : "");
+      var parts = ["v" + info.version];
+      var d = new Date(info.deployedAt);
+      if (!isNaN(d.getTime())) {
+        parts.push("nasazeno " + fmtDT(d));
+        var a = ageStr(info.deployedAt);
+        if (a) parts.push("před " + a);
+      }
+      if (info.commit) parts.push(info.commit);
+      els.buildMeta.textContent = parts.join(" · ");
       els.buildMeta.hidden = false;
+      els.buildMeta.title = info.deployedAt || "";
     }).catch(function () {});
   })();
 
