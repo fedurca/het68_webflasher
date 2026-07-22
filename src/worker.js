@@ -327,6 +327,11 @@ function isChirpHost(hostname) {
   return host === "chirp.het68.cz" || host.startsWith("chirp.");
 }
 
+function isDevHost(hostname) {
+  const host = (hostname || "").toLowerCase();
+  return host === "dev.het68.cz" || host.startsWith("dev.");
+}
+
 /**
  * Resolve request host. Prefer flasher/qr/chirp when any candidate matches —
  * local `wrangler dev` rewrites URL/Host to the first custom_domain (het68.cz).
@@ -342,7 +347,7 @@ function requestHostname(request) {
     .map((h) => h.split(":")[0].toLowerCase());
 
   for (const h of candidates) {
-    if (isFlasherHost(h) || isQrHost(h) || isChirpHost(h)) return h;
+    if (isFlasherHost(h) || isQrHost(h) || isChirpHost(h) || isDevHost(h)) return h;
   }
   return candidates[0] || url.hostname.toLowerCase();
 }
@@ -456,6 +461,52 @@ async function serveChirpHost(request, env) {
   return res;
 }
 
+/**
+ * Map dev.het68.cz onto /chirpdev/* (parameter-tuning playground). The ALINK
+ * modem is shared with the chirp app (served from /chirp/alink.js).
+ */
+async function serveDevHost(request, env) {
+  const url = new URL(request.url);
+  let path = url.pathname;
+
+  if (path === "/alink.js") {
+    path = "/chirp/alink.js"; // shared modem
+  } else if (
+    path === "/build-info.json" ||
+    path === "/lang.js" ||
+    path.startsWith("/chirp/") // shared chirp assets (styles.css, etc.)
+  ) {
+    // keep as-is
+  } else if (path === "/" || path === "" || path === "/index.html") {
+    path = "/chirpdev/index.html";
+  } else if (!path.startsWith("/chirpdev/")) {
+    path = `/chirpdev${path.startsWith("/") ? path : `/${path}`}`;
+  }
+
+  let assetUrl = new URL(request.url);
+  assetUrl.pathname = path;
+  let res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  for (let i = 0; i < 3; i++) {
+    if (res.status < 300 || res.status >= 400) break;
+    const loc = res.headers.get("Location");
+    if (!loc) break;
+    assetUrl = new URL(loc, assetUrl);
+    if (!assetUrl.pathname.startsWith("/chirpdev") && assetUrl.pathname !== "/chirp/alink.js") {
+      assetUrl.pathname = `/chirpdev${assetUrl.pathname === "/" ? "/" : assetUrl.pathname}`;
+    }
+    res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  }
+  return res;
+}
+
+/** Shared tuning room + node presence for chirpdev (routed to the DO). */
+async function handleDevApi(request, env) {
+  if (!env.CONFIG_ROOM) return err("shared room unavailable", 503);
+  const id = env.CONFIG_ROOM.idFromName("global");
+  const stub = env.CONFIG_ROOM.get(id);
+  return stub.fetch(request);
+}
+
 async function serveAssets(request, env) {
   return env.ASSETS.fetch(request);
 }
@@ -548,9 +599,19 @@ export default {
 
     const host = requestHostname(request);
 
+    // chirpdev shared-room API (tuning params + node presence)
+    if (url.pathname.startsWith("/api/dev/")) {
+      return handleDevApi(request, env);
+    }
+
     // API available on both hosts
     if (url.pathname.startsWith("/api/")) {
       return handleApi(request, env);
+    }
+
+    // dev.het68.cz — chirpdev tuning playground (no Basic Auth)
+    if (isDevHost(host)) {
+      return serveDevHost(request, env);
     }
 
     // flasher.het68.cz — no Basic Auth
@@ -582,6 +643,9 @@ export default {
     if (url.pathname === "/chirp" || url.pathname.startsWith("/chirp/")) {
       return serveAssets(request, env);
     }
+    if (url.pathname === "/chirpdev" || url.pathname.startsWith("/chirpdev/")) {
+      return serveAssets(request, env);
+    }
 
     // Marketing site — Basic Auth (Cloudflare stand-in for .htaccess)
     if (!checkBasicAuth(request, env)) {
@@ -594,3 +658,105 @@ export default {
     return serveAssets(request, env);
   },
 };
+
+/**
+ * ConfigRoom — a single shared Durable Object for chirpdev.
+ *
+ * Holds the current tuning config (agreed by all testers) plus a live presence
+ * table of nodes (each browser is a node, identified by a fingerprint hash).
+ * Clients poll a few times per second; whoever posts a new config bumps a
+ * version so everyone converges on the same modulation parameters for a test.
+ *
+ * Endpoints (POST/GET JSON):
+ *   GET  /api/dev/state           → { v, config, nodes: [...] }
+ *   POST /api/dev/config {config} → set config, v++
+ *   POST /api/dev/heartbeat {fp,node,label,rx,tx,heard:[...]} → upsert presence
+ */
+export class ConfigRoom {
+  constructor(state) {
+    this.state = state;
+    this.v = 0;
+    this.config = null;
+    this.nodes = new Map(); // fp -> { fp, node, label, rx, tx, heard, at }
+    this.loaded = false;
+  }
+
+  async _load() {
+    if (this.loaded) return;
+    const stored = await this.state.storage.get(["v", "config"]);
+    this.v = stored.get("v") || 0;
+    this.config = stored.get("config") || null;
+    this.loaded = true;
+  }
+
+  _pruneNodes() {
+    const now = Date.now();
+    for (const [fp, n] of this.nodes) {
+      if (now - n.at > 20000) this.nodes.delete(fp);
+    }
+  }
+
+  _nodeList() {
+    this._pruneNodes();
+    return Array.from(this.nodes.values()).sort((a, b) =>
+      a.fp < b.fp ? -1 : 1
+    );
+  }
+
+  async fetch(request) {
+    await this._load();
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const json = (o, status = 200) =>
+      new Response(JSON.stringify(o), {
+        status,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+        },
+      });
+
+    if (path === "/api/dev/state") {
+      return json({ v: this.v, config: this.config, nodes: this._nodeList() });
+    }
+
+    if (path === "/api/dev/config" && request.method === "POST") {
+      let body;
+      try {
+        body = await request.json();
+      } catch (e) {
+        return json({ error: "bad json" }, 400);
+      }
+      if (body && body.config) {
+        this.config = body.config;
+        this.v = (this.v + 1) >>> 0;
+        await this.state.storage.put({ v: this.v, config: this.config });
+      }
+      return json({ v: this.v, config: this.config });
+    }
+
+    if (path === "/api/dev/heartbeat" && request.method === "POST") {
+      let body;
+      try {
+        body = await request.json();
+      } catch (e) {
+        return json({ error: "bad json" }, 400);
+      }
+      if (body && body.fp) {
+        this.nodes.set(String(body.fp).slice(0, 16), {
+          fp: String(body.fp).slice(0, 16),
+          node: body.node | 0,
+          label: String(body.label || "").slice(0, 24),
+          rx: body.rx | 0,
+          tx: body.tx | 0,
+          heard: Array.isArray(body.heard) ? body.heard.slice(0, 16) : [],
+          at: Date.now(),
+        });
+      }
+      return json({ v: this.v, config: this.config, nodes: this._nodeList() });
+    }
+
+    return json({ error: "not found" }, 404);
+  }
+}

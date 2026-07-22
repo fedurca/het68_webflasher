@@ -66,9 +66,29 @@
     CHIP_MS: 1.0, // = PRE_CHIP_MS (used by the preamble-only ping)
   };
 
+  // Accepts a preset name ("phone"/"piezo") or a custom params object:
+  //   { preambleHz, hops:[8], preChipMs, dataChipMs }
+  // or { preambleHz, hopBaseHz, hopStepHz, preChipMs, dataChipMs }.
   function setProfile(name) {
-    var p = PROFILES[name] || PROFILES.phone;
-    C.PROFILE = PROFILES[name] ? name : "phone";
+    var p;
+    if (name && typeof name === "object") {
+      var hops = name.hops;
+      if (!hops && name.hopBaseHz != null) {
+        hops = [];
+        var step = name.hopStepHz || 200;
+        for (var i = 0; i < C.NHOPS; i++) hops.push(name.hopBaseHz + i * step);
+      }
+      p = {
+        PREAMBLE_HZ: name.preambleHz || 2000,
+        HOPS: hops || PROFILES.phone.HOPS,
+        PRE_CHIP_MS: name.preChipMs || 1.0,
+        DATA_CHIP_MS: name.dataChipMs || 4.0,
+      };
+      C.PROFILE = "custom";
+    } else {
+      p = PROFILES[name] || PROFILES.phone;
+      C.PROFILE = PROFILES[name] ? name : "phone";
+    }
     C.PREAMBLE_HZ = p.PREAMBLE_HZ;
     C.HOPS = p.HOPS;
     C.PRE_CHIP_MS = p.PRE_CHIP_MS;

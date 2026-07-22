@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="het68 chirpdev — ladicí nástroj akustické linky: automatické ladění modulace, frekvencí a délky pulzů, sdílené nastavení mezi zařízeními a mapa nodů."
+    />
+    <title>het68 — chirpdev (ladění linky)</title>
+    <script>
+      try {
+        var t = localStorage.getItem("het68-theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/chirp/styles.css" />
+    <link rel="stylesheet" href="./chirpdev.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <div class="brand">
+          <a class="logo" href="https://het68.cz/">het68</a>
+          <p class="tagline">chirpdev · ladění linky</p>
+        </div>
+        <div class="header-right">
+          <nav class="top-links">
+            <a href="https://chirp.het68.cz/">Chirp</a>
+            <a href="https://het68.cz/">Web</a>
+          </nav>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Motiv" title="Světlý / tmavý motiv"></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <p class="overline">Empirické ladění · sdílené mezi zařízeními</p>
+        <h1>Nalaď linku naživo.</h1>
+        <p class="lead">
+          Automaticky prochází modulační parametry (pásmo, rozestup tónů, délku čipů) a měří
+          úspěšnost dekódování a propustnost v reálném prostředí. Nastavení se
+          <strong>synchronizuje mezi všemi návštěvníky</strong>, takže víc zařízení testuje se
+          stejnou konfigurací. Každé zařízení je node s ID z otisku prohlížeče.
+        </p>
+        <div class="controls">
+          <button id="micBtn" class="btn btn-teal" type="button">Spustit mikrofon</button>
+          <span id="statusPill" class="pill">nečinné</span>
+          <span id="meId" class="mono"></span>
+        </div>
+        <div id="permWarn" class="banner banner-warn" hidden></div>
+      </section>
+
+      <section class="grid">
+        <div class="card params-card">
+          <div class="card-head">
+            <h2>Parametry linky</h2>
+            <span id="syncState" class="hint mono">sync —</span>
+          </div>
+          <div class="tx-grid">
+            <label class="field"><span>Preambule (Hz)</span><input id="pPre" type="number" min="800" max="8000" step="100" value="2000" /></label>
+            <label class="field"><span>Hop base (Hz)</span><input id="pBase" type="number" min="800" max="8000" step="50" value="1400" /></label>
+            <label class="field"><span>Hop step (Hz)</span><input id="pStep" type="number" min="50" max="800" step="10" value="200" /></label>
+            <label class="field"><span>Preamble chip (ms)</span><input id="pPreMs" type="number" min="0.25" max="4" step="0.25" value="1" /></label>
+            <label class="field"><span>Data chip (ms)</span><input id="pDataMs" type="number" min="0.5" max="8" step="0.5" value="4" /></label>
+            <label class="field"><span>Node ID</span><input id="pNode" type="number" min="0" max="7" value="0" readonly /></label>
+          </div>
+          <div class="tx-flags">
+            <button id="applyLocal" class="btn btn-ghost btn-sm" type="button">Použít lokálně</button>
+            <button id="applyAll" class="btn btn-blue btn-sm" type="button">Synchronizovat všem</button>
+            <label class="check"><input type="checkbox" id="followRoom" checked /> přebírat sdílené nastavení</label>
+          </div>
+          <p class="hint mono" id="airInfo"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Vysílání &amp; příjem</h2>
+            <span id="rxStats" class="mono hint">dekódováno 0 · CRC 0 · det 0</span>
+          </div>
+          <div class="tx-grid">
+            <label class="field"><span>Payload</span><input id="txPayload" type="text" maxlength="16" value="het68" spellcheck="false" /></label>
+            <label class="field"><span>Hlasitost</span><input id="txGain" type="range" min="0" max="100" value="70" /></label>
+          </div>
+          <div class="tx-flags">
+            <button id="txOnce" class="btn btn-blue btn-sm" type="button">Vyslat 1×</button>
+            <label class="check"><input type="checkbox" id="txAuto" /> auto vysílat</label>
+            <button id="txStop" class="btn btn-ghost btn-sm" type="button">Stop</button>
+          </div>
+          <p class="hint mono" id="txInfo"></p>
+          <div class="rx-scroll">
+            <table class="nodes"><thead><tr><th>Čas</th><th>Node</th><th>Seq</th><th>Payload</th><th>ρ</th></tr></thead>
+              <tbody id="rxBody"><tr class="empty"><td colspan="5">Zatím nic přijato.</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <div class="card sweep-card">
+          <div class="card-head">
+            <h2>Automatické ladění</h2>
+            <span id="sweepState" class="hint mono">nečinné</span>
+          </div>
+          <p class="hint">Projde mřížku parametrů; pro každou sadu nastaví všem stejnou konfiguraci, chvíli vysílá/měří a zaznamená úspěšnost a propustnost. Spusť na 1+ zařízeních.</p>
+          <div class="tx-flags">
+            <label class="check"><input type="checkbox" id="swPre" checked /> pásmo (1,5/2/2,5 kHz)</label>
+            <label class="check"><input type="checkbox" id="swStep" checked /> rozestup (150/200/300)</label>
+            <label class="check"><input type="checkbox" id="swData" checked /> data chip (2/3/4/6 ms)</label>
+          </div>
+          <div class="tx-flags">
+            <label class="field"><span>Měření/sada (s)</span><input id="swWin" type="number" min="4" max="30" value="8" /></label>
+            <button id="sweepStart" class="btn btn-teal btn-sm" type="button">Spustit sweep</button>
+            <button id="sweepStop" class="btn btn-ghost btn-sm" type="button">Zastavit</button>
+            <button id="sweepBest" class="btn btn-blue btn-sm" type="button" disabled>Použít nejlepší</button>
+          </div>
+          <div class="rx-scroll">
+            <table class="nodes"><thead><tr><th>Pre</th><th>Step</th><th>Data</th><th>OK/pokus</th><th>bit/s</th><th>air</th></tr></thead>
+              <tbody id="sweepBody"><tr class="empty"><td colspan="6">Zatím žádné výsledky.</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <div class="card map-card">
+          <div class="card-head">
+            <h2>Mapa nodů</h2>
+            <span class="hint">otisk prohlížeče · linka = slyším</span>
+          </div>
+          <div class="spectro-wrap"><canvas id="map" width="900" height="420" aria-label="Mapa nodů"></canvas></div>
+        </div>
+      </section>
+
+      <details class="log-box" id="logDetails" open>
+        <summary>Log</summary>
+        <pre id="log" aria-live="polite"></pre>
+      </details>
+
+      <p class="proto-note">
+        chirpdev sdílí konfiguraci i přítomnost nodů přes Cloudflare Durable Object
+        (<code>/api/dev/*</code>). Node ID = ALINK 0–7 odvozené z otisku prohlížeče; štítek v mapě je
+        krátký hash <code>navigator.userAgent</code> + platformy + jazyků. Modulace = het68 ALINK
+        (BPSK preambule + 2‑FSK/FHSS, CRC32). Dekódování běží na 48&nbsp;kHz (mic se převzorkuje).
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="https://het68.cz/">het68</a>
+        <p>chirpdev · ladicí nástroj</p>
+        <p class="build-meta" id="buildMeta" hidden></p>
+      </div>
+    </footer>
+
+    <script src="/alink.js"></script>
+    <script src="./chirpdev.js"></script>
+  </body>
+</html>

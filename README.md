@@ -9,6 +9,7 @@ Statický web + firmware flasher + QR pro [HET68](https://github.com/fedurca/het
 | `flasher.het68.cz` | WebUSB flasher CZ `/` · EN `/en/` · DE `/de/` | bez auth |
 | `qr.het68.cz` | QR scrambler z [fedurca/qr_scrambler](https://github.com/fedurca/qr_scrambler) | bez auth |
 | `chirp.het68.cz` | Akustický chirp dekodér CZ `/` · EN `/en/` · DE `/de/` | bez auth |
+| `dev.het68.cz` | chirpdev — ladění linky, sdílené nastavení mezi zařízeními (Durable Object), mapa nodů | bez auth |
 
 Před každým `npm run deploy` / CI deployem se stáhne **nejnovější `main`** z `qr_scrambler` do `public/qr/` (`npm run fetch:qr`).
 

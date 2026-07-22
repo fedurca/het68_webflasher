@@ -1,0 +1,41 @@
+.params-card,
+.sweep-card,
+.map-card { grid-column: 1 / -1; }
+
+#meId { color: var(--muted); font-size: 0.8rem; }
+#map { width: 100%; height: auto; display: block; }
+
+.tx-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem 1rem;
+}
+.tx-grid .field span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.tx-grid input {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+}
+.tx-grid input[type="range"] { padding: 0; }
+.tx-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0;
+}
+.tx-flags .field { display: inline-grid; gap: 0.2rem; min-width: 110px; }
+.rx-scroll { max-height: 220px; overflow: auto; margin-top: 0.6rem; }
+.rx-scroll table.nodes th { position: sticky; top: 0; background: var(--bg-card); }
+table.nodes td { white-space: nowrap; }
+.sweep-best { color: var(--teal); font-weight: 800; }
