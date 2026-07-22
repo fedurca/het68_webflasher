@@ -1,9 +1,11 @@
 .params-card,
+.spectro-card,
+.bank-card,
 .sweep-card,
 .map-card { grid-column: 1 / -1; }
 
 #meId { color: var(--muted); font-size: 0.8rem; }
-#map { width: 100%; height: auto; display: block; }
+#map, #spectro { width: 100%; height: auto; display: block; }
 
 .tx-grid {
   display: grid;
@@ -17,7 +19,8 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.tx-grid input {
+.tx-grid input,
+.tx-grid select {
   width: 100%;
   padding: 0.5rem;
   border-radius: 10px;
@@ -38,4 +41,8 @@
 .rx-scroll { max-height: 220px; overflow: auto; margin-top: 0.6rem; }
 .rx-scroll table.nodes th { position: sticky; top: 0; background: var(--bg-card); }
 table.nodes td { white-space: nowrap; }
+table.nodes td.muted { color: var(--muted); }
 .sweep-best { color: var(--teal); font-weight: 800; }
+
+.bank-card .hint,
+.spectro-card .hint { max-width: 70ch; }

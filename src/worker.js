@@ -725,32 +725,54 @@ export default {
 };
 
 /**
- * ConfigRoom — a single shared Durable Object for chirpdev.
+ * ConfigRoom — shared Durable Object for chirpdev.
  *
- * Holds the current tuning config (agreed by all testers) plus a live presence
- * table of nodes (each browser is a node, identified by a fingerprint hash).
- * Clients poll a few times per second; whoever posts a new config bumps a
- * version so everyone converges on the same modulation parameters for a test.
+ * Holds shared tuning config, live node presence, and a 10-slot memory bank of
+ * named trial profiles (params + optional notes / map / audio metadata).
  *
- * Endpoints (POST/GET JSON):
- *   GET  /api/dev/state           → { v, config, nodes: [...] }
- *   POST /api/dev/config {config} → set config, v++
- *   POST /api/dev/heartbeat {fp,node,label,rx,tx,heard:[...]} → upsert presence
+ * Endpoints (JSON):
+ *   GET  /api/dev/state
+ *   POST /api/dev/config     { config }
+ *   POST /api/dev/heartbeat  { fp, node, label, rx, tx, heard }
+ *   POST /api/dev/bank       { action, slot, name?, profile? }
  */
+function emptyBankSlot(i) {
+  return {
+    slot: i,
+    name: "",
+    empty: true,
+    config: null,
+    map: null,
+    note: null,
+    audio: null,
+    ids: null,
+    meta: null,
+  };
+}
+
+function emptyBank() {
+  const bank = [];
+  for (let i = 0; i < 10; i++) bank.push(emptyBankSlot(i));
+  return bank;
+}
+
 export class ConfigRoom {
   constructor(state) {
     this.state = state;
     this.v = 0;
     this.config = null;
-    this.nodes = new Map(); // fp -> { fp, node, label, rx, tx, heard, at }
+    this.nodes = new Map(); // fp -> presence
+    this.bank = emptyBank();
     this.loaded = false;
   }
 
   async _load() {
     if (this.loaded) return;
-    const stored = await this.state.storage.get(["v", "config"]);
+    const stored = await this.state.storage.get(["v", "config", "bank"]);
     this.v = stored.get("v") || 0;
     this.config = stored.get("config") || null;
+    const bank = stored.get("bank");
+    this.bank = Array.isArray(bank) && bank.length === 10 ? bank : emptyBank();
     this.loaded = true;
   }
 
@@ -768,13 +790,43 @@ export class ConfigRoom {
     );
   }
 
+  _bankSummary() {
+    return this.bank.map((s) => ({
+      slot: s.slot,
+      name: s.name || "",
+      empty: !!s.empty,
+      savedAt: s.meta && s.meta.savedAt ? s.meta.savedAt : null,
+      airMs: s.meta && s.meta.airMs != null ? s.meta.airMs : null,
+      hasAudio: !!(s.audio && s.audio.clips && s.audio.clips.length),
+      hasMap: !!(s.map && s.map.nodes && s.map.nodes.length),
+      note: s.note ? String(s.note).slice(0, 80) : "",
+    }));
+  }
+
+  _publicState() {
+    return {
+      v: this.v,
+      config: this.config,
+      nodes: this._nodeList(),
+      bank: this._bankSummary(),
+    };
+  }
+
   async fetch(request) {
     try {
       return await this._handle(request);
     } catch (e) {
       return new Response(
-        JSON.stringify({ error: "room: " + (e && e.message ? e.message : String(e)) }),
-        { status: 500, headers: { "content-type": "application/json", "access-control-allow-origin": "*" } }
+        JSON.stringify({
+          error: "room: " + (e && e.message ? e.message : String(e)),
+        }),
+        {
+          status: 500,
+          headers: {
+            "content-type": "application/json",
+            "access-control-allow-origin": "*",
+          },
+        }
       );
     }
   }
@@ -793,33 +845,33 @@ export class ConfigRoom {
         },
       });
 
+    const readBody = async () => {
+      try {
+        return await request.json();
+      } catch (e) {
+        return null;
+      }
+    };
+
     if (path === "/api/dev/state") {
-      return json({ v: this.v, config: this.config, nodes: this._nodeList() });
+      return json(this._publicState());
     }
 
     if (path === "/api/dev/config" && request.method === "POST") {
-      let body;
-      try {
-        body = await request.json();
-      } catch (e) {
-        return json({ error: "bad json" }, 400);
-      }
-      if (body && body.config) {
+      const body = await readBody();
+      if (!body) return json({ error: "bad json" }, 400);
+      if (body.config) {
         this.config = body.config;
         this.v = (this.v + 1) >>> 0;
         await this.state.storage.put({ v: this.v, config: this.config });
       }
-      return json({ v: this.v, config: this.config });
+      return json({ v: this.v, config: this.config, bank: this._bankSummary() });
     }
 
     if (path === "/api/dev/heartbeat" && request.method === "POST") {
-      let body;
-      try {
-        body = await request.json();
-      } catch (e) {
-        return json({ error: "bad json" }, 400);
-      }
-      if (body && body.fp) {
+      const body = await readBody();
+      if (!body) return json({ error: "bad json" }, 400);
+      if (body.fp) {
         this.nodes.set(String(body.fp).slice(0, 16), {
           fp: String(body.fp).slice(0, 16),
           node: body.node | 0,
@@ -830,7 +882,96 @@ export class ConfigRoom {
           at: Date.now(),
         });
       }
-      return json({ v: this.v, config: this.config, nodes: this._nodeList() });
+      return json(this._publicState());
+    }
+
+    if (path === "/api/dev/bank" && request.method === "POST") {
+      const body = await readBody();
+      if (!body || !body.action) return json({ error: "bad json" }, 400);
+      const action = String(body.action);
+      const slot = body.slot | 0;
+      if (slot < 0 || slot > 9) return json({ error: "slot 0-9" }, 400);
+
+      if (action === "list") {
+        return json({ bank: this._bankSummary() });
+      }
+
+      if (action === "get") {
+        return json({ slot: this.bank[slot] });
+      }
+
+      if (action === "save") {
+        const name = String(body.name || this.bank[slot].name || "")
+          .trim()
+          .slice(0, 40);
+        const profile = body.profile || {};
+        const cfg = profile.config || body.config || this.config;
+        if (!cfg) return json({ error: "config required" }, 400);
+        const airMs = Math.round(
+          31 * (cfg.preChipMs || 1) + 248 * (cfg.dataChipMs || 4)
+        );
+        this.bank[slot] = {
+          slot,
+          name: name || "Profil " + (slot + 1),
+          empty: false,
+          config: cfg,
+          map: profile.map || null,
+          note: profile.note != null ? String(profile.note).slice(0, 240) : null,
+          audio: profile.audio || null,
+          ids: profile.ids || null,
+          meta: {
+            savedAt: Date.now(),
+            airMs,
+            rx: profile.rx | 0,
+            tx: profile.tx | 0,
+            minScore: profile.minScore != null ? profile.minScore : null,
+            goodput: profile.goodput != null ? profile.goodput : null,
+            byFp: profile.byFp ? String(profile.byFp).slice(0, 16) : null,
+            byLabel: profile.byLabel
+              ? String(profile.byLabel).slice(0, 24)
+              : null,
+          },
+        };
+        await this.state.storage.put({ bank: this.bank });
+        return json({
+          ok: true,
+          bank: this._bankSummary(),
+          slot: this.bank[slot],
+        });
+      }
+
+      if (action === "rename") {
+        if (this.bank[slot].empty) return json({ error: "empty slot" }, 400);
+        this.bank[slot].name = String(body.name || "")
+          .trim()
+          .slice(0, 40);
+        await this.state.storage.put({ bank: this.bank });
+        return json({ ok: true, bank: this._bankSummary() });
+      }
+
+      if (action === "clear") {
+        this.bank[slot] = emptyBankSlot(slot);
+        await this.state.storage.put({ bank: this.bank });
+        return json({ ok: true, bank: this._bankSummary() });
+      }
+
+      if (action === "load") {
+        const s = this.bank[slot];
+        if (s.empty) return json({ error: "empty slot" }, 400);
+        this.config = s.config;
+        this.v = (this.v + 1) >>> 0;
+        await this.state.storage.put({ v: this.v, config: this.config });
+        return json({
+          ok: true,
+          v: this.v,
+          config: this.config,
+          slot: s,
+          bank: this._bankSummary(),
+          nodes: this._nodeList(),
+        });
+      }
+
+      return json({ error: "unknown action" }, 400);
     }
 
     return json({ error: "not found" }, 404);

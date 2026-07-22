@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 chirpdev — ladicí nástroj akustické linky: automatické ladění modulace, frekvencí a délky pulzů, sdílené nastavení mezi zařízeními a mapa nodů."
+      content="het68 chirpdev — spektrogram, paměťový bank profilů a empirické ladění akustické linky."
     />
     <title>het68 — chirpdev (ladění linky)</title>
     <script>
@@ -45,13 +45,11 @@
 
     <main class="wrap">
       <section class="hero">
-        <p class="overline">Empirické ladění · sdílené mezi zařízeními</p>
+        <p class="overline">Spektrogram · bank · empirické ladění</p>
         <h1>Nalaď linku naživo.</h1>
         <p class="lead">
-          Automaticky prochází modulační parametry (pásmo, rozestup tónů, délku čipů) a měří
-          úspěšnost dekódování a propustnost v reálném prostředí. Nastavení se
-          <strong>synchronizuje mezi všemi návštěvníky</strong>, takže víc zařízení testuje se
-          stejnou konfigurací. Každé zařízení je node s ID z otisku prohlížeče.
+          Spektrogram s ~10&nbsp;MB oknem (smazání / uložení WAV), sdílené parametry mezi zařízeními
+          a 10 pojmenovatelných paměťových slotů pro perzistentní uložení pokusů.
         </p>
         <div class="controls">
           <button id="micBtn" class="btn btn-teal" type="button">Spustit mikrofon</button>
@@ -62,6 +60,35 @@
       </section>
 
       <section class="grid">
+        <div class="card spectro-card">
+          <div class="card-head">
+            <h2>Spektrogram</h2>
+            <span class="hint">~10 MB PCM okno · clear / uložení vzorku</span>
+          </div>
+          <div class="spectro-wrap">
+            <canvas id="spectro" width="960" height="340" aria-label="Realtime spektrogram"></canvas>
+          </div>
+          <div class="spectro-controls">
+            <button id="spectroLive" class="btn btn-ghost btn-sm is-active" type="button">Živě</button>
+            <button id="recPause" class="btn btn-ghost btn-sm" type="button">Pauza</button>
+            <button id="recDownload" class="btn btn-ghost btn-sm" type="button" disabled>Uložit WAV</button>
+            <label class="spectro-field">
+              <span>Měřítko</span>
+              <input id="spectroZoom" type="range" min="0" max="6" value="2" />
+            </label>
+            <label class="spectro-field spectro-field-grow">
+              <span>Posun v historii</span>
+              <input id="spectroScroll" type="range" min="0" max="1" value="1" />
+            </label>
+            <button id="spectroClear" class="btn btn-ghost btn-sm" type="button">Smazat záznam</button>
+          </div>
+          <div class="radar-meta">
+            <span id="domFreq" class="mono">dominantní —</span>
+            <span id="spectroViewHint" class="hint">teď</span>
+            <span id="spectroMem" class="mono">paměť —</span>
+          </div>
+        </div>
+
         <div class="card params-card">
           <div class="card-head">
             <h2>Parametry linky</h2>
@@ -104,12 +131,43 @@
           </div>
         </div>
 
+        <div class="card bank-card">
+          <div class="card-head">
+            <h2>Paměťový bank (10 profilů)</h2>
+            <span class="hint">perzistentní DO úložiště · obnovení pokusů</span>
+          </div>
+          <div class="tx-grid">
+            <label class="field"><span>Slot</span>
+              <select id="bankSlot"></select>
+            </label>
+            <label class="field"><span>Název profilu</span>
+              <input id="bankName" type="text" maxlength="40" placeholder="např. obývák 2 m" spellcheck="false" />
+            </label>
+            <label class="field"><span>Poznámka</span>
+              <input id="bankNote" type="text" maxlength="240" placeholder="volitelná poznámka k pokusu" spellcheck="true" />
+            </label>
+          </div>
+          <div class="tx-flags">
+            <button id="bankSave" class="btn btn-teal btn-sm" type="button">Uložit slot</button>
+            <button id="bankLoad" class="btn btn-blue btn-sm" type="button">Načíst slot</button>
+            <button id="bankRename" class="btn btn-ghost btn-sm" type="button">Přejmenovat</button>
+            <button id="bankClear" class="btn btn-ghost btn-sm" type="button">Smazat slot</button>
+          </div>
+          <p class="hint mono" id="bankInfo">bank —</p>
+          <div class="rx-scroll">
+            <table class="nodes">
+              <thead><tr><th>#</th><th>Název</th><th>air</th><th>pozn.</th><th>uloženo</th></tr></thead>
+              <tbody id="bankBody"><tr class="empty"><td colspan="5">Načítám…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="card sweep-card">
           <div class="card-head">
             <h2>Automatické ladění</h2>
             <span id="sweepState" class="hint mono">nečinné</span>
           </div>
-          <p class="hint">Projde mřížku parametrů; pro každou sadu nastaví všem stejnou konfiguraci, chvíli vysílá/měří a zaznamená úspěšnost a propustnost. Spusť na 1+ zařízeních.</p>
+          <p class="hint">Projde mřížku parametrů; pro každou sadu nastaví všem stejnou konfiguraci, chvíli vysílá/měří a zaznamená úspěšnost.</p>
           <div class="tx-flags">
             <label class="check"><input type="checkbox" id="swPre" checked /> pásmo (1,5/2/2,5 kHz)</label>
             <label class="check"><input type="checkbox" id="swStep" checked /> rozestup (150/200/300)</label>
@@ -142,10 +200,9 @@
       </details>
 
       <p class="proto-note">
-        chirpdev sdílí konfiguraci i přítomnost nodů přes Cloudflare Durable Object
-        (<code>/api/dev/*</code>). Node ID = ALINK 0–7 odvozené z otisku prohlížeče; štítek v mapě je
-        krátký hash <code>navigator.userAgent</code> + platformy + jazyků. Modulace = het68 ALINK
-        (BPSK preambule + 2‑FSK/FHSS, CRC32). Dekódování běží na 48&nbsp;kHz (mic se převzorkuje).
+        chirpdev sdílí konfiguraci, přítomnost nodů a 10slotový bank přes Durable Object
+        (<code>/api/dev/*</code>). Spektrogram drží až ~10&nbsp;MB PCM + hist ring; WAV lze smazat nebo stáhnout.
+        Modulace = het68 ALINK (citlivější demod pro phone pásmo).
       </p>
     </main>
 
