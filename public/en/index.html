@@ -198,11 +198,7 @@
       <section class="section" id="scenarios">
         <div class="wrap">
           <header class="section-head">
-            <h2>Scenarios suited to ICS‑43434</h2>
-            <p>
-              Range and reliability estimates for the het68 cube — standalone and in a node mesh.
-              Cases outside MEMS microphone reach (e.g. glide bombs, ballistic missiles) are omitted.
-            </p>
+            <h2>Scenarios</h2>
           </header>
 
           <div class="scenario-table-wrap" role="region" aria-label="Scenario suitability table" tabindex="0">
@@ -218,6 +214,9 @@
                 </tr>
               </thead>
               <tbody>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Aero</th>
+                </tr>
                 <tr>
                   <th scope="row">Common drones (UAV)</th>
                   <td>200&nbsp;Hz – 3&nbsp;kHz</td>
@@ -227,28 +226,15 @@
                   <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">3D triangulation to 1&nbsp;km</span></td>
                 </tr>
                 <tr>
-                  <th scope="row">Sports ball tracking</th>
-                  <td>1 – 5&nbsp;kHz</td>
-                  <td>30 – 50&nbsp;m</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">pitch localization</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">centimetre accuracy</span></td>
-                  <td><span class="fit fit-bad">Unsuitable</span> <span class="fit-note">too far from the pitch</span></td>
+                  <th scope="row">Airliners (LKPR)</th>
+                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
+                  <td>3 – 15&nbsp;km</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">overhead tracking</span></td>
+                  <td><span class="fit fit-strong">91&nbsp;%</span> <span class="fit-note">baseline too short</span></td>
+                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">accurate flight level</span></td>
                 </tr>
-                <tr>
-                  <th scope="row">3D NVH / VR / Robots</th>
-                  <td>100&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>0.5 – 5&nbsp;m</td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">full spatial hearing</span></td>
-                  <td><span class="fit fit-bad">Unsuitable</span> <span class="fit-note">needs a single point</span></td>
-                  <td><span class="fit fit-bad">Unsuitable</span> <span class="fit-note">outside application scope</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Urban gunshot / Alarm</th>
-                  <td>500&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>500&nbsp;m – 1.5&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">building floor estimate</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">localization from reflections</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">~2&nbsp;m accuracy</span></td>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Automotive</th>
                 </tr>
                 <tr>
                   <th scope="row">Car classification (cylinders)</th>
@@ -290,6 +276,9 @@
                   <td><span class="fit fit-strong">92&nbsp;%</span> <span class="fit-note">front and rear sensing</span></td>
                   <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">two-point confirmation</span></td>
                 </tr>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Train</th>
+                </tr>
                 <tr>
                   <th scope="row">Approaching train</th>
                   <td>80&nbsp;Hz – 5&nbsp;kHz</td>
@@ -298,29 +287,32 @@
                   <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">minimal change</span></td>
                   <td><span class="fit fit-strong">99.9&nbsp;%</span> <span class="fit-note">precise ETA and speed</span></td>
                 </tr>
-                <tr>
-                  <th scope="row">Airliners (LKPR)</th>
-                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>3 – 15&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">overhead tracking</span></td>
-                  <td><span class="fit fit-strong">91&nbsp;%</span> <span class="fit-note">baseline too short</span></td>
-                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">accurate flight level</span></td>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Others</th>
                 </tr>
                 <tr>
-                  <th scope="row">Propeller Shahed-type</th>
-                  <td>60&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>3 – 5&nbsp;km</td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">loud 2-stroke signature</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">reliable tracking</span></td>
-                  <td><span class="fit fit-strong">99.9&nbsp;%</span> <span class="fit-note">~3&nbsp;min early warning</span></td>
+                  <th scope="row">Sports ball tracking</th>
+                  <td>1 – 5&nbsp;kHz</td>
+                  <td>30 – 50&nbsp;m</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">pitch localization</span></td>
+                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">centimetre accuracy</span></td>
+                  <td><span class="fit fit-bad">Unsuitable</span> <span class="fit-note">too far from the pitch</span></td>
                 </tr>
                 <tr>
-                  <th scope="row">Jet drones (Strizh)</th>
-                  <td>200&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>2 – 3.5&nbsp;km</td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">turbine whistle</span></td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">fast vector change</span></td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">reliable trajectory</span></td>
+                  <th scope="row">3D NVH / VR / Robots</th>
+                  <td>100&nbsp;Hz – 5&nbsp;kHz</td>
+                  <td>0.5 – 5&nbsp;m</td>
+                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">full spatial hearing</span></td>
+                  <td><span class="fit fit-bad">Unsuitable</span> <span class="fit-note">needs a single point</span></td>
+                  <td><span class="fit fit-bad">Unsuitable</span> <span class="fit-note">outside application scope</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Urban gunshot / Alarm</th>
+                  <td>500&nbsp;Hz – 5&nbsp;kHz</td>
+                  <td>500&nbsp;m – 1.5&nbsp;km</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">building floor estimate</span></td>
+                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">localization from reflections</span></td>
+                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">~2&nbsp;m accuracy</span></td>
                 </tr>
               </tbody>
             </table>

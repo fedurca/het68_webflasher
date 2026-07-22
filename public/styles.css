@@ -469,9 +469,24 @@ a:hover {
   text-align: left;
 }
 
+.scenario-table tbody tr.scenario-cat th {
+  background: var(--bg-elev);
+  color: var(--teal);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
 .scenario-table tbody tr:last-child th,
 .scenario-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.scenario-table tbody tr.scenario-cat:hover th {
+  background: var(--bg-elev);
 }
 
 .scenario-table tbody th {
