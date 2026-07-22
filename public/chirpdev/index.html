@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 chirpdev — ladicí nástroj akustické linky: automatické ladění modulace, frekvencí a délky pulzů, sdílené nastavení mezi zařízeními a mapa nodů."
+      content="het68 chirpdev — autotune akustické linky mezi dvěma zařízeními, paměťový bank profilů a mapa s odhadem polohy."
     />
     <title>het68 — chirpdev (ladění linky)</title>
     <script>
@@ -45,13 +45,13 @@
 
     <main class="wrap">
       <section class="hero">
-        <p class="overline">Empirické ladění · sdílené mezi zařízeními</p>
+        <p class="overline">Autotune · bank profilů · mapa</p>
         <h1>Nalaď linku naživo.</h1>
         <p class="lead">
-          Automaticky prochází modulační parametry (pásmo, rozestup tónů, délku čipů) a měří
-          úspěšnost dekódování a propustnost v reálném prostředí. Nastavení se
-          <strong>synchronizuje mezi všemi návštěvníky</strong>, takže víc zařízení testuje se
-          stejnou konfigurací. Každé zařízení je node s ID z otisku prohlížeče.
+          Na dvou zařízeních autotune zkracuje komunikaci, dokud se obě strany
+          spolehlivě neuslyší. Odesílané rámce se hlásí i webovou cestou přes backend,
+          aby šla vyhodnotit kvalita spojení. Nalezené profily ukládáš do 10 pojmenovatelných slotů
+          včetně mapy, časové synchronizace a krátkého audia z obou stran.
         </p>
         <div class="controls">
           <button id="micBtn" class="btn btn-teal" type="button">Spustit mikrofon</button>
@@ -104,12 +104,68 @@
           </div>
         </div>
 
+        <div class="card autotune-card">
+          <div class="card-head">
+            <h2>Autotune (2 zařízení)</h2>
+            <span id="atState" class="hint mono">nečinné</span>
+          </div>
+          <p class="hint">
+            Spusť mikrofon na obou zařízeních, pak autotune na jednom z nich.
+            Leader ladí maximální zkrácení (kratší čipy = kratší airtime), dokud min. skóre obou směrů
+            drží práh spolehlivosti. Každý TX se hlásí webem; protistrana i backend porovná, co se opravdu slyšelo.
+          </p>
+          <div class="tx-grid">
+            <label class="field"><span>Rámců / strana</span><input id="atRounds" type="number" min="2" max="8" value="4" /></label>
+            <label class="field"><span>Práh skóre</span><input id="atThresh" type="number" min="0.5" max="1" step="0.05" value="0.75" /></label>
+          </div>
+          <div class="tx-flags">
+            <button id="atStart" class="btn btn-teal btn-sm" type="button">Spustit autotune</button>
+            <button id="atStop" class="btn btn-ghost btn-sm" type="button">Zastavit</button>
+            <button id="atApplyBest" class="btn btn-blue btn-sm" type="button" disabled>Použít nejlepší</button>
+          </div>
+          <p class="hint mono" id="atBest">nejlepší: —</p>
+          <div class="rx-scroll">
+            <table class="nodes">
+              <thead><tr><th>#</th><th>Pre/Data</th><th>air</th><th>min</th><th>mean</th><th>OK</th></tr></thead>
+              <tbody id="atBody"><tr class="empty"><td colspan="6">Zatím žádné zkoušky.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card bank-card">
+          <div class="card-head">
+            <h2>Paměťový bank (10 profilů)</h2>
+            <span class="hint">parametry · mapa · sync · audio</span>
+          </div>
+          <div class="tx-grid">
+            <label class="field"><span>Slot</span>
+              <select id="bankSlot"></select>
+            </label>
+            <label class="field"><span>Název profilu</span>
+              <input id="bankName" type="text" maxlength="40" placeholder="např. obývák 2 m" spellcheck="false" />
+            </label>
+          </div>
+          <div class="tx-flags">
+            <button id="bankSave" class="btn btn-teal btn-sm" type="button">Uložit slot</button>
+            <button id="bankLoad" class="btn btn-blue btn-sm" type="button">Načíst slot</button>
+            <button id="bankRename" class="btn btn-ghost btn-sm" type="button">Přejmenovat</button>
+            <button id="bankClear" class="btn btn-ghost btn-sm" type="button">Smazat slot</button>
+          </div>
+          <p class="hint mono" id="bankInfo">bank —</p>
+          <div class="rx-scroll">
+            <table class="nodes">
+              <thead><tr><th>#</th><th>Název</th><th>air</th><th>mapa</th><th>audio</th><th>uloženo</th></tr></thead>
+              <tbody id="bankBody"><tr class="empty"><td colspan="6">Načítám…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="card sweep-card">
           <div class="card-head">
-            <h2>Automatické ladění</h2>
+            <h2>Mřížkový sweep</h2>
             <span id="sweepState" class="hint mono">nečinné</span>
           </div>
-          <p class="hint">Projde mřížku parametrů; pro každou sadu nastaví všem stejnou konfiguraci, chvíli vysílá/měří a zaznamená úspěšnost a propustnost. Spusť na 1+ zařízeních.</p>
+          <p class="hint">Jednoduchý průchod mřížkou pásma / rozestupu / data-chipu (doplněk k autotune).</p>
           <div class="tx-flags">
             <label class="check"><input type="checkbox" id="swPre" checked /> pásmo (1,5/2/2,5 kHz)</label>
             <label class="check"><input type="checkbox" id="swStep" checked /> rozestup (150/200/300)</label>
@@ -130,7 +186,7 @@
         <div class="card map-card">
           <div class="card-head">
             <h2>Mapa nodů</h2>
-            <span class="hint">otisk prohlížeče · linka = slyším</span>
+            <span id="mapMeta" class="hint">otisk · vzdálenost z akustického zpoždění</span>
           </div>
           <div class="spectro-wrap"><canvas id="map" width="900" height="420" aria-label="Mapa nodů"></canvas></div>
         </div>
@@ -142,10 +198,10 @@
       </details>
 
       <p class="proto-note">
-        chirpdev sdílí konfiguraci i přítomnost nodů přes Cloudflare Durable Object
-        (<code>/api/dev/*</code>). Node ID = ALINK 0–7 odvozené z otisku prohlížeče; štítek v mapě je
-        krátký hash <code>navigator.userAgent</code> + platformy + jazyků. Modulace = het68 ALINK
-        (BPSK preambule + 2‑FSK/FHSS, CRC32). Dekódování běží na 48&nbsp;kHz (mic se převzorkuje).
+        chirpdev sdílí konfiguraci, autotune trialy (web TX/RX), bank profilů i přítomnost nodů přes
+        Cloudflare Durable Object (<code>/api/dev/*</code>). Autotune maximalizuje zkrácení airtime při
+        spolehlivém obousměrném slyšení. Bank ukládá parametry spojení, mapu, časový sync, ID nodů a
+        krátké PCM klipy z obou stran. Modulace = het68 ALINK (BPSK preambule + 2‑FSK/FHSS, CRC32).
       </p>
     </main>
 
