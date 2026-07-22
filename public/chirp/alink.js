@@ -520,29 +520,40 @@
 
   Demod.prototype._extractBits = function (dataStart, node) {
     var dspc = this.dataSpc;
-    // Per-hop-tone channel gain estimate: a phone speaker/mic has an uneven
-    // response across the band, which would bias the raw 2-FSK energy compare.
-    // Average each hop tone's energy over all data chips and normalize by it.
-    var gain = new Float64Array(C.NHOPS);
-    for (var h = 0; h < C.NHOPS; h++) {
-      var acc = 0;
-      for (var bi2 = 0; bi2 < C.DATA_BITS; bi2 += 4) {
-        var a0 = Math.round(dataStart + bi2 * dspc);
-        var a1 = Math.round(dataStart + (bi2 + 1) * dspc);
-        acc += this._toneEnergy(a0, a1, C.HOPS[h]);
-      }
-      gain[h] = acc / Math.ceil(C.DATA_BITS / 4) || 1;
-      if (gain[h] <= 0) gain[h] = 1e-12;
+    var NH = C.NHOPS;
+    // Compute every hop-tone's energy for every data chip ONCE, then derive a
+    // per-tone channel-gain estimate from the FULL frame (all chips). A phone
+    // speaker/mic has an uneven band response; normalising the 2-FSK compare by
+    // this gain removes the bias. Averaging over ALL chips (not a sparse every-
+    // 4th subset) gives a far more robust estimate, which recovers weak / low-
+    // volume frames that previously failed CRC. The stored per-chip energies are
+    // reused for the bit decisions, so this is a single Goertzel pass.
+    if (!this._eChip || this._eChip.length !== C.DATA_BITS * NH) {
+      this._eChip = new Float64Array(C.DATA_BITS * NH);
     }
+    var eChip = this._eChip;
+    var gain = new Float64Array(NH);
     for (var bi = 0; bi < C.DATA_BITS; bi++) {
       var n0 = Math.round(dataStart + bi * dspc);
       var n1 = Math.round(dataStart + (bi + 1) * dspc);
-      var base = (bi + node * 3) % (C.NHOPS / 2);
+      var rowOff = bi * NH;
+      for (var h = 0; h < NH; h++) {
+        var e = this._toneEnergy(n0, n1, C.HOPS[h]);
+        eChip[rowOff + h] = e;
+        gain[h] += e;
+      }
+    }
+    for (var g = 0; g < NH; g++) {
+      gain[g] = gain[g] / C.DATA_BITS;
+      if (gain[g] <= 0) gain[g] = 1e-12;
+    }
+    for (var b = 0; b < C.DATA_BITS; b++) {
+      var base = (b + node * 3) % (NH / 2);
       var loIdx = base;
-      var hiIdx = base + C.NHOPS / 2;
-      var eLo = this._toneEnergy(n0, n1, C.HOPS[loIdx]) / gain[loIdx];
-      var eHi = this._toneEnergy(n0, n1, C.HOPS[hiIdx]) / gain[hiIdx];
-      this.dataBits[bi] = eHi > eLo ? 1 : 0;
+      var hiIdx = base + NH / 2;
+      var eLo = eChip[b * NH + loIdx] / gain[loIdx];
+      var eHi = eChip[b * NH + hiIdx] / gain[hiIdx];
+      this.dataBits[b] = eHi > eLo ? 1 : 0;
     }
     return bitsToBytes(this.dataBits);
   };
