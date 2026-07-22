@@ -202,12 +202,7 @@
       <section class="section" id="szenarien">
         <div class="wrap">
           <header class="section-head">
-            <h2>Szenarien für ICS‑43434</h2>
-            <p>
-              Reichweiten- und Zuverlässigkeitsschätzungen für den het68-Würfel — einzeln und im
-              Node-Netz. Fälle außerhalb der MEMS-Mikrofonreichweite (z.&nbsp;B. Gleitbomben,
-              ballistische Raketen) sind ausgelassen.
-            </p>
+            <h2>Szenarien</h2>
           </header>
 
           <div class="scenario-table-wrap" role="region" aria-label="Szenario-Eignungstabelle" tabindex="0">
@@ -223,6 +218,9 @@
                 </tr>
               </thead>
               <tbody>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Aero</th>
+                </tr>
                 <tr>
                   <th scope="row">Übliche Drohnen (UAV)</th>
                   <td>200&nbsp;Hz – 3&nbsp;kHz</td>
@@ -232,28 +230,15 @@
                   <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">3D-Triangulation auf 1&nbsp;km</span></td>
                 </tr>
                 <tr>
-                  <th scope="row">Balltracking im Sport</th>
-                  <td>1 – 5&nbsp;kHz</td>
-                  <td>30 – 50&nbsp;m</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">Lokalisierung auf dem Feld</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">Zentimetergenauigkeit</span></td>
-                  <td><span class="fit fit-bad">Ungeeignet</span> <span class="fit-note">zu weit vom Spielfeld</span></td>
+                  <th scope="row">Verkehrsflugzeuge (LKPR)</th>
+                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
+                  <td>3 – 15&nbsp;km</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">Verfolgung über Kopf</span></td>
+                  <td><span class="fit fit-strong">91&nbsp;%</span> <span class="fit-note">Basislinie zu kurz</span></td>
+                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">genaue Flughöhe</span></td>
                 </tr>
-                <tr>
-                  <th scope="row">3D NVH / VR / Roboter</th>
-                  <td>100&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>0,5 – 5&nbsp;m</td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">volles Raumhören</span></td>
-                  <td><span class="fit fit-bad">Ungeeignet</span> <span class="fit-note">braucht einen Punkt</span></td>
-                  <td><span class="fit fit-bad">Ungeeignet</span> <span class="fit-note">außerhalb des Rahmens</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Städtischer Schuss / Alarm</th>
-                  <td>500&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>500&nbsp;m – 1,5&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">Stockwerkbestimmung</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">Lokalisierung aus Reflexionen</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">Genauigkeit ca. 2&nbsp;m</span></td>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Automotive</th>
                 </tr>
                 <tr>
                   <th scope="row">Autoklassifikation (Zylinder)</th>
@@ -295,6 +280,9 @@
                   <td><span class="fit fit-strong">92&nbsp;%</span> <span class="fit-note">Aufnahme von vorn und hinten</span></td>
                   <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">Bestätigung an zwei Punkten</span></td>
                 </tr>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Train</th>
+                </tr>
                 <tr>
                   <th scope="row">Nahender Zug</th>
                   <td>80&nbsp;Hz – 5&nbsp;kHz</td>
@@ -303,29 +291,32 @@
                   <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">minimale Änderung</span></td>
                   <td><span class="fit fit-strong">99,9&nbsp;%</span> <span class="fit-note">genaue ETA und Geschwindigkeit</span></td>
                 </tr>
-                <tr>
-                  <th scope="row">Verkehrsflugzeuge (LKPR)</th>
-                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>3 – 15&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">Verfolgung über Kopf</span></td>
-                  <td><span class="fit fit-strong">91&nbsp;%</span> <span class="fit-note">Basislinie zu kurz</span></td>
-                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">genaue Flughöhe</span></td>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Others</th>
                 </tr>
                 <tr>
-                  <th scope="row">Propeller-Shahed-Typ</th>
-                  <td>60&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>3 – 5&nbsp;km</td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">lauter Zweitakter</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">zuverlässige Verfolgung</span></td>
-                  <td><span class="fit fit-strong">99,9&nbsp;%</span> <span class="fit-note">Warnung ca. 3&nbsp;min vorher</span></td>
+                  <th scope="row">Balltracking im Sport</th>
+                  <td>1 – 5&nbsp;kHz</td>
+                  <td>30 – 50&nbsp;m</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">Lokalisierung auf dem Feld</span></td>
+                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">Zentimetergenauigkeit</span></td>
+                  <td><span class="fit fit-bad">Ungeeignet</span> <span class="fit-note">zu weit vom Spielfeld</span></td>
                 </tr>
                 <tr>
-                  <th scope="row">Strahltriebwerksdrohnen (Strisch)</th>
-                  <td>200&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>2 – 3,5&nbsp;km</td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">Turbinenpfeifen</span></td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">schnelle Vektoränderung</span></td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">zuverlässige Trajektorie</span></td>
+                  <th scope="row">3D NVH / VR / Roboter</th>
+                  <td>100&nbsp;Hz – 5&nbsp;kHz</td>
+                  <td>0,5 – 5&nbsp;m</td>
+                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">volles Raumhören</span></td>
+                  <td><span class="fit fit-bad">Ungeeignet</span> <span class="fit-note">braucht einen Punkt</span></td>
+                  <td><span class="fit fit-bad">Ungeeignet</span> <span class="fit-note">außerhalb des Rahmens</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Städtischer Schuss / Alarm</th>
+                  <td>500&nbsp;Hz – 5&nbsp;kHz</td>
+                  <td>500&nbsp;m – 1,5&nbsp;km</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">Stockwerkbestimmung</span></td>
+                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">Lokalisierung aus Reflexionen</span></td>
+                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">Genauigkeit ca. 2&nbsp;m</span></td>
                 </tr>
               </tbody>
             </table>
