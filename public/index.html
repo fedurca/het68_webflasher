@@ -198,11 +198,7 @@
       <section class="section" id="scenare">
         <div class="wrap">
           <header class="section-head">
-            <h2>Scénáře vhodné pro ICS‑43434</h2>
-            <p>
-              Odhad dosahu a spolehlivosti pro kostku het68 — samostatně a v síti nodů.
-              Vynechány případy mimo dosah MEMS mikrofonu (např. klouzavé bomby, balistické rakety).
-            </p>
+            <h2>Scénáře</h2>
           </header>
 
           <div class="scenario-table-wrap" role="region" aria-label="Tabulka scénářů" tabindex="0">
@@ -218,6 +214,9 @@
                 </tr>
               </thead>
               <tbody>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Aero</th>
+                </tr>
                 <tr>
                   <th scope="row">Běžné drony (UAV)</th>
                   <td>200&nbsp;Hz – 3&nbsp;kHz</td>
@@ -227,28 +226,15 @@
                   <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">3D triangulace na 1&nbsp;km</span></td>
                 </tr>
                 <tr>
-                  <th scope="row">Sledování sport. míče</th>
-                  <td>1 – 5&nbsp;kHz</td>
-                  <td>30 – 50&nbsp;m</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">lokalizace na hřišti</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">přesnost na centimetry</span></td>
-                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">příliš daleko od hřiště</span></td>
+                  <th scope="row">Dopravní letadla (LKPR)</th>
+                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
+                  <td>3 – 15&nbsp;km</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">sledování nad hlavou</span></td>
+                  <td><span class="fit fit-strong">91&nbsp;%</span> <span class="fit-note">příliš malá základna</span></td>
+                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">přesná letová hladina</span></td>
                 </tr>
-                <tr>
-                  <th scope="row">3D NVH / VR / Roboti</th>
-                  <td>100&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>0,5 – 5&nbsp;m</td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">plný prostorový sluch</span></td>
-                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">vyžaduje 1 bod</span></td>
-                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">mimo aplikační rámec</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Městská střelba / Alarm</th>
-                  <td>500&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>500&nbsp;m – 1,5&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">určení patra budovy</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">lokalizace z odrazů</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">přesnost na 2&nbsp;metry</span></td>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Automotive</th>
                 </tr>
                 <tr>
                   <th scope="row">Klasifikace aut (válce)</th>
@@ -290,6 +276,9 @@
                   <td><span class="fit fit-strong">92&nbsp;%</span> <span class="fit-note">snímání zepředu i zezadu</span></td>
                   <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">potvrzení na dvou bodech</span></td>
                 </tr>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Train</th>
+                </tr>
                 <tr>
                   <th scope="row">Blížící se vlak</th>
                   <td>80&nbsp;Hz – 5&nbsp;kHz</td>
@@ -298,29 +287,32 @@
                   <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">minimální změna</span></td>
                   <td><span class="fit fit-strong">99,9&nbsp;%</span> <span class="fit-note">přesný ETA a rychlost</span></td>
                 </tr>
-                <tr>
-                  <th scope="row">Dopravní letadla (LKPR)</th>
-                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>3 – 15&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">sledování nad hlavou</span></td>
-                  <td><span class="fit fit-strong">91&nbsp;%</span> <span class="fit-note">příliš malá základna</span></td>
-                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">přesná letová hladina</span></td>
+                <tr class="scenario-cat">
+                  <th scope="colgroup" colspan="6">Others</th>
                 </tr>
                 <tr>
-                  <th scope="row">Vrtulové Šahedy</th>
-                  <td>60&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>3 – 5&nbsp;km</td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">hlasitý 2takt</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">spolehlivé sledování</span></td>
-                  <td><span class="fit fit-strong">99,9&nbsp;%</span> <span class="fit-note">varování 3&nbsp;min předem</span></td>
+                  <th scope="row">Sledování sport. míče</th>
+                  <td>1 – 5&nbsp;kHz</td>
+                  <td>30 – 50&nbsp;m</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">lokalizace na hřišti</span></td>
+                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">přesnost na centimetry</span></td>
+                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">příliš daleko od hřiště</span></td>
                 </tr>
                 <tr>
-                  <th scope="row">Proudové drony (Striž)</th>
-                  <td>200&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>2 – 3,5&nbsp;km</td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">pískání turbíny</span></td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">rychlá změna vektoru</span></td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">spolehlivá trajektorie</span></td>
+                  <th scope="row">3D NVH / VR / Roboti</th>
+                  <td>100&nbsp;Hz – 5&nbsp;kHz</td>
+                  <td>0,5 – 5&nbsp;m</td>
+                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">plný prostorový sluch</span></td>
+                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">vyžaduje 1 bod</span></td>
+                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">mimo aplikační rámec</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Městská střelba / Alarm</th>
+                  <td>500&nbsp;Hz – 5&nbsp;kHz</td>
+                  <td>500&nbsp;m – 1,5&nbsp;km</td>
+                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">určení patra budovy</span></td>
+                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">lokalizace z odrazů</span></td>
+                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">přesnost na 2&nbsp;metry</span></td>
                 </tr>
               </tbody>
             </table>
