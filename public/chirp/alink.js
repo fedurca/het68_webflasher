@@ -19,19 +19,23 @@
   var C = {
     FS_REF: 48000,
     CHIP_US: 250,
-    CHIP_MS: 0.25, // preamble chip (spec)
-    // Browser profile: the spec's 250 µs *data* chips are unresolvable through a
-    // phone speaker (a 250 µs burst can't establish a clean tone, so all 2-FSK
-    // hop tones read equal energy). We therefore widen only the DATA chips so
-    // the 2-FSK tones (≥1.2 kHz apart) separate cleanly; the BPSK preamble stays
-    // at 250 µs / 4 kHz per spec (it acquires fine on real audio). TX and RX use
-    // the same value, so they stay mutually consistent.
-    PRE_CHIP_MS: 0.25,
-    DATA_CHIP_MS: 2.0,
-    PREAMBLE_HZ: 4000,
+    CHIP_MS: 1.0, // preamble chip (browser profile)
+    // ── Browser profile (phone speaker + mic) ──────────────────────────────
+    // The spec targets a resonant 4 kHz piezo. Real phone speakers roll off
+    // sharply above ~3 kHz, so the spec's 4 kHz preamble and 3–5.4 kHz data
+    // tones barely survive the speaker→mic path (measured on user recordings:
+    // usable energy sat around 1.5–3 kHz). This profile therefore:
+    //   • moves the link into the phone-friendly 1.4–2.8 kHz band,
+    //   • lengthens chips so BPSK phase flips / FSK tones form cleanly.
+    // TX and RX share these values, so they interoperate with each other.
+    // (Not wire-compatible with the 4 kHz piezo hardware — hardware interop is
+    // unverified anyway.)
+    PRE_CHIP_MS: 1.0,
+    DATA_CHIP_MS: 4.0,
+    PREAMBLE_HZ: 2000,
     PREAMBLE_LEN: 31,
     NHOPS: 8,
-    HOPS: [3000, 3400, 3800, 4000, 4200, 4600, 5000, 5400],
+    HOPS: [1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800],
     DATA_SF: 1,
     MAX_NODES: 8,
     VERSION: 2,
@@ -40,9 +44,11 @@
     DATA_BITS: 248, // 31 bytes * 8
     TX_CHIPS: 279, // 31 preamble + 248 data
     DETECT_RHO: 0.28,
-    DETECT_EMIN: 1e-5,
+    DETECT_EMIN: 1e-6,
   };
-  // Air-time (browser profile): 31×0.25 ms + 248×2 ms ≈ 504 ms.
+  // Air-time (browser profile): 31×1 ms + 248×4 ms ≈ 1.02 s.
+  // Data 2-FSK pairs are NHOPS/2 apart → 800 Hz; at 4 ms chips (250 Hz bins)
+  // they separate cleanly.
 
   var TYPE = { BEACON: 1, DETECT: 2, CTRL: 3, ACK: 4 };
   var TYPE_NAME = { 1: "BEACON", 2: "DETECT", 3: "CTRL", 4: "ACK" };
@@ -406,12 +412,28 @@
 
   Demod.prototype._extractBits = function (dataStart, node) {
     var dspc = this.dataSpc;
+    // Per-hop-tone channel gain estimate: a phone speaker/mic has an uneven
+    // response across the band, which would bias the raw 2-FSK energy compare.
+    // Average each hop tone's energy over all data chips and normalize by it.
+    var gain = new Float64Array(C.NHOPS);
+    for (var h = 0; h < C.NHOPS; h++) {
+      var acc = 0;
+      for (var bi2 = 0; bi2 < C.DATA_BITS; bi2 += 4) {
+        var a0 = Math.round(dataStart + bi2 * dspc);
+        var a1 = Math.round(dataStart + (bi2 + 1) * dspc);
+        acc += this._toneEnergy(a0, a1, C.HOPS[h]);
+      }
+      gain[h] = acc / Math.ceil(C.DATA_BITS / 4) || 1;
+      if (gain[h] <= 0) gain[h] = 1e-12;
+    }
     for (var bi = 0; bi < C.DATA_BITS; bi++) {
       var n0 = Math.round(dataStart + bi * dspc);
       var n1 = Math.round(dataStart + (bi + 1) * dspc);
-      var pair = hopPair(bi, node);
-      var eLo = this._toneEnergy(n0, n1, pair.lo);
-      var eHi = this._toneEnergy(n0, n1, pair.hi);
+      var base = (bi + node * 3) % (C.NHOPS / 2);
+      var loIdx = base;
+      var hiIdx = base + C.NHOPS / 2;
+      var eLo = this._toneEnergy(n0, n1, C.HOPS[loIdx]) / gain[loIdx];
+      var eHi = this._toneEnergy(n0, n1, C.HOPS[hiIdx]) / gain[hiIdx];
       this.dataBits[bi] = eHi > eLo ? 1 : 0;
     }
     return bitsToBytes(this.dataBits);
