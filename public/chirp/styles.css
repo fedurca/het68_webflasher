@@ -246,6 +246,7 @@ html[data-theme="light"] .spectro-wrap {
 /* ALINK RX / TX cards */
 .rx-card,
 .tx-card { grid-column: 1 / -1; }
+.rx-head-tools { display: inline-flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .rx-stats { margin: 0 0 0.6rem; color: var(--muted); font-size: 0.8rem; }
 .rx-scroll { max-height: 260px; overflow: auto; }
 .rx-scroll table.nodes th { position: sticky; top: 0; background: var(--bg-card); }
