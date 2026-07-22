@@ -763,6 +763,11 @@ export class ConfigRoom {
     this.config = null;
     this.nodes = new Map(); // fp -> presence
     this.bank = emptyBank();
+    // Ephemeral shared debug-event ring (not persisted): every node posts its
+    // notable events (decode / tx / mic / config / error) so the debug window
+    // shows a merged, time-ordered stream across all connected nodes.
+    this.events = [];
+    this.eventSeq = 0;
     this.loaded = false;
   }
 
@@ -817,12 +822,19 @@ export class ConfigRoom {
     if (keys.length) await this.state.storage.delete(keys);
   }
 
-  _publicState() {
+  _recentEvents(sinceSeq) {
+    if (sinceSeq == null) return this.events.slice(-80);
+    return this.events.filter((e) => e.seq > sinceSeq);
+  }
+
+  _publicState(sinceSeq) {
     return {
       v: this.v,
       config: this.config,
       nodes: this._nodeList(),
       bank: this._bankSummary(),
+      events: this._recentEvents(sinceSeq),
+      eventSeq: this.eventSeq,
     };
   }
 
@@ -868,7 +880,40 @@ export class ConfigRoom {
     };
 
     if (path === "/api/dev/state") {
-      return json(this._publicState());
+      const sinceSeq = url.searchParams.has("sinceSeq")
+        ? parseInt(url.searchParams.get("sinceSeq"), 10)
+        : null;
+      return json(this._publicState(Number.isFinite(sinceSeq) ? sinceSeq : null));
+    }
+
+    if (path === "/api/dev/events" && request.method === "POST") {
+      const body = await readBody();
+      if (!body) return json({ error: "bad json" }, 400);
+      const fp = String(body.fp || "").slice(0, 16);
+      const node = body.node | 0;
+      const label = String(body.label || "").slice(0, 24);
+      const list = Array.isArray(body.events) ? body.events.slice(0, 40) : [];
+      for (const e of list) {
+        this.eventSeq = (this.eventSeq + 1) >>> 0 || 1;
+        this.events.push({
+          seq: this.eventSeq,
+          at: Date.now(),
+          t: e.t | 0,
+          fp,
+          node,
+          label,
+          kind: String(e.kind || "log").slice(0, 16),
+          msg: String(e.msg || "").slice(0, 200),
+          lvl: e.lvl | 0,
+        });
+      }
+      if (this.events.length > 400) this.events = this.events.slice(-400);
+      const sinceSeq = body.sinceSeq | 0;
+      return json({
+        ok: true,
+        events: this._recentEvents(sinceSeq || null),
+        eventSeq: this.eventSeq,
+      });
     }
 
     if (path === "/api/dev/config" && request.method === "POST") {

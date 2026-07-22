@@ -40,16 +40,130 @@
     "bankAudioDl", "bankRename", "bankClear", "bankInfo", "bankBody",
     "swPre", "swStep", "swData", "swWin", "sweepStart", "sweepStop", "sweepBest",
     "sweepState", "sweepBody", "map", "log", "buildMeta",
+    "debugStats", "logLevel", "logShare", "logShowRemote", "logAutoscroll",
+    "logClear", "logCopy", "logDownload", "eventsBody", "eventStat",
   ].forEach(function (id) { els[id] = document.getElementById(id); });
 
   function now() { return performance.now(); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  function log(m) {
+
+  // ---- Logging (levels 0 basic / 1 verbose / 2 trace) --------------------
+  var LOG = { level: 1, lines: [], max: 800 };
+  function logLevel() { return LOG.level; }
+  function ts() { return new Date().toISOString().slice(11, 23); }
+  function logRaw(line) {
+    LOG.lines.push(line);
+    if (LOG.lines.length > LOG.max) LOG.lines.splice(0, LOG.lines.length - LOG.max);
     if (!els.log) return;
-    var s = new Date().toISOString().slice(11, 23);
-    els.log.textContent += (els.log.textContent ? "\n" : "") + "[" + s + "] " + m;
-    els.log.scrollTop = els.log.scrollHeight;
+    els.log.textContent = LOG.lines.join("\n");
+    if (!els.logAutoscroll || els.logAutoscroll.checked) {
+      els.log.scrollTop = els.log.scrollHeight;
+    }
   }
+  // Basic log (always shown). Shorthand used across the app.
+  function log(m) { logRaw("[" + ts() + "] " + m); }
+  // Level-gated log.
+  function logAt(lvl, m) {
+    if (LOG.level >= lvl) logRaw("[" + ts() + "] " + (lvl >= 2 ? "· " : "") + m);
+  }
+  // Shared, cross-node event. Rendered locally + pushed to the DO event ring.
+  var evShareKinds = { decode: 1, tx: 1, mic: 1, config: 1, error: 1, sweep: 1, bank: 1, warn: 1 };
+  function logEvent(kind, msg, lvl) {
+    lvl = lvl || 0;
+    if (LOG.level >= lvl) logRaw("[" + ts() + "] " + kind + ": " + msg);
+    // Buffer for backend sharing.
+    if (els.logShare && els.logShare.checked && evShareKinds[kind]) {
+      eventOut.push({ kind: kind, msg: msg, t: Date.now(), lvl: lvl });
+      if (eventOut.length > 60) eventOut.shift();
+    }
+  }
+  var eventOut = [];
+  var eventLog = []; // merged remote+local events for the table
+
+  function ingestEvents(list) {
+    if (!list || !list.length) return;
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (e.seq && e.seq > eventSeqSeen) eventSeqSeen = e.seq;
+      eventLog.push(e);
+    }
+    if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
+    renderEvents();
+  }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function renderEvents() {
+    if (!els.eventsBody) return;
+    var showRemote = !els.logShowRemote || els.logShowRemote.checked;
+    var rows = eventLog.filter(function (e) {
+      return showRemote || e.fp === fp;
+    });
+    if (els.eventStat) els.eventStat.textContent = String(rows.length);
+    if (!rows.length) {
+      els.eventsBody.innerHTML = '<tr class="empty"><td colspan="4">Zatím žádné události.</td></tr>';
+      return;
+    }
+    var html = "";
+    for (var i = Math.max(0, rows.length - 120); i < rows.length; i++) {
+      var e = rows[i];
+      var self = e.fp === fp;
+      var tstr = e.at ? new Date(e.at).toISOString().slice(11, 19) : "";
+      html =
+        "<tr><td>" + tstr + "</td><td class='node-id'>" +
+        (e.node != null ? "#" + e.node : "?") + (self ? " (já)" : "") + " " + esc(e.label || "") +
+        "</td><td class='ev-" + esc(e.kind) + "'>" + esc(e.kind) +
+        "</td><td>" + esc(e.msg) + "</td></tr>" + html;
+    }
+    els.eventsBody.innerHTML = html;
+  }
+  function updateDebugStats() {
+    if (!els.debugStats) return;
+    var st = state.demod ? state.demod.stats : { decoded: 0, badCrc: 0, detects: 0, arms: 0 };
+    els.debugStats.textContent =
+      "rx " + state.rxCount + " · tx " + state.txCount +
+      " · det " + (st.detects || 0) + " · dek " + (st.decoded || 0) +
+      " · CRC✗ " + (st.badCrc || 0) + " · arm " + (st.arms || 0) +
+      " · nodů " + (state.nodes ? state.nodes.length : 0);
+  }
+
+  // Debug controls
+  if (els.logLevel) {
+    LOG.level = parseInt(els.logLevel.value, 10) || 1;
+    els.logLevel.addEventListener("change", function () {
+      LOG.level = parseInt(els.logLevel.value, 10) || 0;
+      log("úroveň logu: " + els.logLevel.options[els.logLevel.selectedIndex].text);
+    });
+  }
+  on(els.logShowRemote, "change", renderEvents);
+  on(els.logClear, "click", function () {
+    LOG.lines = [];
+    if (els.log) els.log.textContent = "";
+    eventLog = [];
+    renderEvents();
+    log("log vyčištěn");
+  });
+  on(els.logCopy, "click", function () {
+    try {
+      navigator.clipboard.writeText(LOG.lines.join("\n"));
+      log("log zkopírován do schránky");
+    } catch (e) { log("kopírování selhalo"); }
+  });
+  on(els.logDownload, "click", function () {
+    var body = LOG.lines.join("\n") + "\n\n--- SYNCED EVENTS ---\n" +
+      eventLog.map(function (e) {
+        return (e.at ? new Date(e.at).toISOString() : "") + " #" + e.node +
+          " " + (e.label || "") + " " + e.kind + ": " + e.msg;
+      }).join("\n");
+    var blob = new Blob([body], { type: "text/plain" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "het68-chirpdev-" + new Date().toISOString().replace(/[:.]/g, "-") + ".log";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  });
   function setStatus(kind, txt) {
     if (!els.statusPill) return;
     els.statusPill.className = "pill" + (kind ? " " + kind : "");
@@ -187,7 +301,7 @@
       return;
     }
     ALINK.setProfile(p);
-    if (state.running && state.ctx) state.demod = new ALINK.Demod(48000);
+    if (state.running && state.ctx) state.demod = makeDemod();
     var C = ALINK.CONST;
     if (els.airInfo) {
       els.airInfo.textContent =
@@ -226,7 +340,7 @@
       .then(function (d) {
         state.lastV = d.v;
         els.syncState.textContent = "sync v" + d.v + " (odesláno)";
-        log("konfigurace synchronizována všem (v" + d.v + ")");
+        logEvent("config", "sync v" + d.v + " · " + describe(p) + " air " + airtimeMs(p) + "ms", 0);
         if (d.bank) { state.bank = d.bank; renderBank(); }
         return d;
       })
@@ -245,16 +359,18 @@
       els.syncState.textContent = "sync v" + d.v + " (dostupné)";
     }
   }
+  var eventSeqSeen = 0;
   function ingestRoom(d) {
     if (!d) return;
     applyRemoteConfig(d);
     if (d.nodes) state.nodes = d.nodes;
     if (d.bank) state.bank = d.bank;
+    if (d.events) ingestEvents(d.events);
     renderBank();
     drawMap();
   }
   function poll() {
-    fetch("/api/dev/state", { cache: "no-store" })
+    fetch("/api/dev/state?sinceSeq=" + eventSeqSeen, { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(ingestRoom)
       .catch(function () {});
@@ -262,7 +378,20 @@
   function heardList() {
     return Object.keys(state.heard).map(function (n) { return parseInt(n, 10); });
   }
+  function flushEvents() {
+    if (!eventOut.length) return;
+    var batch = eventOut.splice(0, eventOut.length);
+    postJson("/api/dev/events", {
+      fp: fp, node: myNode, label: myLabel, events: batch, sinceSeq: eventSeqSeen,
+    }).then(function (d) {
+      if (d && d.events) ingestEvents(d.events);
+    }).catch(function () {
+      // On failure, keep the batch for the next attempt.
+      eventOut = batch.concat(eventOut);
+    });
+  }
   function heartbeat() {
+    flushEvents();
     postJson("/api/dev/heartbeat", {
       fp: fp, node: myNode, label: myLabel,
       rx: state.rxCount, tx: state.txCount, heard: heardList(),
@@ -745,7 +874,7 @@
         log("WAV buffer: " + (wavAllocErr && wavAllocErr.message ? wavAllocErr.message : wavAllocErr));
       }
       if (alinkReady) {
-        state.demod = new ALINK.Demod(48000);
+        state.demod = makeDemod();
         state.rs = micRate === 48000 ? null : new ALINK.Resampler(micRate, 48000);
       } else {
         state.demod = null;
@@ -769,10 +898,12 @@
       );
       renderRxStats();
       updateSpectroControls();
+      logEvent("mic", "start · " + micRate + " Hz · tap " + (state.pcmTapKind || "?"), 0);
       if (!state.spectroRaf) state.spectroRaf = requestAnimationFrame(spectroLoop);
     } catch (e) {
       showWarn("Mikrofon selhal: " + (e && e.message ? e.message : e));
       setStatus("err", "chyba");
+      logEvent("error", "mic: " + (e && e.message ? e.message : e), 0);
       try { stopMic(); } catch (e2) { /* ignore */ }
     }
   }
@@ -815,6 +946,22 @@
     state.pcmTapKind = "";
     if (els.micBtn) els.micBtn.textContent = "Spustit mikrofon";
     setStatus("", "nečinné");
+    logEvent("mic", "stop", 0);
+  }
+
+  // Demod factory with a debug trace hook (arm/decode/badcrc/dup).
+  function makeDemod() {
+    var d = new ALINK.Demod(48000);
+    d.onEvent = function (kind, info) {
+      if (kind === "arm") {
+        logAt(2, "arm node?" + info.node + " rho=" + info.rho.toFixed(2) + " pend=" + info.pending);
+      } else if (kind === "badcrc") {
+        logAt(2, "CRC✗ cands=" + info.cands + " bestRho=" + (info.bestRho || 0).toFixed(2) + " node?" + info.bestNode);
+      } else if (kind === "dup") {
+        logAt(2, "dup node" + info.node + " seq" + info.seq);
+      }
+    };
+    return d;
   }
 
   function onFrame(f) {
@@ -823,12 +970,21 @@
     state.rx.unshift({ at: Date.now(), node: f.nodeId, seq: f.seq, rho: f.rho, pl: f.payload });
     if (state.rx.length > 30) state.rx.length = 30;
     if (state.sweep) state.sweep.decoded++;
+    var plText = bytesToText(f.payload);
+    logEvent(
+      "decode",
+      "node " + f.nodeId + " seq " + f.seq + " „" + plText + "“ ρ=" + f.rho.toFixed(2) +
+        (f.snrDb != null ? " snr≈" + f.snrDb.toFixed(1) + "dB" : ""),
+      0
+    );
     renderRx();
+    updateDebugStats();
     drawMap();
   }
   function renderRxStats() {
     var st = state.demod ? state.demod.stats : { decoded: 0, badCrc: 0, detects: 0 };
     els.rxStats.textContent = "dekódováno " + st.decoded + " · CRC " + st.badCrc + " · det " + st.detects;
+    updateDebugStats();
   }
   function bytesToText(u8) {
     if (!u8 || !u8.length) return "—";
@@ -895,6 +1051,8 @@
     if (state.sweep) state.sweep.tx++;
     var dur = samples.length / ctx.sampleRate;
     els.txInfo.textContent = "TX node " + myNode + " seq " + fields.seq + " · " + (dur * 1000).toFixed(0) + " ms";
+    logEvent("tx", "node " + myNode + " seq " + fields.seq + " „" + plText + "“ · " + (dur * 1000).toFixed(0) + " ms", 1);
+    updateDebugStats();
     return dur;
   }
   els.txOnce.addEventListener("click", transmit);
@@ -1342,7 +1500,11 @@
     poll();
     setInterval(poll, 1500);
     setInterval(heartbeat, 3000);
+    setInterval(flushEvents, 1500);
     setInterval(function () { if (state.rx.length) renderRx(); }, 1000);
+    setInterval(updateDebugStats, 1000);
+    updateDebugStats();
+    logEvent("mic", "node " + myNode + " (" + myLabel + ") připraven", 0);
   } catch (initErr) {
     showWarn("Init: " + (initErr && initErr.message ? initErr.message : initErr));
     log("init chyba: " + (initErr && initErr.message ? initErr.message : initErr));

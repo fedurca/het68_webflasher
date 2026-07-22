@@ -2,7 +2,34 @@
 .spectro-card,
 .bank-card,
 .sweep-card,
-.map-card { grid-column: 1 / -1; }
+.map-card,
+.debug-card { grid-column: 1 / -1; }
+
+.debug-split {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+  margin-top: 0.6rem;
+}
+@media (min-width: 900px) {
+  .debug-split { grid-template-columns: 1fr 1fr; }
+}
+.debug-col { min-width: 0; }
+.debug-col pre#log {
+  max-height: 300px;
+  overflow: auto;
+  margin: 0.3rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+.events-scroll { max-height: 300px; }
+.events-scroll td { white-space: normal; word-break: break-word; }
+.ev-decode { color: var(--teal); }
+.ev-tx { color: #7eb0ff; }
+.ev-badcrc, .ev-error { color: #f87171; }
+.ev-mic, .ev-config { color: var(--muted); }
 
 #meId { color: var(--muted); font-size: 0.8rem; }
 #map, #spectro { width: 100%; height: auto; display: block; }
