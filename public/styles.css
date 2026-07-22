@@ -881,7 +881,48 @@ body.theme-light {
 
 body.theme-light .site-header,
 body.theme-light .site-nav {
-  background: rgba(244, 247, 249, 0.9);
+  background: rgba(244, 247, 249, 0.92);
+}
+
+body.theme-light .lang-switch {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+body.theme-light .site-nav a:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+body.theme-light .theme-btn:hover {
+  border-color: rgba(15, 23, 42, 0.18);
+}
+
+body.theme-light .btn-ghost:hover {
+  border-color: rgba(15, 23, 42, 0.22);
+}
+
+/* Hardcoded dark surfaces → light-readable cards */
+body.theme-light .hero-stats div {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+body.theme-light .offer-card {
+  background: linear-gradient(180deg, #ffffff, #f7fafc);
+}
+
+body.theme-light .offer-kicker.blue {
+  color: var(--blue);
+}
+
+body.theme-light .offer-media {
+  background: #e8eef3;
+}
+
+body.theme-light .contact-inner {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+body.theme-light a:hover {
+  color: #0d8f76;
 }
 
 @media (prefers-reduced-motion: reduce) {
