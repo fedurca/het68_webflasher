@@ -148,15 +148,19 @@
             </label>
           </div>
           <div class="tx-flags">
+            <label class="check"><input type="checkbox" id="bankWithAudio" checked /> včetně audio okna (~10&nbsp;MB, chunky)</label>
+          </div>
+          <div class="tx-flags">
             <button id="bankSave" class="btn btn-teal btn-sm" type="button">Uložit slot</button>
             <button id="bankLoad" class="btn btn-blue btn-sm" type="button">Načíst slot</button>
+            <button id="bankAudioDl" class="btn btn-ghost btn-sm" type="button">Stáhnout audio slotu</button>
             <button id="bankRename" class="btn btn-ghost btn-sm" type="button">Přejmenovat</button>
             <button id="bankClear" class="btn btn-ghost btn-sm" type="button">Smazat slot</button>
           </div>
           <p class="hint mono" id="bankInfo">bank —</p>
           <div class="rx-scroll">
             <table class="nodes">
-              <thead><tr><th>#</th><th>Název</th><th>air</th><th>pozn.</th><th>uloženo</th></tr></thead>
+              <thead><tr><th>#</th><th>Název</th><th>air</th><th>pozn. / audio</th><th>uloženo</th></tr></thead>
               <tbody id="bankBody"><tr class="empty"><td colspan="5">Načítám…</td></tr></tbody>
             </table>
           </div>

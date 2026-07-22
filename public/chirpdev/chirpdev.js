@@ -7,14 +7,18 @@
  */
 (function () {
   "use strict";
-  if (typeof ALINK === "undefined") {
-    document.getElementById("permWarn").hidden = false;
-    document.getElementById("permWarn").textContent = "ALINK modem se nenačetl.";
-    return;
+  var alinkReady = typeof ALINK !== "undefined";
+  if (!alinkReady) {
+    var pw0 = document.getElementById("permWarn");
+    if (pw0) {
+      pw0.hidden = false;
+      pw0.textContent = "ALINK modem se nenačetl — spektrogram půjde, dekódování ne.";
+    }
   }
 
   var THEME_KEY = "het68-theme";
   var WAV_MAX_BYTES = 10 * 1024 * 1024; // ~10 MB Int16 PCM ring
+  var CHUNK_RAW_BYTES = 900 * 1024; // keep base64 well under DO 2 MB/value
   var SPEC_FMIN = 0;
   var SPEC_FMAX = 8000; // phone-band focus
   var SPEC_DB_MIN = -100;
@@ -32,8 +36,8 @@
     "pPre", "pBase", "pStep", "pPreMs", "pDataMs", "pNode",
     "applyLocal", "applyAll", "followRoom", "airInfo", "syncState",
     "txPayload", "txGain", "txOnce", "txAuto", "txStop", "txInfo", "rxStats", "rxBody",
-    "bankSlot", "bankName", "bankNote", "bankSave", "bankLoad", "bankRename", "bankClear",
-    "bankInfo", "bankBody",
+    "bankSlot", "bankName", "bankNote", "bankWithAudio", "bankSave", "bankLoad",
+    "bankAudioDl", "bankRename", "bankClear", "bankInfo", "bankBody",
     "swPre", "swStep", "swData", "swWin", "sweepStart", "sweepStop", "sweepBest",
     "sweepState", "sweepBody", "map", "log", "buildMeta",
   ].forEach(function (id) { els[id] = document.getElementById(id); });
@@ -41,15 +45,24 @@
   function now() { return performance.now(); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function log(m) {
+    if (!els.log) return;
     var s = new Date().toISOString().slice(11, 23);
     els.log.textContent += (els.log.textContent ? "\n" : "") + "[" + s + "] " + m;
     els.log.scrollTop = els.log.scrollHeight;
   }
   function setStatus(kind, txt) {
+    if (!els.statusPill) return;
     els.statusPill.className = "pill" + (kind ? " " + kind : "");
     els.statusPill.textContent = txt;
   }
-  function showWarn(t) { els.permWarn.textContent = t; els.permWarn.hidden = false; }
+  function showWarn(t) {
+    if (!els.permWarn) return;
+    els.permWarn.textContent = t;
+    els.permWarn.hidden = false;
+  }
+  function on(el, ev, fn) {
+    if (el) el.addEventListener(ev, fn);
+  }
   function cssVar(n, f) {
     var v = getComputedStyle(document.documentElement).getPropertyValue(n).trim();
     return v || f;
@@ -66,7 +79,7 @@
     if (state.spectroReady) drawSpectroFrame();
   }
   applyTheme(currentTheme());
-  els.themeToggle.addEventListener("click", function () {
+  on(els.themeToggle, "click", function () {
     applyTheme(currentTheme() === "light" ? "dark" : "light");
   });
 
@@ -87,10 +100,11 @@
   ].join("|");
   var fpHash = fnv1a(fpSrc);
   var fp = ("0000000" + fpHash.toString(16)).slice(-8);
-  var myNode = fpHash % ALINK.CONST.MAX_NODES;
+  var maxNodes = alinkReady ? ALINK.CONST.MAX_NODES : 8;
+  var myNode = fpHash % maxNodes;
   var myLabel = fp.slice(0, 6);
-  els.meId.textContent = "node " + myNode + " · " + myLabel;
-  els.pNode.value = String(myNode);
+  if (els.meId) els.meId.textContent = "node " + myNode + " · " + myLabel;
+  if (els.pNode) els.pNode.value = String(myNode);
 
   /** Default / test / autosweep payload = transmitting node id (e.g. "n3"). */
   function nodePayloadText() {
@@ -103,7 +117,7 @@
 
   var state = {
     running: false, ctx: null, demod: null, rs: null, wavProc: null, mute: null, stream: null,
-    analyser: null, buf: null,
+    micSrc: null, analyser: null, buf: null,
     rxCount: 0, txCount: 0, seq: 0,
     rx: [], heard: {},
     lastV: -1, editing: 0,
@@ -128,6 +142,12 @@
     lastColAt: 0,
   };
 
+  // Mic button must work even if later init throws (hoisted startMic/stopMic).
+  on(els.micBtn, "click", function () {
+    if (state.running) stopMic();
+    else startMic();
+  });
+
   // ---- Config <-> UI ----
   function readParams() {
     return {
@@ -150,12 +170,18 @@
     return Math.round(31 * p.preChipMs + 248 * p.dataChipMs);
   }
   function applyParams(p) {
+    if (!alinkReady) {
+      if (els.airInfo) els.airInfo.textContent = "ALINK nedostupný";
+      return;
+    }
     ALINK.setProfile(p);
     if (state.running && state.ctx) state.demod = new ALINK.Demod(48000);
     var C = ALINK.CONST;
-    els.airInfo.textContent =
-      "pre " + C.PREAMBLE_HZ + " Hz · hopy " + C.HOPS[0] + "–" + C.HOPS[C.NHOPS - 1] +
-      " Hz · air " + airtimeMs(p) + " ms · goodput≈" + Math.round(128000 / airtimeMs(p)) + " b/s";
+    if (els.airInfo) {
+      els.airInfo.textContent =
+        "pre " + C.PREAMBLE_HZ + " Hz · hopy " + C.HOPS[0] + "–" + C.HOPS[C.NHOPS - 1] +
+        " Hz · air " + airtimeMs(p) + " ms · goodput≈" + Math.round(128000 / airtimeMs(p)) + " b/s";
+    }
   }
   function describe(p) {
     return p.preambleHz + "/" + p.hopStepHz + "/" + p.dataChipMs;
@@ -583,25 +609,25 @@
     log("spektrogram smazán");
   }
 
-  els.spectroClear.addEventListener("click", clearSpectro);
-  els.recDownload.addEventListener("click", downloadWav);
-  els.recPause.addEventListener("click", function () {
+  on(els.spectroClear, "click", clearSpectro);
+  on(els.recDownload, "click", downloadWav);
+  on(els.recPause, "click", function () {
     state.recPaused = !state.recPaused;
     updateSpectroControls();
     log(state.recPaused ? "záznam pozastaven" : "záznam běží");
   });
-  els.spectroLive.addEventListener("click", function () {
+  on(els.spectroLive, "click", function () {
     state.viewEnd = 0;
     state.spectroDirty = true;
     drawSpectroFrame();
   });
-  els.spectroZoom.addEventListener("input", function () {
+  on(els.spectroZoom, "input", function () {
     var zi = parseInt(els.spectroZoom.value, 10) || 2;
     state.colsPerPx = SPEC_ZOOM_STEPS[zi] || 1;
     state.spectroDirty = true;
     drawSpectroFrame();
   });
-  els.spectroScroll.addEventListener("input", function () {
+  on(els.spectroScroll, "input", function () {
     var lay = spectroLayout();
     var span = viewSpanCols(lay.plotW);
     var maxEnd = Math.max(0, state.histCount - span);
@@ -611,68 +637,132 @@
     drawSpectroFrame();
   });
 
-  // ---- Mic RX ----
-  function startMic() {
+  // ---- Mic RX (wired early; async + guarded like chirp.js) ----
+  async function startMic() {
+    if (state.running) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showWarn("Prohlížeč nepodporuje mikrofon."); return;
+      showWarn("Prohlížeč nepodporuje mikrofon.");
+      return;
     }
-    if (!window.isSecureContext) { showWarn("Vyžaduje HTTPS."); return; }
-    setStatus("", "žádám mikrofon…");
-    navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-    }).then(function (stream) {
-      state.stream = stream;
-      try { state.ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 }); }
-      catch (e) { state.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
-      state.ctx.resume();
-      var src = state.ctx.createMediaStreamSource(stream);
+    if (!window.isSecureContext) {
+      showWarn("Vyžaduje HTTPS.");
+      return;
+    }
+    try {
+      setStatus("", "žádám mikrofon…");
+      state.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+      try {
+        state.ctx = new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: 48000,
+        });
+      } catch (rateErr) {
+        state.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (state.ctx.state === "suspended") await state.ctx.resume();
+      var src = state.ctx.createMediaStreamSource(state.stream);
+      state.micSrc = src;
       var micRate = state.ctx.sampleRate;
-      state.demod = new ALINK.Demod(48000);
-      state.rs = micRate === 48000 ? null : new ALINK.Resampler(micRate, 48000);
       state.analyser = state.ctx.createAnalyser();
       state.analyser.fftSize = 4096;
       state.analyser.smoothingTimeConstant = 0;
       src.connect(state.analyser);
       state.buf = new Float32Array(state.analyser.frequencyBinCount);
-      ensureWav(micRate);
-      ensureHist(8000);
-      var proc = state.ctx.createScriptProcessor(2048, 1, 1);
-      var mute = state.ctx.createGain(); mute.gain.value = 0;
-      src.connect(proc); proc.connect(mute); mute.connect(state.ctx.destination);
-      proc.onaudioprocess = function (ev) {
-        if (!state.running) return;
-        var ch = ev.inputBuffer.getChannelData(0);
-        pushWavSamples(ch);
-        var fed = state.rs ? state.rs.process(ch) : ch;
-        var frames = state.demod.push(fed);
-        for (var i = 0; i < frames.length; i++) onFrame(frames[i]);
-        if (frames.length) renderRxStats();
-      };
-      state.wavProc = proc; state.mute = mute;
+      ensureHist(state.histCap || 8000);
+      try {
+        ensureWav(micRate);
+      } catch (wavAllocErr) {
+        log("WAV buffer: " + (wavAllocErr && wavAllocErr.message ? wavAllocErr.message : wavAllocErr));
+      }
+      if (alinkReady) {
+        state.demod = new ALINK.Demod(48000);
+        state.rs = micRate === 48000 ? null : new ALINK.Resampler(micRate, 48000);
+      } else {
+        state.demod = null;
+        state.rs = null;
+      }
+      try {
+        var proc = state.ctx.createScriptProcessor(2048, 1, 1);
+        var mute = state.ctx.createGain();
+        mute.gain.value = 0;
+        src.connect(proc);
+        proc.connect(mute);
+        mute.connect(state.ctx.destination);
+        proc.onaudioprocess = function (ev) {
+          if (!state.running) return;
+          var ch = ev.inputBuffer.getChannelData(0);
+          pushWavSamples(ch);
+          if (state.demod) {
+            var fed = state.rs ? state.rs.process(ch) : ch;
+            var frames = state.demod.push(fed);
+            for (var i = 0; i < frames.length; i++) onFrame(frames[i]);
+            if (frames.length) renderRxStats();
+          }
+        };
+        state.wavProc = proc;
+        state.mute = mute;
+      } catch (procErr) {
+        log("PCM tap nedostupný: " + (procErr && procErr.message ? procErr.message : procErr));
+      }
       state.running = true;
       state.recPaused = false;
-      els.permWarn.hidden = true;
-      els.micBtn.textContent = "Zastavit mikrofon";
+      if (els.permWarn) els.permWarn.hidden = true;
+      if (els.micBtn) els.micBtn.textContent = "Zastavit mikrofon";
       setStatus("on", "poslouchám");
-      log("mikrofon " + micRate + " Hz" + (micRate === 48000 ? "" : " → 48000") +
-        " · WAV cap " + (WAV_MAX_BYTES / 1024 / 1024).toFixed(0) + " MB");
+      log(
+        "mikrofon " + micRate + " Hz" +
+          (micRate === 48000 ? "" : " → 48000") +
+          " · WAV cap " + (WAV_MAX_BYTES / 1024 / 1024).toFixed(0) + " MB" +
+          (alinkReady ? "" : " · bez ALINK demod")
+      );
       renderRxStats();
+      updateSpectroControls();
       if (!state.spectroRaf) state.spectroRaf = requestAnimationFrame(spectroLoop);
-    }).catch(function (e) {
+    } catch (e) {
       showWarn("Mikrofon selhal: " + (e && e.message ? e.message : e));
       setStatus("err", "chyba");
-    });
+      try { stopMic(); } catch (e2) { /* ignore */ }
+    }
   }
   function stopMic() {
     state.running = false;
-    if (state.spectroRaf) { cancelAnimationFrame(state.spectroRaf); state.spectroRaf = 0; }
-    if (state.wavProc) { try { state.wavProc.onaudioprocess = null; state.wavProc.disconnect(); } catch (e) {} state.wavProc = null; }
-    if (state.mute) { try { state.mute.disconnect(); } catch (e) {} state.mute = null; }
-    if (state.analyser) { try { state.analyser.disconnect(); } catch (e) {} state.analyser = null; }
-    if (state.stream) state.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (state.spectroRaf) {
+      cancelAnimationFrame(state.spectroRaf);
+      state.spectroRaf = 0;
+    }
+    if (state.wavProc) {
+      try {
+        state.wavProc.onaudioprocess = null;
+        state.wavProc.disconnect();
+      } catch (e) {}
+      state.wavProc = null;
+    }
+    if (state.mute) {
+      try { state.mute.disconnect(); } catch (e) {}
+      state.mute = null;
+    }
+    if (state.analyser) {
+      try { state.analyser.disconnect(); } catch (e) {}
+      state.analyser = null;
+    }
+    if (state.micSrc) {
+      try { state.micSrc.disconnect(); } catch (e) {}
+      state.micSrc = null;
+    }
+    if (state.stream) {
+      state.stream.getTracks().forEach(function (t) { t.stop(); });
+    }
     if (state.ctx) state.ctx.close().catch(function () {});
-    state.ctx = null; state.demod = null; state.rs = null; state.stream = null;
-    els.micBtn.textContent = "Spustit mikrofon";
+    state.ctx = null;
+    state.demod = null;
+    state.rs = null;
+    state.stream = null;
+    if (els.micBtn) els.micBtn.textContent = "Spustit mikrofon";
     setStatus("", "nečinné");
   }
 
@@ -798,9 +888,15 @@
       }
       var when = s.savedAt ? new Date(s.savedAt).toLocaleString("cs-CZ") : "—";
       var note = (s.note || "").slice(0, 28);
+      var audio =
+        s.hasAudio && s.audioBytes
+          ? (s.audioBytes / 1024 / 1024).toFixed(1) + " MB"
+          : s.hasAudio
+            ? "ano"
+            : "—";
       return "<tr><td>" + (s.slot + 1) + "</td><td>" + (s.name || "Profil") +
         "</td><td>" + (s.airMs != null ? s.airMs + " ms" : "—") +
-        "</td><td>" + (note || "—") +
+        "</td><td>" + (note || "—") + " · " + audio +
         "</td><td>" + when + "</td></tr>";
     }).join("");
     var slot = parseInt(els.bankSlot.value, 10) || 0;
@@ -819,12 +915,157 @@
     els.bankNote.value = cur && !cur.empty ? (cur.note || "") : "";
     renderBank();
   });
-  els.bankSave.addEventListener("click", async function () {
+  function u8ToBase64(u8) {
+    var CHUNK = 0x8000;
+    var s = "";
+    for (var i = 0; i < u8.length; i += CHUNK) {
+      s += String.fromCharCode.apply(
+        null,
+        u8.subarray(i, Math.min(u8.length, i + CHUNK))
+      );
+    }
+    return btoa(s);
+  }
+  function base64ToU8(b64) {
+    var bin = atob(b64);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function uploadWavChunks(slot) {
+    var samples = wavChronological();
+    if (!samples.length || !state.wavRate) {
+      log("bank: žádné audio k uploadu");
+      return null;
+    }
+    var u8 = new Uint8Array(
+      samples.buffer,
+      samples.byteOffset,
+      samples.byteLength
+    );
+    var total = Math.ceil(u8.length / CHUNK_RAW_BYTES) || 1;
+    if (total > 64) {
+      log("bank: audio příliš velké (" + total + " chunků)");
+      return null;
+    }
+    await bankApi({ action: "chunk_clear", slot: slot });
+    log("bank: upload audio " + (u8.length / 1024 / 1024).toFixed(2) + " MB · " + total + " chunků…");
+    for (var i = 0; i < total; i++) {
+      var slice = u8.subarray(
+        i * CHUNK_RAW_BYTES,
+        Math.min(u8.length, (i + 1) * CHUNK_RAW_BYTES)
+      );
+      var res = await bankApi({
+        action: "chunk_put",
+        slot: slot,
+        index: i,
+        total: total,
+        b64: u8ToBase64(slice),
+        sr: state.wavRate,
+        samples: samples.length,
+        bytes: u8.length,
+      });
+      if (res.error) throw new Error(res.error);
+      if (els.bankInfo) {
+        els.bankInfo.textContent =
+          "upload chunk " + (i + 1) + "/" + total;
+      }
+    }
+    return {
+      format: "pcm16le",
+      sr: state.wavRate,
+      samples: samples.length,
+      bytes: u8.length,
+      chunks: total,
+    };
+  }
+
+  async function downloadSlotAudio(slot) {
+    var meta = await bankApi({ action: "chunk_meta", slot: slot });
+    if (meta.error || !meta.audio || !(meta.audio.chunks > 0)) {
+      log("bank: slot " + (slot + 1) + " nemá audio chunky");
+      return null;
+    }
+    var total = meta.audio.chunks | 0;
+    var parts = [];
+    var totalBytes = 0;
+    for (var i = 0; i < total; i++) {
+      var ch = await bankApi({ action: "chunk_get", slot: slot, index: i });
+      if (ch.error || !ch.b64) throw new Error(ch.error || "chunk " + i);
+      var u8 = base64ToU8(ch.b64);
+      parts.push(u8);
+      totalBytes += u8.length;
+      if (els.bankInfo) {
+        els.bankInfo.textContent = "download chunk " + (i + 1) + "/" + total;
+      }
+    }
+    var merged = new Uint8Array(totalBytes);
+    var off = 0;
+    for (var p = 0; p < parts.length; p++) {
+      merged.set(parts[p], off);
+      off += parts[p].length;
+    }
+    var samples = new Int16Array(
+      merged.buffer,
+      merged.byteOffset,
+      Math.floor(merged.byteLength / 2)
+    );
+    var sr = meta.audio.sr || state.wavRate || 48000;
+    var blob = encodeWavBlob(samples, sr);
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download =
+      "het68-bank-slot" +
+      (slot + 1) +
+      "-" +
+      new Date().toISOString().replace(/[:.]/g, "-") +
+      ".wav";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    log(
+      "bank: staženo audio slotu " +
+        (slot + 1) +
+        " · " +
+        (blob.size / 1024 / 1024).toFixed(2) +
+        " MB"
+    );
+    return { samples: samples, sr: sr };
+  }
+
+  on(els.bankSave, "click", async function () {
     var slot = parseInt(els.bankSlot.value, 10) || 0;
     var name = (els.bankName.value || "").trim() || ("Profil " + (slot + 1));
     var note = (els.bankNote.value || "").trim();
     var best = state._lastSweepBest;
+    var withAudio = !!(els.bankWithAudio && els.bankWithAudio.checked);
     try {
+      var audioMeta = null;
+      if (withAudio) {
+        // Save profile first (so chunk_put can attach audio meta to the slot).
+        await bankApi({
+          action: "save",
+          slot: slot,
+          name: name,
+          profile: {
+            config: readParams(),
+            note: note,
+            rx: state.rxCount,
+            tx: state.txCount,
+            goodput: best ? best.goodput : null,
+            byFp: fp,
+            byLabel: myLabel,
+            audio: null,
+            ids: (state.nodes || []).map(function (n) {
+              return { fp: n.fp, node: n.node, label: n.label };
+            }),
+          },
+        });
+        audioMeta = await uploadWavChunks(slot);
+      }
       var d = await bankApi({
         action: "save",
         slot: slot,
@@ -837,6 +1078,7 @@
           goodput: best ? best.goodput : null,
           byFp: fp,
           byLabel: myLabel,
+          audio: audioMeta,
           ids: (state.nodes || []).map(function (n) {
             return { fp: n.fp, node: n.node, label: n.label };
           }),
@@ -845,10 +1087,25 @@
       if (d.error) { log("bank: " + d.error); return; }
       state.bank = d.bank || state.bank;
       renderBank();
-      log("bank: uložen slot " + (slot + 1) + " „" + name + "“");
-    } catch (e) { log("bank: uložení selhalo"); }
+      log(
+        "bank: uložen slot " +
+          (slot + 1) +
+          " „" +
+          name +
+          "“" +
+          (audioMeta
+            ? " · audio " +
+              (audioMeta.bytes / 1024 / 1024).toFixed(2) +
+              " MB / " +
+              audioMeta.chunks +
+              " ch"
+            : "")
+      );
+    } catch (e) {
+      log("bank: uložení selhalo — " + (e && e.message ? e.message : e));
+    }
   });
-  els.bankLoad.addEventListener("click", async function () {
+  on(els.bankLoad, "click", async function () {
     var slot = parseInt(els.bankSlot.value, 10) || 0;
     try {
       var d = await bankApi({ action: "load", slot: slot });
@@ -864,10 +1121,28 @@
         els.bankNote.value = d.slot.note || "";
       }
       renderBank();
-      log("bank: načten slot " + (slot + 1) + (d.slot && d.slot.name ? " „" + d.slot.name + "“" : ""));
-    } catch (e) { log("bank: načtení selhalo"); }
+      log(
+        "bank: načten slot " +
+          (slot + 1) +
+          (d.slot && d.slot.name ? " „" + d.slot.name + "“" : "") +
+          (d.slot && d.slot.audio && d.slot.audio.chunks
+            ? " · audio " + d.slot.audio.chunks + " ch"
+            : "")
+      );
+    } catch (e) {
+      log("bank: načtení selhalo — " + (e && e.message ? e.message : e));
+    }
   });
-  els.bankRename.addEventListener("click", async function () {
+  on(els.bankAudioDl, "click", async function () {
+    var slot = parseInt(els.bankSlot.value, 10) || 0;
+    try {
+      await downloadSlotAudio(slot);
+      renderBank();
+    } catch (e) {
+      log("bank: stažení audia selhalo — " + (e && e.message ? e.message : e));
+    }
+  });
+  on(els.bankRename, "click", async function () {
     var slot = parseInt(els.bankSlot.value, 10) || 0;
     var name = (els.bankName.value || "").trim();
     if (!name) { log("bank: zadej název"); return; }
@@ -879,7 +1154,7 @@
       log("bank: přejmenován slot " + (slot + 1));
     } catch (e) { log("bank: přejmenování selhalo"); }
   });
-  els.bankClear.addEventListener("click", async function () {
+  on(els.bankClear, "click", async function () {
     var slot = parseInt(els.bankSlot.value, 10) || 0;
     try {
       var d = await bankApi({ action: "clear", slot: slot });
@@ -1008,18 +1283,19 @@
   }
 
   // ---- wire up ----
-  els.micBtn.addEventListener("click", function () {
-    if (state.running) stopMic(); else startMic();
-  });
-
-  applyParams(readParams());
-  ensureHist(8000);
-  drawSpectroFrame();
-  drawMap();
-  poll();
-  setInterval(poll, 1500);
-  setInterval(heartbeat, 3000);
-  setInterval(function () { if (state.rx.length) renderRx(); }, 1000);
+  try {
+    applyParams(readParams());
+    ensureHist(8000);
+    drawSpectroFrame();
+    drawMap();
+    poll();
+    setInterval(poll, 1500);
+    setInterval(heartbeat, 3000);
+    setInterval(function () { if (state.rx.length) renderRx(); }, 1000);
+  } catch (initErr) {
+    showWarn("Init: " + (initErr && initErr.message ? initErr.message : initErr));
+    log("init chyba: " + (initErr && initErr.message ? initErr.message : initErr));
+  }
 
   (function buildMeta() {
     var yearEl = document.getElementById("year");

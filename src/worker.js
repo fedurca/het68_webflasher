@@ -797,10 +797,24 @@ export class ConfigRoom {
       empty: !!s.empty,
       savedAt: s.meta && s.meta.savedAt ? s.meta.savedAt : null,
       airMs: s.meta && s.meta.airMs != null ? s.meta.airMs : null,
-      hasAudio: !!(s.audio && s.audio.clips && s.audio.clips.length),
+      hasAudio: !!(
+        s.audio &&
+        ((s.audio.chunks | 0) > 0 ||
+          (s.audio.clips && s.audio.clips.length))
+      ),
+      audioBytes: s.audio && s.audio.bytes != null ? s.audio.bytes | 0 : 0,
       hasMap: !!(s.map && s.map.nodes && s.map.nodes.length),
       note: s.note ? String(s.note).slice(0, 80) : "",
     }));
+  }
+
+  /** Delete chunked WAV blobs for a bank slot (keys bankwav:<slot>:<i>). */
+  async _clearSlotChunks(slot) {
+    const listed = await this.state.storage.list({
+      prefix: `bankwav:${slot}:`,
+    });
+    const keys = Array.from(listed.keys());
+    if (keys.length) await this.state.storage.delete(keys);
   }
 
   _publicState() {
@@ -910,6 +924,15 @@ export class ConfigRoom {
         const airMs = Math.round(
           31 * (cfg.preChipMs || 1) + 248 * (cfg.dataChipMs || 4)
         );
+        // Keep prior chunked audio unless client clears / replaces via chunk_*.
+        const prevAudio = this.bank[slot] && !this.bank[slot].empty
+          ? this.bank[slot].audio
+          : null;
+        let audio = profile.audio != null ? profile.audio : prevAudio;
+        // Never embed raw PCM in the bank row — only metadata about chunks.
+        if (audio && audio.b64) {
+          delete audio.b64;
+        }
         this.bank[slot] = {
           slot,
           name: name || "Profil " + (slot + 1),
@@ -917,7 +940,7 @@ export class ConfigRoom {
           config: cfg,
           map: profile.map || null,
           note: profile.note != null ? String(profile.note).slice(0, 240) : null,
-          audio: profile.audio || null,
+          audio: audio,
           ids: profile.ids || null,
           meta: {
             savedAt: Date.now(),
@@ -950,6 +973,7 @@ export class ConfigRoom {
       }
 
       if (action === "clear") {
+        await this._clearSlotChunks(slot);
         this.bank[slot] = emptyBankSlot(slot);
         await this.state.storage.put({ bank: this.bank });
         return json({ ok: true, bank: this._bankSummary() });
@@ -968,6 +992,77 @@ export class ConfigRoom {
           slot: s,
           bank: this._bankSummary(),
           nodes: this._nodeList(),
+        });
+      }
+
+      // Chunked WAV storage (≤ ~1.2 MB base64 per chunk; DO value limit 2 MB).
+      if (action === "chunk_clear") {
+        await this._clearSlotChunks(slot);
+        if (this.bank[slot] && !this.bank[slot].empty) {
+          this.bank[slot].audio = null;
+          await this.state.storage.put({ bank: this.bank });
+        }
+        return json({ ok: true, bank: this._bankSummary() });
+      }
+
+      if (action === "chunk_put") {
+        const index = body.index | 0;
+        const total = body.total | 0;
+        if (index < 0 || index > 63 || total < 1 || total > 64) {
+          return json({ error: "bad chunk index/total" }, 400);
+        }
+        if (!body.b64) return json({ error: "b64 required" }, 400);
+        const b64 = String(body.b64).slice(0, 1400000);
+        await this.state.storage.put(`bankwav:${slot}:${index}`, {
+          b64,
+          index,
+          total,
+          sr: body.sr | 0,
+          samples: body.samples | 0,
+          bytes: body.bytes | 0,
+          at: Date.now(),
+        });
+        // Update slot audio metadata when the last chunk lands (or on any put).
+        if (this.bank[slot] && !this.bank[slot].empty) {
+          this.bank[slot].audio = {
+            format: "pcm16le",
+            sr: body.sr | 0,
+            samples: body.samples | 0,
+            bytes: body.bytes | 0,
+            chunks: total,
+          };
+          await this.state.storage.put({ bank: this.bank });
+        }
+        return json({
+          ok: true,
+          index,
+          total,
+          bank: this._bankSummary(),
+        });
+      }
+
+      if (action === "chunk_get") {
+        const index = body.index | 0;
+        const row = await this.state.storage.get(`bankwav:${slot}:${index}`);
+        if (!row) return json({ error: "chunk missing" }, 404);
+        return json({
+          ok: true,
+          slot,
+          index: row.index,
+          total: row.total,
+          b64: row.b64,
+          sr: row.sr,
+          samples: row.samples,
+          bytes: row.bytes,
+        });
+      }
+
+      if (action === "chunk_meta") {
+        const s = this.bank[slot];
+        return json({
+          ok: true,
+          empty: !s || !!s.empty,
+          audio: s && s.audio ? s.audio : null,
         });
       }
 
