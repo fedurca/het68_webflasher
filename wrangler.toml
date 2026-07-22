@@ -41,3 +41,17 @@ custom_domain = true
 [[routes]]
 pattern = "chirp.het68.cz"
 custom_domain = true
+
+[[routes]]
+pattern = "dev.het68.cz"
+custom_domain = true
+
+# Shared room for chirpdev — synchronizes tuning parameters and node presence
+# across all visitors (Durable Object, SQLite-backed, created on first use).
+[[durable_objects.bindings]]
+name = "CONFIG_ROOM"
+class_name = "ConfigRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ConfigRoom"]
