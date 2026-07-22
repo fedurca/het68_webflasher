@@ -1681,10 +1681,10 @@
       g.stroke();
       g.setLineDash([]);
     }
-    // ALINK bands: 4 kHz BPSK preamble + 3–5.4 kHz FHSS data hops.
-    bandLine(4000, "rgba(59,130,246,0.55)");
-    bandLine(3000, "rgba(31,191,160,0.4)");
-    bandLine(5400, "rgba(31,191,160,0.4)");
+    // ALINK bands (browser profile): 2 kHz BPSK preamble + 1.4–2.8 kHz hops.
+    bandLine(2000, "rgba(59,130,246,0.55)");
+    bandLine(1400, "rgba(31,191,160,0.4)");
+    bandLine(2800, "rgba(31,191,160,0.4)");
 
     // dominant frequency graph — colored by waveform class when pure
     g.lineWidth = 2.25;

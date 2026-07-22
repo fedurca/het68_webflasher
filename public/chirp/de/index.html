@@ -193,12 +193,12 @@
             <label class="check"><input type="checkbox" id="txSeqAuto" checked /> auto seq++</label>
           </div>
           <div class="emit-actions">
-            <button id="txSend" class="btn btn-blue" type="button">Frame senden (~0,5 s)</button>
+            <button id="txSend" class="btn btn-blue" type="button">Frame senden (~1 s)</button>
             <button id="txShort" class="btn btn-teal btn-sm" type="button">Kurztest (~8 ms)</button>
             <button id="txStop" class="btn btn-ghost btn-sm" type="button">Stopp</button>
             <button id="txQueueAdd" class="btn btn-ghost btn-sm" type="button">Zur Warteschlange</button>
           </div>
-          <p id="txInfo" class="hint">Präambel laut Spec (BPSK 4 kHz, 250 µs); 2 ms Datenchips für zuverlässiges 2‑FSK über den Handylautsprecher → ~0,5 s Frame.</p>
+          <p id="txInfo" class="hint">Browser-Profil: 1,4–2,8 kHz-Band (Handylautsprecher rollen über ~3 kHz ab), 2 kHz Präambel. ~1 s Frame.</p>
         </div>
 
         <div class="card">
@@ -218,14 +218,13 @@
       </details>
 
       <p class="proto-note">
-        het68 Chirp-Link (Spec 1.4.0, Version 2): 31‑Chip-BPSK-Präambel bei 4&nbsp;kHz (CDMA
-        m‑Sequenz, 8&nbsp;Nodes) + 248 Datenchips nicht‑kohärentes 2‑FSK mit Frequenzsprung
-        (3–5,4&nbsp;kHz). 31‑Byte-Frame (Version, Node, Typ, Seq, Flags, Key/Nonce, 0–16&nbsp;B
-        Payload), nur CRC32 (kein FEC). Empfang und Senden laufen lokal im Browser.
-        <br />Hinweis: die Spec nutzt 250&nbsp;µs-Chips am resonanten Piezo; ein Handylautsprecher
-        bildet in 250&nbsp;µs keinen sauberen Ton (2‑FSK nicht trennbar), daher verlängert das
-        <strong>Browser-Profil die Datenchips auf 2&nbsp;ms</strong> (~0,5&nbsp;s Frame). Die Präambel
-        bleibt 250&nbsp;µs. 48&nbsp;kHz und kurze Distanz sind am besten.
+        het68 Chirp-Link (Spec 1.4.0, Version 2): BPSK-Präambel + 2‑FSK-Frequenzsprung-Daten,
+        CDMA m‑Sequenz (8&nbsp;Nodes), 31‑Byte-Frame (Version, Node, Typ, Seq, Flags, Key/Nonce,
+        0–16&nbsp;B Payload), nur CRC32 (kein FEC). Empfang und Senden laufen lokal im Browser.
+        <br />Hinweis: die Spec zielt auf ein resonantes 4&nbsp;kHz-Piezo; <strong>Handylautsprecher
+        rollen über ~3&nbsp;kHz ab</strong>, daher verschiebt das Browser-Profil die Verbindung ins
+        <strong>1,4–2,8&nbsp;kHz</strong>-Band (2&nbsp;kHz Präambel) und verlängert die Chips (~1&nbsp;s
+        Frame). Nicht wire-kompatibel mit 4&nbsp;kHz-Hardware. 48&nbsp;kHz und ausreichende Lautstärke/Nähe sind am besten.
       </p>
     </main>
 
