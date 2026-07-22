@@ -152,6 +152,11 @@
     if (state.running) stopMic();
     else startMic();
   });
+  // Re-apply theme icon now that `state` exists (first applyTheme ran earlier).
+  if (els.themeToggle) {
+    els.themeToggle.textContent =
+      currentTheme() === "light" ? "\u263e" : "\u2600";
+  }
 
   // ---- Config <-> UI ----
   function readParams() {
