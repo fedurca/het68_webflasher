@@ -116,6 +116,10 @@
         return "dekódováno " + d + " · CRC chyb " + b + " · detekcí " + det;
       },
       rxCleared: "přijaté chirpy vymazány",
+      profileSet: function (p, pre, lo, hi) {
+        return "profil " + (p === "piezo" ? "Piezo" : "Telefon") + " · preambule " + pre +
+          " Hz · hopy " + lo + "–" + hi + " Hz";
+      },
       txBusy: function (kind, left) {
         return (kind === "ping" ? "ping" : "rámec") + " · vysílám " + left + " s";
       },
@@ -231,6 +235,10 @@
         return "decoded " + d + " · CRC errors " + b + " · detects " + det;
       },
       rxCleared: "received chirps cleared",
+      profileSet: function (p, pre, lo, hi) {
+        return "profile " + (p === "piezo" ? "Piezo" : "Phone") + " · preamble " + pre +
+          " Hz · hops " + lo + "–" + hi + " Hz";
+      },
       txBusy: function (kind, left) {
         return (kind === "ping" ? "ping" : "frame") + " · transmitting " + left + " s";
       },
@@ -346,6 +354,10 @@
         return "dekodiert " + d + " · CRC-Fehler " + b + " · Detektionen " + det;
       },
       rxCleared: "empfangene Chirps gelöscht",
+      profileSet: function (p, pre, lo, hi) {
+        return "Profil " + (p === "piezo" ? "Piezo" : "Telefon") + " · Präambel " + pre +
+          " Hz · Hops " + lo + "–" + hi + " Hz";
+      },
       txBusy: function (kind, left) {
         return (kind === "ping" ? "Ping" : "Frame") + " · sende " + left + " s";
       },
@@ -422,6 +434,7 @@
     txNonce: document.getElementById("txNonce"),
     txPayload: document.getElementById("txPayload"),
     txPayloadLen: document.getElementById("txPayloadLen"),
+    txProfile: document.getElementById("txProfile"),
     txGain: document.getElementById("txGain"),
     txSend: document.getElementById("txSend"),
     txShort: document.getElementById("txShort"),
@@ -1681,10 +1694,13 @@
       g.stroke();
       g.setLineDash([]);
     }
-    // ALINK bands (browser profile): 2 kHz BPSK preamble + 1.4–2.8 kHz hops.
-    bandLine(2000, "rgba(59,130,246,0.55)");
-    bandLine(1400, "rgba(31,191,160,0.4)");
-    bandLine(2800, "rgba(31,191,160,0.4)");
+    // ALINK bands (active profile): BPSK preamble + FHSS data hop edges.
+    if (typeof ALINK !== "undefined") {
+      var hops = ALINK.CONST.HOPS;
+      bandLine(ALINK.CONST.PREAMBLE_HZ, "rgba(59,130,246,0.55)");
+      bandLine(hops[0], "rgba(31,191,160,0.4)");
+      bandLine(hops[hops.length - 1], "rgba(31,191,160,0.4)");
+    }
 
     // dominant frequency graph — colored by waveform class when pure
     g.lineWidth = 2.25;
@@ -2220,6 +2236,40 @@
     els.rxFilterSelf.addEventListener("change", function () {
       state.filterSelf = !!els.rxFilterSelf.checked;
     });
+  }
+
+  // ---- Profile (Phone 2 kHz ↔ Piezo 4 kHz) -------------------------------
+  var PROFILE_KEY = "het68-chirp-profile";
+  function applyProfile(name) {
+    if (typeof ALINK === "undefined") return;
+    var p = ALINK.setProfile(name);
+    try {
+      localStorage.setItem(PROFILE_KEY, p);
+    } catch (e) {
+      /* ignore */
+    }
+    if (els.txProfile) els.txProfile.value = p;
+    // Rebuild the running receiver so it decodes on the new profile.
+    if (state.running && state.ctx) {
+      state.demod = new ALINK.Demod(48000);
+    }
+    if (state.spectroReady) drawSpectroFrame();
+    log(t.profileSet(p, ALINK.CONST.PREAMBLE_HZ, ALINK.CONST.HOPS[0], ALINK.CONST.HOPS[ALINK.CONST.NHOPS - 1]));
+  }
+  if (typeof ALINK !== "undefined") {
+    var savedProfile = "phone";
+    try {
+      savedProfile = localStorage.getItem(PROFILE_KEY) || "phone";
+    } catch (e2) {
+      /* ignore */
+    }
+    ALINK.setProfile(savedProfile);
+    if (els.txProfile) {
+      els.txProfile.value = ALINK.getProfile();
+      els.txProfile.addEventListener("change", function () {
+        applyProfile(els.txProfile.value);
+      });
+    }
   }
 
   if (els.txPayload) els.txPayload.addEventListener("input", updatePayloadLen);
