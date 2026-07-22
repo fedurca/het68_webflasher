@@ -198,10 +198,44 @@
         </div>
       </section>
 
-      <details class="log-box" id="logDetails" open>
-        <summary>Log</summary>
-        <pre id="log" aria-live="polite"></pre>
-      </details>
+      <section class="grid">
+        <div class="card debug-card">
+          <div class="card-head">
+            <h2>Debug &amp; log</h2>
+            <span id="debugStats" class="hint mono">rx 0 · tx 0 · det 0 · CRC✗ 0</span>
+          </div>
+          <div class="tx-flags">
+            <label class="field"><span>Úroveň logu</span>
+              <select id="logLevel">
+                <option value="0">basic</option>
+                <option value="1" selected>verbose</option>
+                <option value="2">trace</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="logShare" checked /> sdílet události přes backend</label>
+            <label class="check"><input type="checkbox" id="logShowRemote" checked /> zobrazit vzdálené nody</label>
+            <label class="check"><input type="checkbox" id="logAutoscroll" checked /> autoscroll</label>
+            <button id="logClear" class="btn btn-ghost btn-sm" type="button">Vyčistit</button>
+            <button id="logCopy" class="btn btn-ghost btn-sm" type="button">Kopírovat</button>
+            <button id="logDownload" class="btn btn-ghost btn-sm" type="button">Stáhnout .log</button>
+          </div>
+          <div class="debug-split">
+            <div class="debug-col">
+              <p class="hint mono">Lokální log</p>
+              <pre id="log" aria-live="polite"></pre>
+            </div>
+            <div class="debug-col">
+              <p class="hint mono">Synchronizované události (všechny nody) · <span id="eventStat" class="mono">0</span></p>
+              <div class="rx-scroll events-scroll">
+                <table class="nodes">
+                  <thead><tr><th>Čas</th><th>Node</th><th>Druh</th><th>Detail</th></tr></thead>
+                  <tbody id="eventsBody"><tr class="empty"><td colspan="4">Zatím žádné události.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <p class="proto-note">
         chirpdev sdílí konfiguraci, přítomnost nodů a 10slotový bank přes Durable Object

@@ -319,23 +319,36 @@
     this.histQ = new Float32Array(C.PREAMBLE_LEN);
     this.histPos = 0;
     this.histFill = 0;
-    // Raw sample ring — big enough to hold a whole frame (preamble + data) so
-    // data chips can be re-sliced at sub-chip timing once the peak is known.
+    // Raw sample ring — big enough to hold a whole frame (preamble + data) plus
+    // several overlapping candidates, so data chips can be re-sliced at sub-chip
+    // timing once a preamble peak is known and multiple frames can be pending.
     this.rawLen =
       Math.ceil(C.PREAMBLE_LEN * this.spc + C.DATA_BITS * this.dataSpc) +
-      80 * Math.ceil(this.spc);
+      256 * Math.ceil(this.spc);
     this.raw = new Float32Array(this.rawLen);
-    // Coarse trigger; the precise (node, timing) is found later by a bounded
-    // search over the buffered raw preamble.
-    this.armed = false;
-    this.armSample = 0;
-    this.armChip = 0;
-    // Coarse arm threshold is intentionally low; the precise (node, timing)
-    // search + CRC still validate, so off-grid frames that give a weaker
-    // streaming peak are not missed.
+    // Peak-tracking detector: instead of a single boolean arm + blackout (which
+    // dropped real preambles arriving during the ~1 s decode wait), we track the
+    // rising/falling streaming correlation and commit each LOCAL PEAK as a
+    // candidate. Multiple candidates decode concurrently from the raw ring, so
+    // closely-spaced or overlapping frames are all attempted (CRC still gates).
     this.armThresh = this.detectRho;
-    this.stats = { detects: 0, decoded: 0, badCrc: 0 };
+    this.inPeak = false;
+    this.peakRho = 0;
+    this.peakSample = 0;
+    this.peakNode = -1;
+    this.pending = []; // [{ sample, rho, node }]
+    this.lastCandSample = -1e9;
+    this.recentDecodes = []; // dedupe repeated decodes of the same frame
+    // Optional detailed trace hook for debugging (set demod.onEvent = fn).
+    this.onEvent = this.onEvent || null;
+    this.stats = { detects: 0, decoded: 0, badCrc: 0, arms: 0, dropped: 0 };
     this.dataBits = new Uint8Array(C.DATA_BITS);
+  };
+
+  Demod.prototype._emit = function (kind, info) {
+    if (this.onEvent) {
+      try { this.onEvent(kind, info); } catch (e) { /* ignore */ }
+    }
   };
 
   Demod.prototype._pushHist = function (ci, cq) {
@@ -411,7 +424,6 @@
     cq /= N;
     this._pushHist(ci, cq);
 
-    var thisChip = this.chipCount;
     this.chipFill = 0;
     this.chipCount++;
 
@@ -441,26 +453,69 @@
             bestNode = c;
           }
         }
-        if (bestRho > this.armThresh && !this.armed) {
-          this.armed = true;
-          this.armSample = this.n; // ≈ a preamble-end sample near true alignment
-          this.armChip = thisChip;
-        }
+        this._trackPeak(bestRho, bestNode);
+      } else {
+        this._trackPeak(0, -1);
       }
     }
 
-    // Wait until the whole frame is buffered (data uses longer chips), then
-    // locate the true preamble by a bounded (node, sample-offset) search over the
-    // raw ring — data chips (which include a 4 kHz tone) can otherwise spoof the
-    // streaming correlator.
-    if (
-      this.armed &&
-      this.n - this.armSample >= C.DATA_BITS * this.dataSpc + 24 * this.spc
+    // Decode any candidate whose full frame is now buffered. Multiple candidates
+    // can be in flight, so a spurious peak no longer blacks out real preambles.
+    var frameSpan = C.DATA_BITS * this.dataSpc + 8 * this.spc;
+    while (
+      this.pending.length &&
+      this.n - this.pending[0].sample >= frameSpan
     ) {
-      out = this._decodeFrame();
-      this.armed = false;
+      var cand = this.pending.shift();
+      var frame = this._decodeFrame(cand.sample, cand.node);
+      if (frame) {
+        // Return the first successful decode of this chip; keep draining others
+        // on subsequent chips (they are already buffered).
+        if (!out) out = frame;
+      }
     }
     return out;
+  };
+
+  // Commit each local maximum of the streaming correlation as a decode
+  // candidate. Rising → track max; falling well below the peak → commit.
+  Demod.prototype._trackPeak = function (bestRho, bestNode) {
+    var arm = this.armThresh;
+    if (bestRho > arm) {
+      if (!this.inPeak || bestRho > this.peakRho) {
+        this.inPeak = true;
+        this.peakRho = bestRho;
+        this.peakSample = this.n; // ≈ preamble-end sample near true alignment
+        this.peakNode = bestNode;
+      }
+      // Fell to <60% of the peak while still armed → the peak has passed.
+      if (this.inPeak && bestRho < this.peakRho * 0.6) {
+        this._commitPeak();
+      }
+    } else if (this.inPeak) {
+      this._commitPeak();
+    }
+  };
+
+  Demod.prototype._commitPeak = function () {
+    var sample = this.peakSample;
+    var rho = this.peakRho;
+    var node = this.peakNode;
+    this.inPeak = false;
+    this.peakRho = 0;
+    this.peakNode = -1;
+    // Dedupe candidates that are within ~4 chips of the previous one.
+    if (sample - this.lastCandSample < 4 * this.spc) return;
+    this.lastCandSample = sample;
+    // Bound the queue; if overfull, drop the oldest (least likely to still be
+    // in the raw ring anyway).
+    if (this.pending.length >= 12) {
+      this.pending.shift();
+      this.stats.dropped++;
+    }
+    this.pending.push({ sample: sample, rho: rho, node: node });
+    this.stats.arms++;
+    this._emit("arm", { sample: sample, rho: rho, node: node, pending: this.pending.length });
   };
 
   Demod.prototype._extractBits = function (dataStart, node) {
@@ -492,23 +547,28 @@
     return bitsToBytes(this.dataBits);
   };
 
-  Demod.prototype._decodeFrame = function () {
+  Demod.prototype._decodeFrame = function (center, hintNode) {
     this.stats.detects++;
     var spc = this.spc;
-    var center = this.armSample;
-    // The coarse trigger fires on the rising edge, up to ~15 chips before the
-    // true preamble end; search mostly forward from it. Wider window helps
-    // when phone AGC / clock drift shifts the peak.
-    var dLo = -Math.round(10 * spc);
-    var dHi = Math.round(28 * spc);
-    var step = Math.max(1, Math.round(spc / 8)); // sub-chip search grid
+    if (center == null) center = this.n;
+    // The peak sample is near the true preamble end; search a modest window to
+    // absorb phone AGC / clock drift. A finer sub-chip grid improves the odds of
+    // hitting the right data-chip alignment.
+    var dLo = -Math.round(8 * spc);
+    var dHi = Math.round(8 * spc);
+    var step = Math.max(1, Math.round(spc / 12)); // sub-chip search grid
 
-    // Because the 4 kHz preamble carrier is also a data hop tone, the data
-    // region can spoof the preamble correlator. Gather all strong (node, timing)
-    // candidates and let the CRC pick the real one.
+    // The preamble carrier is also a data hop tone, so the data region can spoof
+    // the correlator. Gather strong (node, timing) candidates and let CRC pick.
     var candThresh = this.candRho;
     var cands = [];
-    for (var node = 0; node < C.MAX_NODES; node++) {
+    var nodeList = [];
+    if (hintNode != null && hintNode >= 0) nodeList.push(hintNode);
+    for (var nn = 0; nn < C.MAX_NODES; nn++) {
+      if (nn !== hintNode) nodeList.push(nn);
+    }
+    for (var ni = 0; ni < nodeList.length; ni++) {
+      var node = nodeList[ni];
       for (var d = dLo; d <= dHi; d += step) {
         var end = center + d;
         var r = this._preCorr(end - C.PREAMBLE_LEN * spc, node).rho;
@@ -521,6 +581,7 @@
 
     var tried = {};
     var limit = Math.min(cands.length, 120);
+    var bestBad = null;
     for (var i = 0; i < limit; i++) {
       var c = cands[i];
       var key = c.node + ":" + c.end;
@@ -529,16 +590,49 @@
       var bytes = this._extractBits(c.end, c.node);
       var parsed = parseFrame(bytes);
       if (parsed) {
+        // Suppress duplicate decodes of the same frame from overlapping
+        // candidates near one preamble (same node+seq+nonce within a frame span).
+        var sig = parsed.nodeId + ":" + parsed.seq + ":" + parsed.nonce;
+        var frameSpan = C.DATA_BITS * this.dataSpc + C.PREAMBLE_LEN * this.spc;
+        var dup = false;
+        for (var ri = 0; ri < this.recentDecodes.length; ri++) {
+          if (
+            this.recentDecodes[ri].sig === sig &&
+            this.n - this.recentDecodes[ri].at < frameSpan * 1.5
+          ) {
+            dup = true;
+            break;
+          }
+        }
+        if (dup) {
+          this.stats.detects--; // this attempt was a duplicate, not a new frame
+          this._emit("dup", { node: parsed.nodeId, seq: parsed.seq });
+          return null;
+        }
+        this.recentDecodes.push({ sig: sig, at: this.n });
+        if (this.recentDecodes.length > 16) this.recentDecodes.shift();
         this.stats.decoded++;
         parsed.rho = c.rho;
         parsed.codeIndex = c.node;
         parsed.snrDb =
           10 * Math.log10(c.rho / Math.max(1e-6, 1 - Math.min(0.999, c.rho)));
         parsed.bytes = bytes;
+        this._emit("decode", {
+          node: parsed.nodeId,
+          seq: parsed.seq,
+          rho: c.rho,
+          cands: cands.length,
+        });
         return parsed;
       }
+      if (!bestBad || c.rho > bestBad.rho) bestBad = c;
     }
     this.stats.badCrc++;
+    this._emit("badcrc", {
+      cands: cands.length,
+      bestRho: bestBad ? bestBad.rho : 0,
+      bestNode: bestBad ? bestBad.node : -1,
+    });
     return null;
   };
 
