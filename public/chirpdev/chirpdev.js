@@ -143,6 +143,8 @@
     spectroRaf: 0,
     recPaused: false,
     wav: null, wavCap: 0, wavHead: 0, wavCount: 0, wavRate: 0,
+    workletReady: false,
+    pcmTapKind: "",
     domHz: NaN,
     lastColAt: 0,
   };
@@ -647,6 +649,59 @@
     drawSpectroFrame();
   });
 
+  function onPcmSamples(ch) {
+    if (!state.running || !ch || !ch.length) return;
+    pushWavSamples(ch);
+    if (state.demod) {
+      var fed = state.rs ? state.rs.process(ch) : ch;
+      var frames = state.demod.push(fed);
+      for (var i = 0; i < frames.length; i++) onFrame(frames[i]);
+      if (frames.length) renderRxStats();
+    }
+  }
+
+  /** Prefer AudioWorklet; fall back to ScriptProcessor only if Worklet is unavailable. */
+  async function attachPcmTap(src) {
+    var mute = state.ctx.createGain();
+    mute.gain.value = 0;
+    state.mute = mute;
+
+    if (state.ctx.audioWorklet && typeof AudioWorkletNode === "function") {
+      if (!state.workletReady) {
+        await state.ctx.audioWorklet.addModule("/pcm-tap-worklet.js");
+        state.workletReady = true;
+      }
+      var node = new AudioWorkletNode(state.ctx, "pcm-tap", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [1],
+        channelCount: 1,
+      });
+      node.port.onmessage = function (ev) {
+        if (ev.data && ev.data.samples) onPcmSamples(ev.data.samples);
+      };
+      src.connect(node);
+      node.connect(mute);
+      mute.connect(state.ctx.destination);
+      state.wavProc = node;
+      state.pcmTapKind = "worklet";
+      log("PCM tap: AudioWorklet");
+      return;
+    }
+
+    // Legacy fallback (may log a deprecation warning in Chromium).
+    var proc = state.ctx.createScriptProcessor(2048, 1, 1);
+    src.connect(proc);
+    proc.connect(mute);
+    mute.connect(state.ctx.destination);
+    proc.onaudioprocess = function (ev) {
+      onPcmSamples(ev.inputBuffer.getChannelData(0));
+    };
+    state.wavProc = proc;
+    state.pcmTapKind = "script";
+    log("PCM tap: ScriptProcessor (fallback)");
+  }
+
   // ---- Mic RX (wired early; async + guarded like chirp.js) ----
   async function startMic() {
     if (state.running) return;
@@ -697,25 +752,7 @@
         state.rs = null;
       }
       try {
-        var proc = state.ctx.createScriptProcessor(2048, 1, 1);
-        var mute = state.ctx.createGain();
-        mute.gain.value = 0;
-        src.connect(proc);
-        proc.connect(mute);
-        mute.connect(state.ctx.destination);
-        proc.onaudioprocess = function (ev) {
-          if (!state.running) return;
-          var ch = ev.inputBuffer.getChannelData(0);
-          pushWavSamples(ch);
-          if (state.demod) {
-            var fed = state.rs ? state.rs.process(ch) : ch;
-            var frames = state.demod.push(fed);
-            for (var i = 0; i < frames.length; i++) onFrame(frames[i]);
-            if (frames.length) renderRxStats();
-          }
-        };
-        state.wavProc = proc;
-        state.mute = mute;
+        await attachPcmTap(src);
       } catch (procErr) {
         log("PCM tap nedostupný: " + (procErr && procErr.message ? procErr.message : procErr));
       }
@@ -747,7 +784,8 @@
     }
     if (state.wavProc) {
       try {
-        state.wavProc.onaudioprocess = null;
+        if (state.wavProc.port) state.wavProc.port.onmessage = null;
+        if (state.wavProc.onaudioprocess) state.wavProc.onaudioprocess = null;
         state.wavProc.disconnect();
       } catch (e) {}
       state.wavProc = null;
