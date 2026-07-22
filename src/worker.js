@@ -2,10 +2,14 @@
  * HET68 — Cloudflare Worker
  *
  * - www.* → 301 strip to apex (www.het68.cz → het68.cz) before auth/routing
- * - het68.cz → static marketing site (Basic Auth)
- * - flasher.het68.cz → web flasher (no auth)
- * - qr.het68.cz → QR scrambler from fedurca/qr_scrambler (no auth)
- * - chirp.het68.cz → acoustic chirp decoder (no auth)
+ * - All public hosts require Basic Auth (dev:dev by default)
+ * - After one successful login, a shared HttpOnly cookie on `.het68.cz` is set
+ *   so other subdomains (flasher / chirp / qr / dev / apex) do not prompt again
+ * - het68.cz → static marketing site
+ * - flasher.het68.cz → web flasher
+ * - qr.het68.cz → QR scrambler from fedurca/qr_scrambler
+ * - chirp.het68.cz → acoustic chirp decoder
+ * - dev.het68.cz → chirpdev tuning playground
  * - /api/* → GitHub Releases proxy (flasher host, or /flasher path in dev)
  *
  * Note: DNS alone cannot strip "www" from the hostname — the www custom domain
@@ -284,6 +288,9 @@ function timingSafeEqual(a, b) {
   return out === 0;
 }
 
+const AUTH_COOKIE = "het68_auth";
+const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+
 function unauthorized() {
   return new Response("Authentication required", {
     status: 401,
@@ -310,6 +317,76 @@ function checkBasicAuth(request, env) {
   } catch {
     return false;
   }
+}
+
+function parseCookies(request) {
+  const header = request.headers.get("Cookie") || "";
+  const out = Object.create(null);
+  for (const part of header.split(";")) {
+    const i = part.indexOf("=");
+    if (i < 0) continue;
+    const k = part.slice(0, i).trim();
+    const v = part.slice(i + 1).trim();
+    if (k) out[k] = v;
+  }
+  return out;
+}
+
+/** Parent-domain cookie so one login covers apex + all *.het68.cz hosts. */
+function authCookieDomain(hostname) {
+  const host = (hostname || "").toLowerCase().split(":")[0];
+  if (host === "het68.cz" || host.endsWith(".het68.cz")) return ".het68.cz";
+  return null;
+}
+
+async function authToken(env) {
+  const user = env.BASIC_AUTH_USER || "dev";
+  const pass = env.BASIC_AUTH_PASS || "dev";
+  const material = `het68-shared-auth|${user}|${pass}`;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(material)
+  );
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function buildAuthCookie(hostname, token) {
+  let cookie =
+    `${AUTH_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${AUTH_COOKIE_MAX_AGE}`;
+  const domain = authCookieDomain(hostname);
+  if (domain) cookie += `; Domain=${domain}`;
+  return cookie;
+}
+
+function withAuthCookie(response, hostname, token) {
+  if (!response || !token) return response;
+  const headers = new Headers(response.headers);
+  headers.append("Set-Cookie", buildAuthCookie(hostname, token));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
+ * Accept either:
+ *  - shared auth cookie (set after login on any *.het68.cz host), or
+ *  - valid Basic Auth (then caller should attach Set-Cookie to the response).
+ */
+async function authorizeRequest(request, env) {
+  const expected = await authToken(env);
+  const cookies = parseCookies(request);
+  const cookieVal = cookies[AUTH_COOKIE];
+  if (cookieVal && timingSafeEqual(cookieVal, expected)) {
+    return { ok: true, setCookie: false, token: expected };
+  }
+  if (checkBasicAuth(request, env)) {
+    return { ok: true, setCookie: true, token: expected };
+  }
+  return { ok: false, setCookie: false, token: null };
 }
 
 function isFlasherHost(hostname) {
@@ -598,68 +675,52 @@ export default {
     const url = new URL(request.url);
 
     // Canonical host: always strip www (before Basic Auth).
+    // Cookie is on Domain=.het68.cz, so it survives apex/subdomain hops.
     const wwwRedirect = wwwCanonicalRedirect(request);
     if (wwwRedirect) return wwwRedirect;
 
     const host = requestHostname(request);
 
+    // Gate every public host + API. One Basic login sets a shared cookie on
+    // .het68.cz so flasher / chirp / qr / dev / apex do not prompt again.
+    const auth = await authorizeRequest(request, env);
+    if (!auth.ok) return unauthorized();
+
+    let response;
+
     // chirpdev shared-room API (tuning params + node presence)
     if (url.pathname.startsWith("/api/dev/")) {
-      return handleDevApi(request, env);
-    }
-
-    // API available on both hosts
-    if (url.pathname.startsWith("/api/")) {
-      return handleApi(request, env);
-    }
-
-    // dev.het68.cz — chirpdev tuning playground (no Basic Auth)
-    if (isDevHost(host)) {
-      return serveDevHost(request, env);
-    }
-
-    // flasher.het68.cz — no Basic Auth
-    if (isFlasherHost(host)) {
+      response = await handleDevApi(request, env);
+    } else if (url.pathname.startsWith("/api/")) {
+      // API available on both hosts
+      response = await handleApi(request, env);
+    } else if (isDevHost(host)) {
+      response = await serveDevHost(request, env);
+    } else if (isFlasherHost(host)) {
       const redirect = localeRedirect(request, url, flasherPathForLang);
-      if (redirect) return redirect;
-      return serveFlasherHost(request, env);
-    }
-
-    // qr.het68.cz — latest qr_scrambler (no Basic Auth)
-    if (isQrHost(host)) {
-      return serveQrHost(request, env);
-    }
-
-    // chirp.het68.cz — acoustic chirp decoder (no Basic Auth)
-    if (isChirpHost(host)) {
+      response = redirect || (await serveFlasherHost(request, env));
+    } else if (isQrHost(host)) {
+      response = await serveQrHost(request, env);
+    } else if (isChirpHost(host)) {
       const redirect = localeRedirect(request, url, chirpPathForLang);
-      if (redirect) return redirect;
-      return serveChirpHost(request, env);
+      response = redirect || (await serveChirpHost(request, env));
+    } else if (url.pathname === "/flasher" || url.pathname.startsWith("/flasher/")) {
+      response = await serveAssets(request, env);
+    } else if (url.pathname === "/qr" || url.pathname.startsWith("/qr/")) {
+      response = await serveAssets(request, env);
+    } else if (url.pathname === "/chirp" || url.pathname.startsWith("/chirp/")) {
+      response = await serveAssets(request, env);
+    } else if (url.pathname === "/chirpdev" || url.pathname.startsWith("/chirpdev/")) {
+      response = await serveAssets(request, env);
+    } else {
+      const redirect = localeRedirect(request, url, sitePathForLang);
+      response = redirect || (await serveAssets(request, env));
     }
 
-    // Dev convenience: /flasher/*, /qr/*, /chirp/* without auth
-    if (url.pathname === "/flasher" || url.pathname.startsWith("/flasher/")) {
-      return serveAssets(request, env);
+    if (auth.setCookie) {
+      response = withAuthCookie(response, host, auth.token);
     }
-    if (url.pathname === "/qr" || url.pathname.startsWith("/qr/")) {
-      return serveAssets(request, env);
-    }
-    if (url.pathname === "/chirp" || url.pathname.startsWith("/chirp/")) {
-      return serveAssets(request, env);
-    }
-    if (url.pathname === "/chirpdev" || url.pathname.startsWith("/chirpdev/")) {
-      return serveAssets(request, env);
-    }
-
-    // Marketing site — Basic Auth (Cloudflare stand-in for .htaccess)
-    if (!checkBasicAuth(request, env)) {
-      return unauthorized();
-    }
-
-    const redirect = localeRedirect(request, url, sitePathForLang);
-    if (redirect) return redirect;
-
-    return serveAssets(request, env);
+    return response;
   },
 };
 
