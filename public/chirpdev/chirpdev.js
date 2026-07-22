@@ -810,6 +810,9 @@
     state.demod = null;
     state.rs = null;
     state.stream = null;
+    // Worklet module is per-AudioContext; reload after close.
+    state.workletReady = false;
+    state.pcmTapKind = "";
     if (els.micBtn) els.micBtn.textContent = "Spustit mikrofon";
     setStatus("", "nečinné");
   }
