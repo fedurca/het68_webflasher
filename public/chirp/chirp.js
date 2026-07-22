@@ -120,7 +120,8 @@
       },
       rxCleared: "přijaté chirpy vymazány",
       profileSet: function (p, pre, lo, hi) {
-        return "profil " + (p === "piezo" ? "Piezo" : "Telefon") + " · preambule " + pre +
+        var name = p === "piezo" ? "Piezo" : p === "custom" ? "dev" : "Telefon";
+        return "profil " + name + " · preambule " + pre +
           " Hz · hopy " + lo + "–" + hi + " Hz";
       },
       txBusy: function (kind, left) {
@@ -141,6 +142,16 @@
       },
       eventLog: function (name) {
         return "event: " + name;
+      },
+      followWaiting: "dev: čekám na konfiguraci · telefonní výchozí",
+      followOff: "dev sync vypnut",
+      followErr: "dev sync chyba",
+      followOk: function (v, pre, lo, hi, preMs, dataMs) {
+        return "dev v" + v + " · pre " + pre + " · " + lo + "–" + hi +
+          " Hz · chip " + preMs + "/" + dataMs + " ms";
+      },
+      followApplied: function (v) {
+        return "přijato nastavení z dev.het68.cz · v" + v;
       },
     },
     en: {
@@ -242,7 +253,8 @@
       },
       rxCleared: "received chirps cleared",
       profileSet: function (p, pre, lo, hi) {
-        return "profile " + (p === "piezo" ? "Piezo" : "Phone") + " · preamble " + pre +
+        var name = p === "piezo" ? "Piezo" : p === "custom" ? "dev" : "Phone";
+        return "profile " + name + " · preamble " + pre +
           " Hz · hops " + lo + "–" + hi + " Hz";
       },
       txBusy: function (kind, left) {
@@ -263,6 +275,16 @@
       },
       eventLog: function (name) {
         return "event: " + name;
+      },
+      followWaiting: "dev: waiting for config · phone defaults",
+      followOff: "dev sync off",
+      followErr: "dev sync error",
+      followOk: function (v, pre, lo, hi, preMs, dataMs) {
+        return "dev v" + v + " · pre " + pre + " · " + lo + "–" + hi +
+          " Hz · chip " + preMs + "/" + dataMs + " ms";
+      },
+      followApplied: function (v) {
+        return "applied link params from dev.het68.cz · v" + v;
       },
     },
     de: {
@@ -364,7 +386,8 @@
       },
       rxCleared: "empfangene Chirps gelöscht",
       profileSet: function (p, pre, lo, hi) {
-        return "Profil " + (p === "piezo" ? "Piezo" : "Telefon") + " · Präambel " + pre +
+        var name = p === "piezo" ? "Piezo" : p === "custom" ? "dev" : "Telefon";
+        return "Profil " + name + " · Präambel " + pre +
           " Hz · Hops " + lo + "–" + hi + " Hz";
       },
       txBusy: function (kind, left) {
@@ -385,6 +408,16 @@
       },
       eventLog: function (name) {
         return "Event: " + name;
+      },
+      followWaiting: "dev: warte auf Konfiguration · Telefon-Defaults",
+      followOff: "dev-Sync aus",
+      followErr: "dev-Sync Fehler",
+      followOk: function (v, pre, lo, hi, preMs, dataMs) {
+        return "dev v" + v + " · pre " + pre + " · " + lo + "–" + hi +
+          " Hz · Chip " + preMs + "/" + dataMs + " ms";
+      },
+      followApplied: function (v) {
+        return "Link-Parameter von dev.het68.cz übernommen · v" + v;
       },
     },
   };
@@ -452,6 +485,8 @@
     txInfo: document.getElementById("txInfo"),
     queueList: document.getElementById("queueList"),
     queueClear: document.getElementById("queueClear"),
+    followDev: document.getElementById("followDev"),
+    devSyncState: document.getElementById("devSyncState"),
   };
 
   var state = {
@@ -2247,37 +2282,174 @@
     });
   }
 
-  // ---- Profile (Phone 2 kHz ↔ Piezo 4 kHz) -------------------------------
+  // ---- Profile (Phone 2 kHz ↔ Piezo 4 kHz) + follow chirpdev room --------
   var PROFILE_KEY = "het68-chirp-profile";
-  function applyProfile(name) {
-    if (typeof ALINK === "undefined") return;
-    var p = ALINK.setProfile(name);
-    try {
-      localStorage.setItem(PROFILE_KEY, p);
-    } catch (e) {
-      /* ignore */
-    }
-    if (els.txProfile) els.txProfile.value = p;
-    // Rebuild the running receiver so it decodes on the new profile.
-    if (state.running && state.ctx) {
+  var FOLLOW_KEY = "het68-chirp-follow-dev";
+  var followState = { lastV: -1, config: null, following: true };
+
+  function airtimeMs(p) {
+    if (!p) return 0;
+    return Math.round(31 * (p.preChipMs || 1) + 248 * (p.dataChipMs || 4));
+  }
+
+  function refreshLinkHint() {
+    if (!els.txInfo || typeof ALINK === "undefined") return;
+    var C = ALINK.CONST;
+    var air = Math.round(31 * C.PRE_CHIP_MS + 248 * C.DATA_CHIP_MS);
+    els.txInfo.textContent =
+      (C.PROFILE === "custom" ? "dev" : C.PROFILE) +
+      ": pre " + C.PREAMBLE_HZ + " Hz · hopy " + C.HOPS[0] + "–" +
+      C.HOPS[C.NHOPS - 1] + " Hz · chip " + C.PRE_CHIP_MS + "/" +
+      C.DATA_CHIP_MS + " ms · rámec ~" + (air / 1000).toFixed(2) + " s";
+  }
+
+  function setDevSyncLabel(text) {
+    if (els.devSyncState) els.devSyncState.textContent = text;
+  }
+
+  function rebuildDemod() {
+    if (state.running && state.ctx && typeof ALINK !== "undefined") {
       state.demod = new ALINK.Demod(48000);
     }
     if (state.spectroReady) drawSpectroFrame();
+  }
+
+  function applyProfile(name, opts) {
+    if (typeof ALINK === "undefined") return;
+    opts = opts || {};
+    if (!opts.fromDev && els.followDev && els.followDev.checked) {
+      els.followDev.checked = false;
+      followState.following = false;
+      try {
+        localStorage.setItem(FOLLOW_KEY, "0");
+      } catch (e0) {
+        /* ignore */
+      }
+      setDevSyncLabel(t.followOff);
+    }
+    var p = ALINK.setProfile(name);
+    if (p !== "custom") {
+      try {
+        localStorage.setItem(PROFILE_KEY, p);
+      } catch (e) {
+        /* ignore */
+      }
+      if (els.txProfile) {
+        els.txProfile.disabled = false;
+        els.txProfile.value = p;
+      }
+    } else if (els.txProfile) {
+      els.txProfile.disabled = true;
+    }
+    rebuildDemod();
+    refreshLinkHint();
     log(t.profileSet(p, ALINK.CONST.PREAMBLE_HZ, ALINK.CONST.HOPS[0], ALINK.CONST.HOPS[ALINK.CONST.NHOPS - 1]));
   }
+
+  function applyDevConfig(cfg, v, announce) {
+    if (!cfg || typeof ALINK === "undefined") return;
+    ALINK.setProfile(cfg);
+    followState.config = cfg;
+    followState.lastV = v;
+    if (els.txProfile) els.txProfile.disabled = true;
+    rebuildDemod();
+    refreshLinkHint();
+    var C = ALINK.CONST;
+    setDevSyncLabel(
+      t.followOk(v, C.PREAMBLE_HZ, C.HOPS[0], C.HOPS[C.NHOPS - 1], C.PRE_CHIP_MS, C.DATA_CHIP_MS)
+    );
+    if (announce) log(t.followApplied(v) + " · air " + airtimeMs(cfg) + " ms");
+  }
+
+  function pollDevRoom() {
+    if (!followState.following) return;
+    fetch("/api/dev/state", { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        if (!followState.following) return;
+        if (!d || !d.config) {
+          setDevSyncLabel(t.followWaiting);
+          return;
+        }
+        if (d.v === followState.lastV) {
+          var C = ALINK.CONST;
+          setDevSyncLabel(
+            t.followOk(
+              d.v,
+              C.PREAMBLE_HZ,
+              C.HOPS[0],
+              C.HOPS[C.NHOPS - 1],
+              C.PRE_CHIP_MS,
+              C.DATA_CHIP_MS
+            )
+          );
+          return;
+        }
+        applyDevConfig(d.config, d.v, followState.lastV >= 0);
+      })
+      .catch(function () {
+        if (followState.following) setDevSyncLabel(t.followErr);
+      });
+  }
+
+  function setFollowing(on) {
+    followState.following = !!on;
+    try {
+      localStorage.setItem(FOLLOW_KEY, on ? "1" : "0");
+    } catch (e) {
+      /* ignore */
+    }
+    if (els.txProfile) els.txProfile.disabled = !!on && !!followState.config;
+    if (!on) {
+      followState.lastV = -1;
+      setDevSyncLabel(t.followOff);
+      var localName = "phone";
+      try {
+        localName = localStorage.getItem(PROFILE_KEY) || "phone";
+      } catch (e2) {
+        /* ignore */
+      }
+      applyProfile(localName, { fromDev: true });
+      if (els.txProfile) els.txProfile.disabled = false;
+      return;
+    }
+    pollDevRoom();
+  }
+
   if (typeof ALINK !== "undefined") {
     var savedProfile = "phone";
+    var savedFollow = true;
     try {
       savedProfile = localStorage.getItem(PROFILE_KEY) || "phone";
+      var f = localStorage.getItem(FOLLOW_KEY);
+      if (f === "0") savedFollow = false;
     } catch (e2) {
       /* ignore */
     }
     ALINK.setProfile(savedProfile);
+    refreshLinkHint();
     if (els.txProfile) {
-      els.txProfile.value = ALINK.getProfile();
+      els.txProfile.value = ALINK.getProfile() === "custom" ? "phone" : ALINK.getProfile();
       els.txProfile.addEventListener("change", function () {
         applyProfile(els.txProfile.value);
       });
+    }
+    if (els.followDev) {
+      els.followDev.checked = savedFollow;
+      followState.following = savedFollow;
+      els.followDev.addEventListener("change", function () {
+        setFollowing(!!els.followDev.checked);
+      });
+      if (savedFollow) {
+        setDevSyncLabel(t.followWaiting);
+        pollDevRoom();
+        setInterval(pollDevRoom, 1500);
+      } else {
+        setDevSyncLabel(t.followOff);
+      }
     }
   }
 
