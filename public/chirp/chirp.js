@@ -2443,13 +2443,9 @@
       els.followDev.addEventListener("change", function () {
         setFollowing(!!els.followDev.checked);
       });
-      if (savedFollow) {
-        setDevSyncLabel(t.followWaiting);
-        pollDevRoom();
-        setInterval(pollDevRoom, 1500);
-      } else {
-        setDevSyncLabel(t.followOff);
-      }
+      setDevSyncLabel(savedFollow ? t.followWaiting : t.followOff);
+      if (savedFollow) pollDevRoom();
+      setInterval(pollDevRoom, 1500);
     }
   }
 
