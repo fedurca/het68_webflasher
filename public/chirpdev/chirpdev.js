@@ -92,6 +92,15 @@
   els.meId.textContent = "node " + myNode + " · " + myLabel;
   els.pNode.value = String(myNode);
 
+  /** Default / test / autosweep payload = transmitting node id (e.g. "n3"). */
+  function nodePayloadText() {
+    return "n" + myNode;
+  }
+  function ensureNodePayload() {
+    if (els.txPayload) els.txPayload.value = nodePayloadText();
+  }
+  ensureNodePayload();
+
   var state = {
     running: false, ctx: null, demod: null, rs: null, wavProc: null, mute: null, stream: null,
     analyser: null, buf: null,
@@ -712,8 +721,9 @@
     if (txCtx.state === "suspended") txCtx.resume();
     return txCtx;
   }
-  function payloadBytes() {
-    var s = els.txPayload.value || "";
+  function payloadBytes(text) {
+    var s = text != null ? String(text) : (els.txPayload.value || nodePayloadText());
+    if (!s) s = nodePayloadText();
     var b = [];
     for (var i = 0; i < s.length && b.length < 16; i++) {
       var c = s.charCodeAt(i);
@@ -721,11 +731,17 @@
     }
     return new Uint8Array(b);
   }
-  function transmit() {
+  function transmit(opts) {
+    opts = opts || {};
+    // Tests / autosweep always announce the transmitting node id.
+    var plText = opts.forceNodeId || state.sweep
+      ? nodePayloadText()
+      : (els.txPayload.value || nodePayloadText());
+    if (opts.forceNodeId || state.sweep) els.txPayload.value = plText;
     var ctx = txContext();
     var fields = {
       nodeId: myNode, type: ALINK.TYPE.BEACON, seq: state.seq & 0xff,
-      flags: ALINK.FLAG.SYNCED, keyId: 0, nonce: fpHash >>> 0, payload: payloadBytes(),
+      flags: ALINK.FLAG.SYNCED, keyId: 0, nonce: fpHash >>> 0, payload: payloadBytes(plText),
     };
     state.seq = (state.seq + 1) & 0xff;
     var gain = (parseInt(els.txGain.value, 10) || 70) / 100;
@@ -749,9 +765,12 @@
   els.txAuto.addEventListener("change", function () {
     if (state.txAutoTimer) { clearInterval(state.txAutoTimer); state.txAutoTimer = 0; }
     if (els.txAuto.checked) {
+      ensureNodePayload();
       var period = airtimeMs(readParams()) + 500;
-      state.txAutoTimer = setInterval(transmit, period);
-      transmit();
+      state.txAutoTimer = setInterval(function () {
+        transmit({ forceNodeId: true });
+      }, period);
+      transmit({ forceNodeId: true });
     }
   });
 
@@ -894,9 +913,10 @@
     var grid = buildGrid();
     var winS = Math.max(4, parseInt(els.swWin.value, 10) || 8);
     state.sweep = { stop: false, decoded: 0, tx: 0, best: null };
+    ensureNodePayload();
     els.sweepBody.innerHTML = "";
     els.sweepBest.disabled = true;
-    log("sweep spuštěn: " + grid.length + " sad × " + winS + " s");
+    log("sweep spuštěn: " + grid.length + " sad × " + winS + " s · payload " + nodePayloadText());
     for (var gi = 0; gi < grid.length; gi++) {
       if (state.sweep.stop) break;
       var p = grid[gi];
