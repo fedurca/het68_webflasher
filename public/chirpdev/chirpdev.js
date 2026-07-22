@@ -75,8 +75,13 @@
   function applyTheme(x) {
     document.documentElement.dataset.theme = x;
     try { localStorage.setItem(THEME_KEY, x); } catch (e) {}
-    els.themeToggle.textContent = x === "light" ? "\u263e" : "\u2600";
-    if (state.spectroReady) drawSpectroFrame();
+    if (els.themeToggle) {
+      els.themeToggle.textContent = x === "light" ? "\u263e" : "\u2600";
+    }
+    // `state` is created later; never touch it during first paint.
+    if (typeof state !== "undefined" && state && state.spectroReady) {
+      try { drawSpectroFrame(); } catch (e) { /* ignore */ }
+    }
   }
   applyTheme(currentTheme());
   on(els.themeToggle, "click", function () {
