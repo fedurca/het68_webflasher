@@ -409,6 +409,7 @@
     rxStats: document.getElementById("rxStats"),
     peersBody: document.getElementById("peersBody"),
     rxClear: document.getElementById("rxClear"),
+    rxFilterSelf: document.getElementById("rxFilterSelf"),
     // ALINK TX
     txNode: document.getElementById("txNode"),
     txType: document.getElementById("txType"),
@@ -460,6 +461,7 @@
     peers: new Map(),
     chirpRx: 0,
     chirpTx: 0,
+    filterSelf: false,
     domRing: [],
     lastDomDraw: 0,
     rxStats: { decoded: 0, badCrc: 0, detects: 0 },
@@ -602,6 +604,7 @@
   var txSource = null;
   var txEndTimer = 0;
   var txCountTimer = 0;
+  var txActiveUntil = 0; // performance.now() when the current TX ends
 
   function txAudioContext() {
     if (!txCtx) {
@@ -667,6 +670,7 @@
     };
     srcNode.start();
     txSource = srcNode;
+    txActiveUntil = now() + dur * 1000;
     setTxEnabled(false);
     // Safety stop + live countdown.
     txEndTimer = setTimeout(function () {
@@ -1677,9 +1681,10 @@
       g.stroke();
       g.setLineDash([]);
     }
-    bandLine(PROTO.syncFreq, "rgba(59,130,246,0.55)");
-    bandLine(PROTO.dataFreqs[0], "rgba(31,191,160,0.4)");
-    bandLine(PROTO.dataFreqs[7], "rgba(31,191,160,0.4)");
+    // ALINK bands: 4 kHz BPSK preamble + 3–5.4 kHz FHSS data hops.
+    bandLine(4000, "rgba(59,130,246,0.55)");
+    bandLine(3000, "rgba(31,191,160,0.4)");
+    bandLine(5400, "rgba(31,191,160,0.4)");
 
     // dominant frequency graph — colored by waveform class when pure
     g.lineWidth = 2.25;
@@ -2098,7 +2103,10 @@
           if (!state.running || state.recPaused) return;
           var ch = ev.inputBuffer.getChannelData(0);
           pushWavSamples(ch);
-          if (state.demod) {
+          // Optionally ignore reception during our own transmission (off by
+          // default). The +120 ms guard covers speaker→mic acoustic latency.
+          var ownTx = state.filterSelf && now() < txActiveUntil + 120;
+          if (state.demod && !ownTx) {
             var fed = state.rs ? state.rs.process(ch) : ch;
             var frames = state.demod.push(fed);
             for (var fi = 0; fi < frames.length; fi++) handleFrame(frames[fi]);
@@ -2206,6 +2214,13 @@
   });
 
   if (els.rxClear) els.rxClear.addEventListener("click", clearReceived);
+
+  if (els.rxFilterSelf) {
+    state.filterSelf = !!els.rxFilterSelf.checked;
+    els.rxFilterSelf.addEventListener("change", function () {
+      state.filterSelf = !!els.rxFilterSelf.checked;
+    });
+  }
 
   if (els.txPayload) els.txPayload.addEventListener("input", updatePayloadLen);
 

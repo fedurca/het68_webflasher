@@ -19,7 +19,15 @@
   var C = {
     FS_REF: 48000,
     CHIP_US: 250,
-    CHIP_MS: 0.25,
+    CHIP_MS: 0.25, // preamble chip (spec)
+    // Browser profile: the spec's 250 µs *data* chips are unresolvable through a
+    // phone speaker (a 250 µs burst can't establish a clean tone, so all 2-FSK
+    // hop tones read equal energy). We therefore widen only the DATA chips so
+    // the 2-FSK tones (≥1.2 kHz apart) separate cleanly; the BPSK preamble stays
+    // at 250 µs / 4 kHz per spec (it acquires fine on real audio). TX and RX use
+    // the same value, so they stay mutually consistent.
+    PRE_CHIP_MS: 0.25,
+    DATA_CHIP_MS: 2.0,
     PREAMBLE_HZ: 4000,
     PREAMBLE_LEN: 31,
     NHOPS: 8,
@@ -30,10 +38,11 @@
     FRAME_BYTES: 31,
     PAYLOAD_MAX: 16,
     DATA_BITS: 248, // 31 bytes * 8
-    TX_CHIPS: 279, // 31 + 248
+    TX_CHIPS: 279, // 31 preamble + 248 data
     DETECT_RHO: 0.28,
     DETECT_EMIN: 1e-5,
   };
+  // Air-time (browser profile): 31×0.25 ms + 248×2 ms ≈ 504 ms.
 
   var TYPE = { BEACON: 1, DETECT: 2, CTRL: 3, ACK: 4 };
   var TYPE_NAME = { 1: "BEACON", 2: "DETECT", 3: "CTRL", 4: "ACK" };
@@ -188,25 +197,28 @@
     var bytes = fields instanceof Uint8Array ? fields : packFrame(fields);
     var bits = bytesToBits(bytes);
     var code = nodeCode(nodeId);
-    var spc = fs * (C.CHIP_MS / 1000);
-    var total = Math.round(C.TX_CHIPS * spc);
+    var preSpc = fs * (C.PRE_CHIP_MS / 1000);
+    var dataSpc = fs * (C.DATA_CHIP_MS / 1000);
+    var preLen = Math.round(C.PREAMBLE_LEN * preSpc);
+    var dataLen = Math.round(C.DATA_BITS * dataSpc);
+    var total = preLen + dataLen;
     var out = new Float32Array(total);
     var wPre = (2 * Math.PI * C.PREAMBLE_HZ) / fs;
 
-    for (var n = 0; n < total; n++) {
-      var ci = Math.floor(n / spc);
-      if (ci >= C.TX_CHIPS) ci = C.TX_CHIPS - 1;
-      if (ci < C.PREAMBLE_LEN) {
-        // coherent BPSK preamble (continuous carrier)
-        out[n] = gain * code[ci] * Math.cos(wPre * n);
-      } else {
-        // 2-FSK data chip; phase resets per chip (non-coherent)
-        var bi = ci - C.PREAMBLE_LEN;
-        var pair = hopPair(bi, nodeId);
-        var f = bits[bi] ? pair.hi : pair.lo;
-        var local = n - Math.round((C.PREAMBLE_LEN + bi) * spc);
-        out[n] = gain * Math.cos((2 * Math.PI * f * local) / fs);
-      }
+    // Preamble: coherent BPSK at 4 kHz.
+    for (var n = 0; n < preLen; n++) {
+      var ci = Math.floor(n / preSpc);
+      if (ci >= C.PREAMBLE_LEN) ci = C.PREAMBLE_LEN - 1;
+      out[n] = gain * code[ci] * Math.cos(wPre * n);
+    }
+    // Data: non-coherent 2-FSK on the FHSS hop pairs (phase resets per chip).
+    for (var bi = 0; bi < C.DATA_BITS; bi++) {
+      var pair = hopPair(bi, nodeId);
+      var f = bits[bi] ? pair.hi : pair.lo;
+      var c0 = preLen + Math.round(bi * dataSpc);
+      var c1 = preLen + Math.round((bi + 1) * dataSpc);
+      var w = (2 * Math.PI * f) / fs;
+      for (var m = c0; m < c1; m++) out[m] = gain * Math.cos(w * (m - c0));
     }
     applyEdges(out, Math.min(total >> 1, Math.round(fs * 0.001)));
     return out;
@@ -230,7 +242,8 @@
   function Demod(fs, opts) {
     opts = opts || {};
     this.fs = fs;
-    this.spc = fs * (C.CHIP_MS / 1000);
+    this.spc = fs * (C.PRE_CHIP_MS / 1000); // preamble/detection chip grid
+    this.dataSpc = fs * (C.DATA_CHIP_MS / 1000); // data chip length
     this.wPre = (2 * Math.PI * C.PREAMBLE_HZ) / fs;
     this.detectRho = opts.detectRho == null ? C.DETECT_RHO : opts.detectRho;
     this.detectEmin = opts.detectEmin == null ? C.DETECT_EMIN : opts.detectEmin;
@@ -249,7 +262,9 @@
     this.histFill = 0;
     // Raw sample ring — big enough to hold a whole frame (preamble + data) so
     // data chips can be re-sliced at sub-chip timing once the peak is known.
-    this.rawLen = (C.TX_CHIPS + 80) * Math.ceil(this.spc);
+    this.rawLen =
+      Math.ceil(C.PREAMBLE_LEN * this.spc + C.DATA_BITS * this.dataSpc) +
+      80 * Math.ceil(this.spc);
     this.raw = new Float32Array(this.rawLen);
     // Coarse trigger; the precise (node, timing) is found later by a bounded
     // search over the buffered raw preamble.
@@ -375,10 +390,14 @@
       }
     }
 
-    // Wait until the whole frame is buffered, then locate the true preamble by a
-    // bounded (node, sample-offset) search over the raw ring — data chips (which
-    // include a 4 kHz tone) can otherwise spoof the streaming correlator.
-    if (this.armed && this.chipCount - this.armChip >= C.DATA_BITS + 22) {
+    // Wait until the whole frame is buffered (data uses longer chips), then
+    // locate the true preamble by a bounded (node, sample-offset) search over the
+    // raw ring — data chips (which include a 4 kHz tone) can otherwise spoof the
+    // streaming correlator.
+    if (
+      this.armed &&
+      this.n - this.armSample >= C.DATA_BITS * this.dataSpc + 24 * this.spc
+    ) {
       out = this._decodeFrame();
       this.armed = false;
     }
@@ -386,10 +405,10 @@
   };
 
   Demod.prototype._extractBits = function (dataStart, node) {
-    var spc = this.spc;
+    var dspc = this.dataSpc;
     for (var bi = 0; bi < C.DATA_BITS; bi++) {
-      var n0 = Math.round(dataStart + bi * spc);
-      var n1 = Math.round(dataStart + (bi + 1) * spc);
+      var n0 = Math.round(dataStart + bi * dspc);
+      var n1 = Math.round(dataStart + (bi + 1) * dspc);
       var pair = hopPair(bi, node);
       var eLo = this._toneEnergy(n0, n1, pair.lo);
       var eHi = this._toneEnergy(n0, n1, pair.hi);

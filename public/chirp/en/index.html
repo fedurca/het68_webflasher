@@ -107,7 +107,10 @@
         <div class="card rx-card">
           <div class="card-head">
             <h2>Received chirps</h2>
-            <button id="rxClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
+            <div class="rx-head-tools">
+              <label class="check"><input type="checkbox" id="rxFilterSelf" /> filter own TX</label>
+              <button id="rxClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
+            </div>
           </div>
           <p id="rxStats" class="mono rx-stats">decoded 0 · CRC errors 0 · detects 0</p>
           <div class="rx-scroll">
@@ -190,12 +193,12 @@
             <label class="check"><input type="checkbox" id="txSeqAuto" checked /> auto seq++</label>
           </div>
           <div class="emit-actions">
-            <button id="txSend" class="btn btn-blue" type="button">Transmit frame (~70 ms)</button>
+            <button id="txSend" class="btn btn-blue" type="button">Transmit frame (~0.5 s)</button>
             <button id="txShort" class="btn btn-teal btn-sm" type="button">Short test (~8 ms)</button>
             <button id="txStop" class="btn btn-ghost btn-sm" type="button">Stop</button>
             <button id="txQueueAdd" class="btn btn-ghost btn-sm" type="button">Add to queue</button>
           </div>
-          <p id="txInfo" class="hint">A spec 1.4.0 frame lasts ~70 ms (279 chips × 250 µs).</p>
+          <p id="txInfo" class="hint">Preamble per spec (BPSK 4 kHz, 250 µs); 2 ms data chips for reliable 2‑FSK through a phone speaker → ~0.5 s frame.</p>
         </div>
 
         <div class="card">
@@ -217,10 +220,12 @@
       <p class="proto-note">
         het68 chirp link (spec 1.4.0, version 2): 31‑chip BPSK preamble at 4&nbsp;kHz (CDMA
         m‑sequence, 8&nbsp;nodes) + 248 data chips of non‑coherent 2‑FSK with frequency hopping
-        (3–5.4&nbsp;kHz). 250&nbsp;µs chips → frame ≈&nbsp;70&nbsp;ms. 31‑byte frame (version, node,
-        type, seq, flags, key/nonce, 0–16&nbsp;B payload), CRC32 only (no FEC). RX and TX run locally
-        in the browser. Note: without FEC and with short chips, over‑air decoding is noise‑sensitive
-        (the spec relies on repetition); 48&nbsp;kHz and close range work best.
+        (3–5.4&nbsp;kHz). 31‑byte frame (version, node, type, seq, flags, key/nonce, 0–16&nbsp;B
+        payload), CRC32 only (no FEC). RX and TX run locally in the browser.
+        <br />Note: the spec uses 250&nbsp;µs chips on the resonant piezo; a phone speaker can't form
+        a clean tone in 250&nbsp;µs (2‑FSK becomes unresolvable), so the <strong>browser profile
+        widens data chips to 2&nbsp;ms</strong> (~0.5&nbsp;s frame). The preamble stays 250&nbsp;µs.
+        48&nbsp;kHz and close range work best.
       </p>
     </main>
 
