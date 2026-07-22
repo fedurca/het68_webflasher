@@ -51,8 +51,15 @@
   var LOG = { level: 1, lines: [], max: 800 };
   function logLevel() { return LOG.level; }
   function ts() { return new Date().toISOString().slice(11, 23); }
+  // Node identity tag prepended to EVERY local log line (defined below at fp
+  // resolution; function form so it is safe to reference before assignment).
+  function nodeTag() {
+    return "[" + (typeof myNode === "number" ? myNode : "?") + "/" +
+      (typeof myLabel === "string" ? myLabel : "??????") + "]";
+  }
   function logRaw(line) {
-    LOG.lines.push(line);
+    var full = nodeTag() + " " + line;
+    LOG.lines.push(full);
     if (LOG.lines.length > LOG.max) LOG.lines.splice(0, LOG.lines.length - LOG.max);
     if (!els.log) return;
     els.log.textContent = LOG.lines.join("\n");
@@ -225,9 +232,13 @@
   if (els.meId) els.meId.textContent = "node " + myNode + " · " + myLabel;
   if (els.pNode) els.pNode.value = String(myNode);
 
-  /** Default / test / autosweep payload = transmitting node id (e.g. "n3"). */
+  /**
+   * Default / test / autosweep payload = the full 6-char node ID string
+   * (browser-fingerprint label, e.g. "a1b2c3"). Uses 6 of 16 payload bytes;
+   * this intentionally trades data space for an unambiguous sender ID.
+   */
   function nodePayloadText() {
-    return "n" + myNode;
+    return myLabel;
   }
   function ensureNodePayload() {
     if (els.txPayload) els.txPayload.value = nodePayloadText();
