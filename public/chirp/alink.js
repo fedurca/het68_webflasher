@@ -56,8 +56,11 @@
     PAYLOAD_MAX: 16,
     DATA_BITS: 248, // 31 bytes * 8
     TX_CHIPS: 279, // 31 preamble + 248 data
-    DETECT_RHO: 0.28,
-    DETECT_EMIN: 1e-6,
+    // Coarse arm + candidate gates. Lower = more sensitive (CRC still rejects
+    // garbage). Tuned for phone speakers/mics where preamble peaks are weak.
+    DETECT_RHO: 0.26,
+    DETECT_CAND_RHO: 0.46,
+    DETECT_EMIN: 1e-7,
     // profile-dependent (filled by setProfile):
     PREAMBLE_HZ: 2000,
     HOPS: PROFILES.phone.HOPS,
@@ -301,6 +304,8 @@
     this.wPre = (2 * Math.PI * C.PREAMBLE_HZ) / fs;
     this.detectRho = opts.detectRho == null ? C.DETECT_RHO : opts.detectRho;
     this.detectEmin = opts.detectEmin == null ? C.DETECT_EMIN : opts.detectEmin;
+    this.candRho =
+      opts.candRho == null ? C.DETECT_CAND_RHO : opts.candRho;
     this.reset();
   }
 
@@ -328,7 +333,7 @@
     // Coarse arm threshold is intentionally low; the precise (node, timing)
     // search + CRC still validate, so off-grid frames that give a weaker
     // streaming peak are not missed.
-    this.armThresh = 0.38;
+    this.armThresh = this.detectRho;
     this.stats = { detects: 0, decoded: 0, badCrc: 0 };
     this.dataBits = new Uint8Array(C.DATA_BITS);
   };
@@ -492,19 +497,22 @@
     var spc = this.spc;
     var center = this.armSample;
     // The coarse trigger fires on the rising edge, up to ~15 chips before the
-    // true preamble end; search mostly forward from it.
-    var dLo = -Math.round(6 * spc);
-    var dHi = Math.round(20 * spc);
+    // true preamble end; search mostly forward from it. Wider window helps
+    // when phone AGC / clock drift shifts the peak.
+    var dLo = -Math.round(10 * spc);
+    var dHi = Math.round(28 * spc);
+    var step = Math.max(1, Math.round(spc / 8)); // sub-chip search grid
 
     // Because the 4 kHz preamble carrier is also a data hop tone, the data
     // region can spoof the preamble correlator. Gather all strong (node, timing)
     // candidates and let the CRC pick the real one.
+    var candThresh = this.candRho;
     var cands = [];
     for (var node = 0; node < C.MAX_NODES; node++) {
-      for (var d = dLo; d <= dHi; d++) {
+      for (var d = dLo; d <= dHi; d += step) {
         var end = center + d;
         var r = this._preCorr(end - C.PREAMBLE_LEN * spc, node).rho;
-        if (r > 0.55) cands.push({ rho: r, node: node, end: end });
+        if (r > candThresh) cands.push({ rho: r, node: node, end: end });
       }
     }
     cands.sort(function (a, b) {
@@ -512,7 +520,7 @@
     });
 
     var tried = {};
-    var limit = Math.min(cands.length, 80);
+    var limit = Math.min(cands.length, 120);
     for (var i = 0; i < limit; i++) {
       var c = cands[i];
       var key = c.node + ":" + c.end;
