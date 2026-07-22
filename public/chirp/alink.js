@@ -16,26 +16,39 @@
 (function (root) {
   "use strict";
 
+  // ── Dual profile ────────────────────────────────────────────────────────
+  // Two acoustic transducers impose opposite constraints:
+  //   • phone speaker/mic: rolls off sharply above ~3 kHz → needs a low band;
+  //   • resonant PS1240 piezo (het68 spec): loud only near its ~4 kHz resonance.
+  // Each profile keeps the SAME link structure (BPSK preamble + 2-FSK/FHSS
+  // data, CDMA m-sequence, 31-byte frame, CRC32) and only changes the carrier
+  // band and the chip dwell. TX and RX must run the same profile.
+  var PROFILES = {
+    // Default: works through ordinary phone speakers/mics and browser↔browser.
+    phone: {
+      PREAMBLE_HZ: 2000,
+      HOPS: [1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800],
+      PRE_CHIP_MS: 1.0,
+      DATA_CHIP_MS: 4.0,
+    },
+    // het68 spec band (resonant ~4 kHz piezo). NB: the spec's 250 µs chips are
+    // acoustically unresolvable (a 250 µs burst can't form a clean tone), so the
+    // web build uses the same longer chips as the phone profile — only the BAND
+    // differs. This drives a real 4 kHz piezo in its efficient range and still
+    // decodes browser↔browser. (Not bit-exact with unmodified firmware timing.)
+    piezo: {
+      PREAMBLE_HZ: 4000,
+      HOPS: [3000, 3400, 3800, 4000, 4200, 4600, 5000, 5400],
+      PRE_CHIP_MS: 1.0,
+      DATA_CHIP_MS: 4.0,
+    },
+  };
+
   var C = {
     FS_REF: 48000,
-    CHIP_US: 250,
-    CHIP_MS: 1.0, // preamble chip (browser profile)
-    // ── Browser profile (phone speaker + mic) ──────────────────────────────
-    // The spec targets a resonant 4 kHz piezo. Real phone speakers roll off
-    // sharply above ~3 kHz, so the spec's 4 kHz preamble and 3–5.4 kHz data
-    // tones barely survive the speaker→mic path (measured on user recordings:
-    // usable energy sat around 1.5–3 kHz). This profile therefore:
-    //   • moves the link into the phone-friendly 1.4–2.8 kHz band,
-    //   • lengthens chips so BPSK phase flips / FSK tones form cleanly.
-    // TX and RX share these values, so they interoperate with each other.
-    // (Not wire-compatible with the 4 kHz piezo hardware — hardware interop is
-    // unverified anyway.)
-    PRE_CHIP_MS: 1.0,
-    DATA_CHIP_MS: 4.0,
-    PREAMBLE_HZ: 2000,
+    PROFILE: "phone",
     PREAMBLE_LEN: 31,
     NHOPS: 8,
-    HOPS: [1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800],
     DATA_SF: 1,
     MAX_NODES: 8,
     VERSION: 2,
@@ -45,10 +58,25 @@
     TX_CHIPS: 279, // 31 preamble + 248 data
     DETECT_RHO: 0.28,
     DETECT_EMIN: 1e-6,
+    // profile-dependent (filled by setProfile):
+    PREAMBLE_HZ: 2000,
+    HOPS: PROFILES.phone.HOPS,
+    PRE_CHIP_MS: 1.0,
+    DATA_CHIP_MS: 4.0,
+    CHIP_MS: 1.0, // = PRE_CHIP_MS (used by the preamble-only ping)
   };
-  // Air-time (browser profile): 31×1 ms + 248×4 ms ≈ 1.02 s.
-  // Data 2-FSK pairs are NHOPS/2 apart → 800 Hz; at 4 ms chips (250 Hz bins)
-  // they separate cleanly.
+
+  function setProfile(name) {
+    var p = PROFILES[name] || PROFILES.phone;
+    C.PROFILE = PROFILES[name] ? name : "phone";
+    C.PREAMBLE_HZ = p.PREAMBLE_HZ;
+    C.HOPS = p.HOPS;
+    C.PRE_CHIP_MS = p.PRE_CHIP_MS;
+    C.DATA_CHIP_MS = p.DATA_CHIP_MS;
+    C.CHIP_MS = p.PRE_CHIP_MS;
+    return C.PROFILE;
+  }
+  setProfile("phone");
 
   var TYPE = { BEACON: 1, DETECT: 2, CTRL: 3, ACK: 4 };
   var TYPE_NAME = { 1: "BEACON", 2: "DETECT", 3: "CTRL", 4: "ACK" };
@@ -182,7 +210,7 @@
   function modulate(chips, fs, opts) {
     opts = opts || {};
     var gain = opts.gain == null ? 0.6 : opts.gain;
-    var spc = fs * (C.CHIP_MS / 1000);
+    var spc = fs * (C.PRE_CHIP_MS / 1000);
     var total = Math.round(chips.length * spc);
     var out = new Float32Array(total);
     var w = (2 * Math.PI * C.PREAMBLE_HZ) / fs;
@@ -536,6 +564,11 @@
 
   var API = {
     CONST: C,
+    PROFILES: PROFILES,
+    setProfile: setProfile,
+    getProfile: function () {
+      return C.PROFILE;
+    },
     Resampler: Resampler,
     TYPE: TYPE,
     TYPE_NAME: TYPE_NAME,
