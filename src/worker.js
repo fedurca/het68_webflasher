@@ -502,9 +502,13 @@ async function serveDevHost(request, env) {
 /** Shared tuning room + node presence for chirpdev (routed to the DO). */
 async function handleDevApi(request, env) {
   if (!env.CONFIG_ROOM) return err("shared room unavailable", 503);
-  const id = env.CONFIG_ROOM.idFromName("global");
-  const stub = env.CONFIG_ROOM.get(id);
-  return stub.fetch(request);
+  try {
+    const id = env.CONFIG_ROOM.idFromName("global");
+    const stub = env.CONFIG_ROOM.get(id);
+    return await stub.fetch(request);
+  } catch (e) {
+    return err("dev room error: " + (e && e.message ? e.message : String(e)), 500);
+  }
 }
 
 async function serveAssets(request, env) {
@@ -704,6 +708,17 @@ export class ConfigRoom {
   }
 
   async fetch(request) {
+    try {
+      return await this._handle(request);
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: "room: " + (e && e.message ? e.message : String(e)) }),
+        { status: 500, headers: { "content-type": "application/json", "access-control-allow-origin": "*" } }
+      );
+    }
+  }
+
+  async _handle(request) {
     await this._load();
     const url = new URL(request.url);
     const path = url.pathname;
