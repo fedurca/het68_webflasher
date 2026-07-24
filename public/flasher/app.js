@@ -510,11 +510,13 @@ async function runFlash() {
 const THEME_KEY = "het68-theme";
 
 function currentTheme() {
+  if (window.HET68Theme) return window.HET68Theme.get();
   const t = document.documentElement.dataset.theme;
   return t === "light" ? "light" : "dark";
 }
 
 function applyTheme(theme) {
+  if (window.HET68Theme) return window.HET68Theme.apply(theme);
   const t = theme === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = t;
   const btn = document.getElementById("themeToggle");
@@ -528,6 +530,7 @@ function applyTheme(theme) {
   } catch (_) {
     /* private mode */
   }
+  return t;
 }
 
 function buildAgeString(fromIso) {
@@ -576,6 +579,8 @@ function bindThemeToggle() {
   const btn = document.getElementById("themeToggle");
   if (!btn) return;
   applyTheme(currentTheme());
+  // Shared /theme.js already binds #themeToggle when present.
+  if (window.HET68Theme) return;
   btn.addEventListener("click", () => {
     applyTheme(currentTheme() === "light" ? "dark" : "light");
   });

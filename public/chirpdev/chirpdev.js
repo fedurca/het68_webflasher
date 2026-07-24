@@ -291,8 +291,10 @@
     if (state.running) stopMic();
     else startMic();
   });
-  // Re-apply theme icon now that `state` exists (first applyTheme ran earlier).
-  if (els.themeToggle) {
+  // Re-sync theme icon after late UI init (shared helper when available).
+  if (window.HET68Theme && window.HET68Theme.syncIcons) {
+    window.HET68Theme.syncIcons(currentTheme());
+  } else if (els.themeToggle) {
     els.themeToggle.textContent =
       currentTheme() === "light" ? "\u263e" : "\u2600";
   }
