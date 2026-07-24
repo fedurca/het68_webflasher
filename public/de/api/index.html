@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="HET68 REST-API: Kalibrierung, Sync, Settings, Detektionen, Audio-Pull." />
+    <title>HET68 API — OpenAPI / Swagger</title>
+    <link rel="alternate" hreflang="cs" href="https://het68.cz/api/" />
+    <link rel="alternate" hreflang="en" href="https://het68.cz/en/api/" />
+    <link rel="alternate" hreflang="de" href="https://het68.cz/de/api/" />
+    <script src="/theme-boot.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="logo" href="/de/">HET68</a>
+        <button class="nav-toggle" type="button" id="navToggle" aria-expanded="false" aria-controls="siteNav" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="site-nav" id="siteNav" aria-label="Hauptnavigation">
+          <a href="/de/">Start</a>
+          <a href="/de/#projekt">Projekt</a>
+          <a href="/de/#scenare">Szenarien</a>
+          <a class="is-active" href="/de/api/">API</a>
+          <a class="" href="/de/wiki/">Wiki</a>
+          <a href="/de/#kontakt">Kontakt</a>
+          <a class="nav-flasher" href="https://flasher.het68.cz/de/">Flasher</a>
+          <a class="nav-flasher" href="https://chirp.het68.cz/de/">Chirp</a>
+        </nav>
+        <div class="header-tools">
+          <div class="lang-switch" aria-label="Sprache">
+            <a class="" href="/api/" hreflang="cs" lang="cs">CZ</a>
+            <a class="" href="/en/api/" hreflang="en" lang="en">EN</a>
+            <a class="is-active" href="/de/api/" hreflang="de" lang="de">DE</a>
+          </div>
+          <button class="theme-btn" type="button" id="themeBtn" aria-label="Motiv umschalten" title="Motiv">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="wrap docs-page">
+
+      <header class="docs-hero">
+        <p class="badge-iso">Draft · Secure by design</p>
+        <h1>HET68 API</h1>
+        <p>
+          REST-Schnittstelle für Kalibrierung, Synchronisation, Einstellungen und Detektionen.
+          Sitzt Companion-Hardware hinter der USB-Soundkarte, kann die API auch Audio abrufen.
+        </p>
+        <div class="docs-toolbar">
+          <a class="btn btn-teal btn-sm" href="/api/openapi.yaml">openapi.yaml</a>
+          <a class="btn btn-ghost btn-sm" href="/de/wiki/">Technische Wiki</a>
+          <a class="btn btn-ghost btn-sm" href="/de/#sicherheit">ISO 27k &amp; Security</a>
+        </div>
+      </header>
+      <div class="docs-card" style="margin-bottom:1rem">
+        <h2>Vorgeschlagene Struktur</h2>
+        <ul>
+          <li><strong>Health / capabilities</strong> — inkl. <code>audioPull</code></li>
+          <li><strong>Calibration</strong> — Self-Noise, Tonsweep, Mesh-Geometrie</li>
+          <li><strong>Sync</strong> — Chirp / NTP / PTP, Master–Follower</li>
+          <li><strong>Settings</strong> — Detektionsschwellen, ALINK-Profil, Privacy</li>
+          <li><strong>Detections</strong> — Query + SSE-Stream, Standort-Fusion</li>
+          <li><strong>Audio</strong> — Clipliste und WAV/FLAC-Download (nur Companion-HW)</li>
+          <li><strong>Audit</strong> — Unterstützung für ISO/IEC-27001-Kontrollen</li>
+        </ul>
+      </div>
+      <div id="swagger" class="swagger-shell"></div>
+
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="/de/">HET68</a>
+        <p>© <span id="year"></span> HET68 · <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a></p>
+        <div class="footer-links">
+          <a href="/de/api/">API</a>
+          <a href="/de/wiki/">Wiki</a>
+          <a href="https://flasher.het68.cz/">Flasher</a>
+          <a href="https://chirp.het68.cz/">Chirp</a>
+        </div>
+        <p class="build-meta" id="buildMeta" hidden></p>
+      </div>
+    </footer>
+    <script src="/theme.js"></script>
+    <script src="/lang.js"></script>
+    <script src="/landing.js" defer></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" defer></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        if (!window.SwaggerUIBundle) return;
+        window.SwaggerUIBundle({
+          url: "/api/openapi.yaml",
+          dom_id: "#swagger",
+          deepLinking: true,
+          presets: [SwaggerUIBundle.presets.apis],
+          layout: "BaseLayout",
+        });
+      });
+    </script>
+  </body>
+</html>

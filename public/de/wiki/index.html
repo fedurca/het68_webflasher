@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="HET68 technisches Wiki: Architektur, Sicherheit, Fotos und Anleitungen." />
+    <title>HET68 Wiki — technische Übersicht</title>
+    <link rel="alternate" hreflang="cs" href="https://het68.cz/wiki/" />
+    <link rel="alternate" hreflang="en" href="https://het68.cz/en/wiki/" />
+    <link rel="alternate" hreflang="de" href="https://het68.cz/de/wiki/" />
+    <script src="/theme-boot.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="logo" href="/de/">HET68</a>
+        <button class="nav-toggle" type="button" id="navToggle" aria-expanded="false" aria-controls="siteNav" aria-label="Menü">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="site-nav" id="siteNav" aria-label="Hauptnavigation">
+          <a href="/de/">Start</a>
+          <a href="/de/#projekt">Projekt</a>
+          <a href="/de/#szenarien">Szenarien</a>
+          <a href="/de/api/">API</a>
+          <a class="is-active" href="/de/wiki/">Wiki</a>
+          <a href="/de/#kontakt">Kontakt</a>
+          <a class="nav-flasher" href="https://flasher.het68.cz/de/">Flasher</a>
+          <a class="nav-flasher" href="https://chirp.het68.cz/de/">Chirp</a>
+        </nav>
+        <div class="header-tools">
+          <div class="lang-switch" aria-label="Sprache">
+            <a href="/wiki/" hreflang="cs" lang="cs">CZ</a>
+            <a href="/en/wiki/" hreflang="en" lang="en">EN</a>
+            <a class="is-active" href="/de/wiki/" hreflang="de" lang="de">DE</a>
+          </div>
+          <button class="theme-btn" type="button" id="themeBtn" aria-label="Design umschalten" title="Design">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="wrap docs-page">
+
+      <header class="docs-hero">
+        <p class="badge-iso">Living docs</p>
+        <h1>Technisches Wiki</h1>
+        <p>
+          Technische Beschreibung der HET68-Plattform. Hardwarefotos, Verdrahtung,
+          Kalibrierverfahren und Betriebsanleitungen werden hier schrittweise ergänzt.
+        </p>
+        <div class="docs-toolbar">
+          <a class="btn btn-teal btn-sm" href="/de/api/">API / Swagger</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </header>
+      <div class="docs-layout has-aside">
+        <aside class="docs-aside">
+          <a href="#overview">Überblick</a>
+          <a href="#architecture">Architektur</a>
+          <a href="#audio-path">Audiopfad</a>
+          <a href="#mesh">Mesh &amp; Sync</a>
+          <a href="#security">Sicherheit</a>
+          <a href="#photos">Fotos (in Vorbereitung)</a>
+          <a href="#guides">Anleitungen (in Vorbereitung)</a>
+        </aside>
+        <div>
+          <article class="docs-card" id="overview">
+            <h2>Überblick</h2>
+            <p>
+              HET68 ist eine 6-Kanal-Edge-Plattform für räumliche Akustik auf RP2350.
+              Das Gerät erscheint als UAC2-USB-Soundkarte und berechnet DOA / Detektionen lokal.
+            </p>
+          </article>
+          <article class="docs-card" id="architecture">
+            <h2>Architektur</h2>
+            <ul>
+              <li>6× MEMS ICS-43434 → PIO / DMA → USB Audio Class 2.0</li>
+              <li>Edge-Inference auf dem Gerät (Cloud für Basisdetektion nicht nötig)</li>
+              <li>Optionale Companion-HW hinter der Soundkarte für Langzeitaufnahme und Audio-Pull per API</li>
+              <li>Cloud- / On-Prem-Gateway für Standortverwaltung und Track-Fusion</li>
+            </ul>
+          </article>
+          <article class="docs-card" id="audio-path">
+            <h2>Audiopfad</h2>
+            <p>48&nbsp;kHz / 24-Bit, 6 synchrone Kanäle. Beamforming und Klassifikation laufen an der Edge.</p>
+            <div class="docs-placeholder">Schema der Audio-Pipeline — bald</div>
+          </article>
+          <article class="docs-card" id="mesh">
+            <h2>Mesh &amp; Synchronisation</h2>
+            <p>
+              Knoten können sich über akustischen ALINK-Chirp oder Netzwerkzeit synchronisieren.
+              Mehrere Punkte ermöglichen 3D-Triangulation von Trajektorien.
+            </p>
+          </article>
+          <article class="docs-card" id="security">
+            <h2>Sicherheit</h2>
+            <p>
+              Das Design berücksichtigt die bevorstehende Zertifizierung nach ISO/IEC 27001 (ISO 27k) und
+              <em>secure by design</em>: Least-Privilege-API-Schlüssel, TLS, Audit-Log, minimale
+              Roh-Audio-Retention.
+            </p>
+          </article>
+          <article class="docs-card" id="photos">
+            <h2>Hardwarefotos</h2>
+            <p>Produkt- und Montagefotos folgen.</p>
+            <div class="docs-placeholder">Foto-Slot A — Würfel / Platine</div>
+            <div class="docs-placeholder">Foto-Slot B — MEMS-Array-Verdrahtung</div>
+          </article>
+          <article class="docs-card" id="guides">
+            <h2>Anleitungen</h2>
+            <ul>
+              <li>Erster Start und Web-Flasher — in Vorbereitung</li>
+              <li>Array-Kalibrierung — in Vorbereitung</li>
+              <li>Mesh-Einsatz am Standort — in Vorbereitung</li>
+              <li>API-Integration in SIEM / VMS — in Vorbereitung</li>
+            </ul>
+            <div class="docs-placeholder">Platz für Anleitungs-Screenshots</div>
+          </article>
+        </div>
+      </div>
+
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="/de/">HET68</a>
+        <p>© <span id="year"></span> HET68 · <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a></p>
+        <div class="footer-links">
+          <a href="/de/api/">API</a>
+          <a href="/de/wiki/">Wiki</a>
+          <a href="https://flasher.het68.cz/">Flasher</a>
+          <a href="https://chirp.het68.cz/">Chirp</a>
+        </div>
+        <p class="build-meta" id="buildMeta" hidden></p>
+      </div>
+    </footer>
+    <script src="/theme.js"></script>
+    <script src="/lang.js"></script>
+    <script src="/landing.js" defer></script>
+  </body>
+</html>

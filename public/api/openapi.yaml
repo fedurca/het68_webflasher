@@ -1,0 +1,891 @@
+openapi: 3.0.3
+info:
+  title: HET68 Edge & Cloud API
+  version: 0.1.0-draft
+  description: |
+    Draft REST API for HET68 acoustic sensing nodes and optional companion hardware.
+
+    **Capabilities**
+    - Calibration of the 6-channel MEMS array and mesh geometry
+    - Time / chirp synchronization across nodes
+    - Device and detection settings
+    - Detection events (DOA, class, track)
+    - Audio pull when a recorder / companion MCU sits behind the USB sound card
+
+    Base URL examples:
+    - Device (edge): `https://{device}/v1`
+    - Cloud / on-prem gateway: `https://api.het68.cz/v1` (planned)
+  contact:
+    name: HET68
+    email: orders@het68.cz
+    url: https://het68.cz/
+  license:
+    name: See project repository
+    url: https://github.com/fedurca/het68
+
+servers:
+  - url: https://api.het68.cz/v1
+    description: Planned cloud / on-prem gateway
+  - url: https://{deviceHost}/v1
+    description: Direct device edge API
+    variables:
+      deviceHost:
+        default: 192.168.1.68
+        description: Device hostname or IP
+
+tags:
+  - name: Health
+    description: Liveness and capability discovery
+  - name: Devices
+    description: Node inventory and identity
+  - name: Calibration
+    description: Array / mesh calibration workflows
+  - name: Sync
+    description: Clock and acoustic-link synchronization
+  - name: Settings
+    description: Runtime configuration
+  - name: Detections
+    description: Events, tracks, and alerts
+  - name: Audio
+    description: Pull recorded audio when companion HW is present
+  - name: Security
+    description: Auth, audit, and secure-by-design controls
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /capabilities:
+    get:
+      tags: [Health]
+      summary: Feature flags of this node / gateway
+      operationId: getCapabilities
+      responses:
+        "200":
+          description: Capability map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capabilities"
+
+  /devices:
+    get:
+      tags: [Devices]
+      summary: List known devices in the mesh / site
+      operationId: listDevices
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/siteId"
+      responses:
+        "200":
+          description: Device list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Device"
+
+  /devices/{deviceId}:
+    get:
+      tags: [Devices]
+      summary: Device detail
+      operationId: getDevice
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      responses:
+        "200":
+          description: Device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /devices/{deviceId}/calibration:
+    get:
+      tags: [Calibration]
+      summary: Current calibration state
+      operationId: getCalibration
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      responses:
+        "200":
+          description: Calibration snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalibrationState"
+    post:
+      tags: [Calibration]
+      summary: Start or apply a calibration procedure
+      operationId: postCalibration
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalibrationRequest"
+      responses:
+        "202":
+          description: Calibration accepted / running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /devices/{deviceId}/calibration/jobs/{jobId}:
+    get:
+      tags: [Calibration]
+      summary: Calibration job status
+      operationId: getCalibrationJob
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+        - $ref: "#/components/parameters/jobId"
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /devices/{deviceId}/sync:
+    get:
+      tags: [Sync]
+      summary: Sync status (PTP / chirp / mesh)
+      operationId: getSync
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      responses:
+        "200":
+          description: Sync status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatus"
+    post:
+      tags: [Sync]
+      summary: Trigger synchronization
+      operationId: postSync
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncRequest"
+      responses:
+        "202":
+          description: Sync started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /devices/{deviceId}/settings:
+    get:
+      tags: [Settings]
+      summary: Read device settings
+      operationId: getSettings
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSettings"
+    put:
+      tags: [Settings]
+      summary: Replace settings
+      operationId: putSettings
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceSettings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSettings"
+    patch:
+      tags: [Settings]
+      summary: Partial settings update
+      operationId: patchSettings
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceSettingsPatch"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSettings"
+
+  /devices/{deviceId}/detections:
+    get:
+      tags: [Detections]
+      summary: Query detection events
+      operationId: listDetections
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: class
+          in: query
+          schema:
+            type: string
+            enum: [uav, train, vehicle, gunshot, anomaly, other]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: Detection page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Detection"
+                  nextCursor:
+                    type: string
+                    nullable: true
+
+  /devices/{deviceId}/detections/stream:
+    get:
+      tags: [Detections]
+      summary: Server-Sent Events stream of detections
+      operationId: streamDetections
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      responses:
+        "200":
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /sites/{siteId}/detections:
+    get:
+      tags: [Detections]
+      summary: Site-wide fused detections (multi-node)
+      operationId: listSiteDetections
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/siteIdPath"
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Fused detections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Detection"
+
+  /devices/{deviceId}/audio:
+    get:
+      tags: [Audio]
+      summary: List available audio captures (requires companion HW)
+      description: |
+        Available only when `capabilities.audioPull == true`
+        (recorder / companion MCU behind the USB sound card).
+      operationId: listAudio
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      responses:
+        "200":
+          description: Capture list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clips:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AudioClip"
+        "501":
+          description: Audio pull not supported on this device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /devices/{deviceId}/audio/{clipId}:
+    get:
+      tags: [Audio]
+      summary: Download audio clip (WAV / FLAC)
+      operationId: getAudioClip
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+        - name: clipId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [wav, flac]
+            default: wav
+      responses:
+        "200":
+          description: Audio bytes
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+            audio/flac:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "501":
+          description: Audio pull not supported
+
+  /devices/{deviceId}/audio/live:
+    post:
+      tags: [Audio]
+      summary: Start a timed live capture to pull later
+      operationId: startLiveCapture
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/deviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seconds]
+              properties:
+                seconds:
+                  type: number
+                  minimum: 0.1
+                  maximum: 120
+                channels:
+                  type: string
+                  enum: [all, beamformed]
+                  default: all
+      responses:
+        "202":
+          description: Capture job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /audit:
+    get:
+      tags: [Security]
+      summary: Audit log (ISO 27001 control support)
+      operationId: listAudit
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEvent"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived access token (cloud / on-prem IdP).
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-HET68-Key
+      description: Device or site API key with scoped permissions.
+
+  parameters:
+    deviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema:
+        type: string
+        example: het68-node-03
+    jobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    siteId:
+      name: siteId
+      in: query
+      schema:
+        type: string
+    siteIdPath:
+      name: siteId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Health:
+      type: object
+      required: [status, version, time]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        version:
+          type: string
+          example: 0.1.0-draft
+        time:
+          type: string
+          format: date-time
+        uptimeSec:
+          type: number
+
+    Capabilities:
+      type: object
+      properties:
+        calibration:
+          type: boolean
+        sync:
+          type: boolean
+        settings:
+          type: boolean
+        detections:
+          type: boolean
+        audioPull:
+          type: boolean
+          description: True when companion recorder HW is present
+        mesh:
+          type: boolean
+        secureBoot:
+          type: boolean
+        iso27kControls:
+          type: boolean
+          description: Audit logging, least-privilege keys, encryption in transit
+
+    Device:
+      type: object
+      required: [id, label, role]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        role:
+          type: string
+          enum: [edge, gateway, companion]
+        firmware:
+          type: string
+        online:
+          type: boolean
+        lastSeen:
+          type: string
+          format: date-time
+        position:
+          $ref: "#/components/schemas/GeoPoint"
+        channels:
+          type: integer
+          example: 6
+        capabilities:
+          $ref: "#/components/schemas/Capabilities"
+
+    GeoPoint:
+      type: object
+      properties:
+        lat:
+          type: number
+        lon:
+          type: number
+        altM:
+          type: number
+        headingDeg:
+          type: number
+
+    CalibrationRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [self_noise, tone_sweep, mesh_geometry, manual_import]
+        referenceToneHz:
+          type: number
+        nodePositions:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeoPoint"
+        dryRun:
+          type: boolean
+          default: false
+
+    CalibrationState:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [uncalibrated, valid, stale, failed]
+        updatedAt:
+          type: string
+          format: date-time
+        arrayGainDb:
+          type: array
+          items:
+            type: number
+          minItems: 6
+          maxItems: 6
+        delayUs:
+          type: array
+          items:
+            type: number
+          minItems: 6
+          maxItems: 6
+        meshBaselineM:
+          type: number
+        quality:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    SyncRequest:
+      type: object
+      required: [method]
+      properties:
+        method:
+          type: string
+          enum: [chirp, ntp, ptp, mesh_election]
+        role:
+          type: string
+          enum: [auto, master, follower]
+        timeoutMs:
+          type: integer
+          default: 5000
+
+    SyncStatus:
+      type: object
+      properties:
+        locked:
+          type: boolean
+        method:
+          type: string
+        offsetUs:
+          type: number
+        jitterUs:
+          type: number
+        peers:
+          type: integer
+        lastSyncAt:
+          type: string
+          format: date-time
+
+    DeviceSettings:
+      type: object
+      properties:
+        sampleRateHz:
+          type: integer
+          enum: [48000]
+        bitDepth:
+          type: integer
+          enum: [24]
+        detection:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            classes:
+              type: array
+              items:
+                type: string
+            sensitivity:
+              type: number
+              minimum: 0
+              maximum: 1
+            minConfidence:
+              type: number
+              minimum: 0
+              maximum: 1
+        alink:
+          type: object
+          properties:
+            profile:
+              type: string
+              enum: [phone, piezo, custom]
+            preambleHz:
+              type: number
+            hopBaseHz:
+              type: number
+            hopStepHz:
+              type: number
+            preChipMs:
+              type: number
+            dataChipMs:
+              type: number
+        privacy:
+          type: object
+          properties:
+            retainAudioSec:
+              type: integer
+              description: 0 = never retain raw audio on device
+            redactPayloads:
+              type: boolean
+
+    DeviceSettingsPatch:
+      type: object
+      description: Same fields as DeviceSettings; all optional
+      additionalProperties: true
+
+    Detection:
+      type: object
+      required: [id, deviceId, class, confidence, observedAt]
+      properties:
+        id:
+          type: string
+        deviceId:
+          type: string
+        class:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        observedAt:
+          type: string
+          format: date-time
+        doa:
+          type: object
+          properties:
+            azimuthDeg:
+              type: number
+            elevationDeg:
+              type: number
+            rangeM:
+              type: number
+              nullable: true
+        trackId:
+          type: string
+          nullable: true
+        fused:
+          type: boolean
+          description: True when triangulated across multiple nodes
+        position:
+          $ref: "#/components/schemas/GeoPoint"
+
+    AudioClip:
+      type: object
+      properties:
+        id:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        durationSec:
+          type: number
+        channels:
+          type: integer
+        sampleRateHz:
+          type: integer
+        bytes:
+          type: integer
+        sha256:
+          type: string
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 1
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        action:
+          type: string
+        resource:
+          type: string
+        result:
+          type: string
+          enum: [ok, denied, error]
+        ip:
+          type: string
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true

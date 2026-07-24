@@ -20,6 +20,7 @@
     />
     <script src="/theme-boot.js"></script>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
@@ -43,6 +44,10 @@
           <a href="#how-it-works">How it works</a>
           <a href="#scenarios">Scenarios</a>
           <a href="#offer">Offering</a>
+          <a href="#security">ISO 27k</a>
+          <a href="#admin">Admin</a>
+          <a href="/en/api/">API</a>
+          <a href="/en/wiki/">Wiki</a>
           <a href="#contact">Contact</a>
           <a class="nav-flasher" href="https://flasher.het68.cz/en/">Flasher</a>
           <a class="nav-flasher" href="https://chirp.het68.cz/en/">Chirp</a>
@@ -428,6 +433,87 @@
         </div>
       </section>
 
+<section class="section" id="security">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="badge-iso">ISO/IEC 27001 · Secure by design</p>
+            <h2>Built for upcoming ISO 27k certification</h2>
+            <p>
+              The HET68 platform and cloud service are designed in line with upcoming
+              ISO/IEC 27001 certification and <em>secure by design</em> — security is part of
+              the architecture, not an afterthought.
+            </p>
+          </header>
+          <div class="trust-strip">
+            <article class="trust-item">
+              <h3>Secure by design</h3>
+              <p>TLS, auth on every mutating call, least-privilege API keys, and separation of edge / gateway / console.</p>
+            </article>
+            <article class="trust-item">
+              <h3>Audit &amp; change control</h3>
+              <p>Audit trail for calibration, sync, and settings — supporting controls expected by ISO 27k.</p>
+            </article>
+            <article class="trust-item">
+              <h3>Minimal retention</h3>
+              <p>Raw audio only when needed (companion HW). Detections and metadata take priority over long-term recordings.</p>
+            </article>
+          </div>
+          <p style="text-align:center;margin:1.25rem 0 0">
+            <a class="btn btn-ghost btn-sm" href="/en/wiki/#security">More in the wiki</a>
+            <a class="btn btn-teal btn-sm" href="/en/api/">API &amp; OpenAPI</a>
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="admin">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="offer-kicker teal">Cloud · preview</p>
+            <h2>Web admin — facility security</h2>
+            <p>
+              Operator console preview: sensor map, live detections, and trajectory fusion.
+              The final UI ships with the cloud / on‑prem subscription.
+            </p>
+          </header>
+          <div class="admin-mock" aria-label="Facility security admin preview">
+            <div class="admin-top">
+              <strong>HET68 Site Console · Site Alpha</strong>
+              <div class="admin-pills">
+                <span class="admin-pill ok">12 nodes online</span>
+                <span class="admin-pill warn">1 active track</span>
+                <span class="admin-pill">ISO 27k mode</span>
+              </div>
+            </div>
+            <div class="admin-body">
+              <div class="admin-map" aria-hidden="true">
+                <span class="admin-node n1"></span>
+                <span class="admin-node n2"></span>
+                <span class="admin-node n3 alert"></span>
+                <span class="admin-track"></span>
+              </div>
+              <div class="admin-side">
+                <div class="admin-event">
+                  <strong>UAV · probability 0.91</strong>
+                  <span>az 214° · elev 12° · 18:42:07 UTC</span>
+                </div>
+                <div class="admin-event">
+                  <strong>Mesh calibration OK</strong>
+                  <span>node-07 · Δt 0.4 ms · 18:40:12 UTC</span>
+                </div>
+                <div class="admin-event">
+                  <strong>Audio clip ready</strong>
+                  <span>companion HW · 4.2 s WAV · download via API</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="admin-note">
+            Illustrative mock — the real admin wires detections, calibration, sync, and settings through the
+            <a href="/en/api/">REST API</a>. Roles: operator · technician · auditor.
+          </p>
+        </div>
+      </section>
+
 <section class="section contact" id="contact">
         <div class="wrap contact-inner">
           <h2>Contact</h2>
@@ -455,6 +541,8 @@
         <div class="footer-links">
           <a href="/" hreflang="cs">Česky</a>
           <a href="/de/" hreflang="de">Deutsch</a>
+          <a href="/en/api/">API</a>
+          <a href="/en/wiki/">Wiki</a>
           <a href="https://flasher.het68.cz/en/">Flasher</a>
           <a href="https://chirp.het68.cz/en/">Chirp</a>
         </div>

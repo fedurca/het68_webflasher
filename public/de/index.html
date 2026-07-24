@@ -20,6 +20,7 @@
     />
     <script src="/theme-boot.js"></script>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
@@ -43,6 +44,10 @@
           <a href="#wie-es-funktioniert">So funktioniert’s</a>
           <a href="#szenarien">Szenarien</a>
           <a href="#angebot">Angebot</a>
+          <a href="#sicherheit">ISO 27k</a>
+          <a href="#verwaltung">Verwaltung</a>
+          <a href="/de/api/">API</a>
+          <a href="/de/wiki/">Wiki</a>
           <a href="#kontakt">Kontakt</a>
           <a class="nav-flasher" href="https://flasher.het68.cz/de/">Flasher</a>
           <a class="nav-flasher" href="https://chirp.het68.cz/de/">Chirp</a>
@@ -432,6 +437,87 @@
         </div>
       </section>
 
+<section class="section" id="sicherheit">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="badge-iso">ISO/IEC 27001 · Secure by design</p>
+            <h2>Ausgerichtet auf die kommende ISO-27k-Zertifizierung</h2>
+            <p>
+              Plattform HET68 und Cloud-Dienst sind auf die bevorstehende Zertifizierung nach
+              ISO/IEC 27001 und <em>secure by design</em> ausgerichtet — Sicherheit ist Teil der
+              Architektur, keine nachträgliche Schicht.
+            </p>
+          </header>
+          <div class="trust-strip">
+            <article class="trust-item">
+              <h3>Secure by design</h3>
+              <p>TLS, Authentifizierung bei jeder mutierenden Operation, Least-Privilege-API-Schlüssel und Trennung von Edge / Gateway / Konsole.</p>
+            </article>
+            <article class="trust-item">
+              <h3>Audit &amp; Änderungskontrolle</h3>
+              <p>Audit-Trail für Kalibrierung, Sync und Einstellungen — Unterstützung der von ISO 27k erwarteten Kontrollen.</p>
+            </article>
+            <article class="trust-item">
+              <h3>Minimale Retention</h3>
+              <p>Roh-Audio nur bei Bedarf (Companion-HW). Detektionen und Metadaten haben Vorrang vor Langzeitaufnahmen.</p>
+            </article>
+          </div>
+          <p style="text-align:center;margin:1.25rem 0 0">
+            <a class="btn btn-ghost btn-sm" href="/de/wiki/#security">Mehr im Wiki</a>
+            <a class="btn btn-teal btn-sm" href="/de/api/">API &amp; OpenAPI</a>
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="verwaltung">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="offer-kicker teal">Cloud · Vorschau</p>
+            <h2>Web-Administration — Objektschutz</h2>
+            <p>
+              Vorschau der Operator-Konsole: Sensorkarte, Live-Detektionen und Trajektorienfusion.
+              Die finale UI gehört zum Cloud- / On‑Prem-Abo.
+            </p>
+          </header>
+          <div class="admin-mock" aria-label="Vorschau der Objektschutz-Administration">
+            <div class="admin-top">
+              <strong>HET68 Site Console · Standort Alpha</strong>
+              <div class="admin-pills">
+                <span class="admin-pill ok">12 Knoten online</span>
+                <span class="admin-pill warn">1 aktiver Track</span>
+                <span class="admin-pill">ISO-27k-Modus</span>
+              </div>
+            </div>
+            <div class="admin-body">
+              <div class="admin-map" aria-hidden="true">
+                <span class="admin-node n1"></span>
+                <span class="admin-node n2"></span>
+                <span class="admin-node n3 alert"></span>
+                <span class="admin-track"></span>
+              </div>
+              <div class="admin-side">
+                <div class="admin-event">
+                  <strong>UAV · Wahrscheinlichkeit 0,91</strong>
+                  <span>az 214° · elev 12° · 18:42:07 UTC</span>
+                </div>
+                <div class="admin-event">
+                  <strong>Mesh-Kalibrierung OK</strong>
+                  <span>node-07 · Δt 0,4 ms · 18:40:12 UTC</span>
+                </div>
+                <div class="admin-event">
+                  <strong>Audio-Clip bereit</strong>
+                  <span>Companion-HW · 4,2 s WAV · Download per API</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="admin-note">
+            Illustratives Mock — die echte Administration bindet Detektionen, Kalibrierung, Sync und Einstellungen über die
+            <a href="/de/api/">REST-API</a> an. Rollen: Operator · Techniker · Auditor.
+          </p>
+        </div>
+      </section>
+
 <section class="section contact" id="kontakt">
         <div class="wrap contact-inner">
           <h2>Kontakt</h2>
@@ -459,6 +545,8 @@
         <div class="footer-links">
           <a href="/" hreflang="cs">Česky</a>
           <a href="/en/" hreflang="en">English</a>
+          <a href="/de/api/">API</a>
+          <a href="/de/wiki/">Wiki</a>
           <a href="https://flasher.het68.cz/de/">Flasher</a>
           <a href="https://chirp.het68.cz/de/">Chirp</a>
         </div>

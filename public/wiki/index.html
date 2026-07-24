@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Technická wiki HET68: architektura, bezpečnost, fotky a návody." />
+    <title>HET68 wiki — technický popis</title>
+    <link rel="alternate" hreflang="cs" href="https://het68.cz/wiki/" />
+    <link rel="alternate" hreflang="en" href="https://het68.cz/en/wiki/" />
+    <link rel="alternate" hreflang="de" href="https://het68.cz/de/wiki/" />
+    <script src="/theme-boot.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="logo" href="/">HET68</a>
+        <button class="nav-toggle" type="button" id="navToggle" aria-expanded="false" aria-controls="siteNav" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="site-nav" id="siteNav" aria-label="Hlavní navigace">
+          <a href="/">Domů</a>
+          <a href="/#projekt">Projekt</a>
+          <a href="/#scenare">Scénáře</a>
+          <a class="" href="/api/">API</a>
+          <a class="is-active" href="/wiki/">Wiki</a>
+          <a href="/#kontakt">Kontakt</a>
+          <a class="nav-flasher" href="https://flasher.het68.cz/">Flasher</a>
+          <a class="nav-flasher" href="https://chirp.het68.cz/">Chirp</a>
+        </nav>
+        <div class="header-tools">
+          <div class="lang-switch" aria-label="Jazyk">
+            <a class="is-active" href="/wiki/" hreflang="cs" lang="cs">CZ</a>
+            <a class="" href="/en/wiki/" hreflang="en" lang="en">EN</a>
+            <a class="" href="/de/wiki/" hreflang="de" lang="de">DE</a>
+          </div>
+          <button class="theme-btn" type="button" id="themeBtn" aria-label="Přepnout motiv" title="Motiv">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="wrap docs-page">
+
+      <header class="docs-hero">
+        <p class="badge-iso">Living docs</p>
+        <h1>Technická wiki</h1>
+        <p>
+          Technický popis platformy HET68. Sem budou postupně přibývat fotografie hardwaru,
+          zapojení, kalibrační postupy a provozní návody.
+        </p>
+        <div class="docs-toolbar">
+          <a class="btn btn-teal btn-sm" href="/api/">API / Swagger</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </header>
+      <div class="docs-layout has-aside">
+        <aside class="docs-aside">
+          <a href="#overview">Přehled</a>
+          <a href="#architecture">Architektura</a>
+          <a href="#audio-path">Audio cesta</a>
+          <a href="#mesh">Mesh &amp; sync</a>
+          <a href="#security">Bezpečnost</a>
+          <a href="#photos">Fotky (připravujeme)</a>
+          <a href="#guides">Návody (připravujeme)</a>
+        </aside>
+        <div>
+          <article class="docs-card" id="overview">
+            <h2>Přehled</h2>
+            <p>
+              HET68 je 6kanálová edge platforma prostorové akustiky na RP2350.
+              Zařízení vystupuje jako UAC2 USB zvukovka a zároveň počítá DOA / detekce lokálně.
+            </p>
+          </article>
+          <article class="docs-card" id="architecture">
+            <h2>Architektura</h2>
+            <ul>
+              <li>6× MEMS ICS-43434 → PIO / DMA → USB Audio Class 2.0</li>
+              <li>Edge inference na zařízení (bez nutnosti cloudu pro základní detekci)</li>
+              <li>Volitelný companion HW za zvukovkou pro dlouhodobý záznam a audio pull přes API</li>
+              <li>Cloud / on-prem gateway pro správu lokalit a fúzi tracků</li>
+            </ul>
+          </article>
+          <article class="docs-card" id="audio-path">
+            <h2>Audio cesta</h2>
+            <p>48&nbsp;kHz / 24-bit, 6 synchronních kanálů. Beamforming a klasifikace běží na hraně.</p>
+            <div class="docs-placeholder">Schema audio pipeline — brzy</div>
+          </article>
+          <article class="docs-card" id="mesh">
+            <h2>Mesh &amp; synchronizace</h2>
+            <p>
+              Uzly se mohou synchronizovat akustickým ALINK chirpem nebo síťovým časem.
+              Více bodů umožňuje 3D triangulaci trajektorií.
+            </p>
+          </article>
+          <article class="docs-card" id="security">
+            <h2>Bezpečnost</h2>
+            <p>
+              Návrh počítá s připravovanou certifikací ISO/IEC 27001 (ISO 27k) a principem
+              <em>secure by design</em>: least privilege API klíče, TLS, audit log, minimální
+              retenze surového audia.
+            </p>
+          </article>
+          <article class="docs-card" id="photos">
+            <h2>Fotografie hardwaru</h2>
+            <p>Sem budou přibývat produktové a montážní fotografie.</p>
+            <div class="docs-placeholder">Foto slot A — kostka / deska</div>
+            <div class="docs-placeholder">Foto slot B — zapojení MEMS pole</div>
+          </article>
+          <article class="docs-card" id="guides">
+            <h2>Návody</h2>
+            <ul>
+              <li>První spuštění a web flasher — připravujeme</li>
+              <li>Kalibrace pole — připravujeme</li>
+              <li>Nasazení mesh na lokalitě — připravujeme</li>
+              <li>Integrace API do SIEM / VMS — připravujeme</li>
+            </ul>
+            <div class="docs-placeholder">Místo pro screenshoty návodů</div>
+          </article>
+        </div>
+      </div>
+
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="/">HET68</a>
+        <p>© <span id="year"></span> HET68 · <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a></p>
+        <div class="footer-links">
+          <a href="/api/">API</a>
+          <a href="/wiki/">Wiki</a>
+          <a href="https://flasher.het68.cz/">Flasher</a>
+          <a href="https://chirp.het68.cz/">Chirp</a>
+        </div>
+        <p class="build-meta" id="buildMeta" hidden></p>
+      </div>
+    </footer>
+    <script src="/theme.js"></script>
+    <script src="/lang.js"></script>
+    <script src="/landing.js" defer></script>
+  </body>
+</html>

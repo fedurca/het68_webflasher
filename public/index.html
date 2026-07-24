@@ -20,6 +20,7 @@
     />
     <script src="/theme-boot.js"></script>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
@@ -43,6 +44,10 @@
           <a href="#jak">Jak to funguje</a>
           <a href="#scenare">Scénáře</a>
           <a href="#nabidka">Nabídka</a>
+          <a href="#bezpecnost">ISO 27k</a>
+          <a href="#administrace">Administrace</a>
+          <a href="/api/">API</a>
+          <a href="/wiki/">Wiki</a>
           <a href="#kontakt">Kontakt</a>
           <a class="nav-flasher" href="https://flasher.het68.cz/">Flasher</a>
           <a class="nav-flasher" href="https://chirp.het68.cz/">Chirp</a>
@@ -429,6 +434,87 @@
         </div>
       </section>
 
+<section class="section" id="bezpecnost">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="badge-iso">ISO/IEC 27001 · Secure by design</p>
+            <h2>Připraveno na certifikaci ISO 27k</h2>
+            <p>
+              Platforma HET68 i cloudová služba jsou navrhovány v souladu s připravovanou
+              certifikací ISO/IEC 27001 a principem <em>secure by design</em> — bezpečnost
+              je součástí architektury, ne dodatečná vrstva.
+            </p>
+          </header>
+          <div class="trust-strip">
+            <article class="trust-item">
+              <h3>Secure by design</h3>
+              <p>TLS, autentizace na každém mutujícím volání, least privilege API klíče a oddělení edge / gateway / konzole.</p>
+            </article>
+            <article class="trust-item">
+              <h3>Audit &amp; řízení změn</h3>
+              <p>Audit trail pro kalibraci, sync a nastavení — podpora kontrol vyžadovaných ISO 27k.</p>
+            </article>
+            <article class="trust-item">
+              <h3>Minimální retenze</h3>
+              <p>Surový zvuk jen když je potřeba (companion HW). Detekce a metadata mají přednost před long-term nahrávkami.</p>
+            </article>
+          </div>
+          <p style="text-align:center;margin:1.25rem 0 0">
+            <a class="btn btn-ghost btn-sm" href="/wiki/#security">Více ve wiki</a>
+            <a class="btn btn-teal btn-sm" href="/api/">API &amp; OpenAPI</a>
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="administrace">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="offer-kicker teal">Cloud · náhled</p>
+            <h2>Webová administrace — ostraha objektu</h2>
+            <p>
+              Náhled konzole pro operátory: mapa senzorů, živé detekce a fúze trajektorií.
+              Finální UI bude součástí cloud / on‑prem předplatného.
+            </p>
+          </header>
+          <div class="admin-mock" aria-label="Náhled administrace ostrahy objektu">
+            <div class="admin-top">
+              <strong>HET68 Site Console · Lokalita Alpha</strong>
+              <div class="admin-pills">
+                <span class="admin-pill ok">12 nodů online</span>
+                <span class="admin-pill warn">1 aktivní track</span>
+                <span class="admin-pill">ISO 27k režim</span>
+              </div>
+            </div>
+            <div class="admin-body">
+              <div class="admin-map" aria-hidden="true">
+                <span class="admin-node n1"></span>
+                <span class="admin-node n2"></span>
+                <span class="admin-node n3 alert"></span>
+                <span class="admin-track"></span>
+              </div>
+              <div class="admin-side">
+                <div class="admin-event">
+                  <strong>UAV · pravděpodobnost 0,91</strong>
+                  <span>az 214° · elev 12° · 18:42:07 UTC</span>
+                </div>
+                <div class="admin-event">
+                  <strong>Kalibrace mesh OK</strong>
+                  <span>node-07 · Δt 0,4 ms · 18:40:12 UTC</span>
+                </div>
+                <div class="admin-event">
+                  <strong>Audio clip připraven</strong>
+                  <span>companion HW · 4,2 s WAV · stažení přes API</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="admin-note">
+            Ilustrativní mock — skutečná administrace napojí detekce, kalibraci, sync a nastavení přes
+            <a href="/api/">REST API</a>. Role: operátor · technik · auditor.
+          </p>
+        </div>
+      </section>
+
 <section class="section contact" id="kontakt">
         <div class="wrap contact-inner">
           <h2>Kontakt</h2>
@@ -456,6 +542,8 @@
         <div class="footer-links">
           <a href="/en/" hreflang="en">English</a>
           <a href="/de/" hreflang="de">Deutsch</a>
+          <a href="/api/">API</a>
+          <a href="/wiki/">Wiki</a>
           <a href="https://flasher.het68.cz/">Flasher</a>
           <a href="https://chirp.het68.cz/">Chirp</a>
         </div>
