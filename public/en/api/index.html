@@ -27,12 +27,19 @@
         <nav class="site-nav" id="siteNav" aria-label="Main navigation">
           <a href="/en/">Home</a>
           <a href="/en/#project">Project</a>
-          <a href="/en/#scenarios">Scenarios</a>
-          <a class="is-active" href="/en/api/">API</a>
-          <a class="" href="/en/wiki/">Wiki</a>
           <a href="/en/#contact">Contact</a>
-          <a class="nav-flasher" href="https://flasher.het68.cz/en/">Flasher</a>
-          <a class="nav-flasher" href="https://chirp.het68.cz/en/">Chirp</a>
+          <div class="nav-dd">
+            <button type="button" class="nav-dd-btn" aria-expanded="false" aria-haspopup="true" aria-controls="navToolsMenu">
+              Tools
+            </button>
+            <div class="nav-dd-menu" id="navToolsMenu" hidden>
+              <a href="/en/wiki/">Wiki</a>
+              <a href="https://api.het68.cz/">API</a>
+              <a href="https://flasher.het68.cz/en/">Flasher</a>
+              <a href="https://dev.het68.cz/en/">Dev</a>
+              <a href="https://chirp.het68.cz/en/">Chirp</a>
+            </div>
+          </div>
         </nav>
         <div class="header-tools">
           <div class="lang-switch" aria-label="Language">

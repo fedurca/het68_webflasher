@@ -20,6 +20,38 @@
     });
   }
 
+  // Tools dropdown (Wiki / API / Flasher / Dev / Chirp)
+  document.querySelectorAll(".nav-dd").forEach((dd) => {
+    const btn = dd.querySelector(".nav-dd-btn");
+    const menu = dd.querySelector(".nav-dd-menu");
+    if (!btn || !menu) return;
+
+    const setOpen = (open) => {
+      dd.classList.toggle("is-open", open);
+      btn.setAttribute("aria-expanded", String(open));
+      if (open) menu.removeAttribute("hidden");
+      else menu.setAttribute("hidden", "");
+    };
+
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      setOpen(btn.getAttribute("aria-expanded") !== "true");
+    });
+
+    menu.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => setOpen(false));
+    });
+
+    document.addEventListener("click", (ev) => {
+      if (!dd.contains(ev.target)) setOpen(false);
+    });
+
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") setOpen(false);
+    });
+  });
+
   // Theme is owned by /theme.js (shared cookie across *.het68.cz).
   if (window.HET68Theme) {
     window.HET68Theme.apply(window.HET68Theme.get());

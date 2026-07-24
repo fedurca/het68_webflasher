@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta
+      name="description"
+      content="HET68 API host — authenticated access only. Public REST surface coming soon."
+    />
+    <title>HET68 API · api.het68.cz</title>
+    <script src="/theme-boot.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="logo" href="https://het68.cz/">HET68</a>
+        <div class="header-tools">
+          <button class="theme-btn" type="button" id="themeBtn" aria-label="Toggle theme" title="Theme">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap docs-page">
+      <header class="docs-hero">
+        <p class="badge-iso">api.het68.cz · Auth required</p>
+        <h1>HET68 API</h1>
+        <p>
+          You are authenticated. The public REST surface is not exposed yet —
+          this host is reserved for the upcoming calibration, sync, settings,
+          detections, and optional audio-pull API.
+        </p>
+        <div class="docs-toolbar">
+          <a class="btn btn-teal btn-sm" href="/health">GET /health</a>
+          <a class="btn btn-ghost btn-sm" href="https://het68.cz/api/">OpenAPI docs</a>
+          <a class="btn btn-ghost btn-sm" href="https://het68.cz/">het68.cz</a>
+        </div>
+      </header>
+
+      <article class="docs-card">
+        <h2>Status</h2>
+        <ul>
+          <li><strong>Host</strong> — <code>api.het68.cz</code></li>
+          <li><strong>Access</strong> — Basic Auth / shared <code>het68_auth</code> cookie</li>
+          <li><strong>Surface</strong> — placeholder (endpoints coming soon)</li>
+          <li><strong>Draft spec</strong> — <a href="https://het68.cz/api/">het68.cz/api/</a></li>
+        </ul>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="https://het68.cz/">HET68</a>
+        <p>© <span id="year"></span> HET68 · API host</p>
+        <div class="footer-links">
+          <a href="https://het68.cz/api/">Docs</a>
+          <a href="https://het68.cz/wiki/">Wiki</a>
+        </div>
+      </div>
+    </footer>
+    <script src="/theme.js"></script>
+    <script>
+      document.getElementById("year").textContent = String(new Date().getFullYear());
+    </script>
+  </body>
+</html>

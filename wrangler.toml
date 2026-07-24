@@ -46,6 +46,10 @@ custom_domain = true
 pattern = "dev.het68.cz"
 custom_domain = true
 
+[[routes]]
+pattern = "api.het68.cz"
+custom_domain = true
+
 # Shared room for chirpdev — synchronizes tuning parameters and node presence
 # across all visitors (Durable Object, SQLite-backed, created on first use).
 [[durable_objects.bindings]]

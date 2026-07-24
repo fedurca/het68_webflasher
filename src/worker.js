@@ -4,12 +4,13 @@
  * - www.* → 301 strip to apex (www.het68.cz → het68.cz) before auth/routing
  * - All public hosts require Basic Auth (dev:dev by default)
  * - After one successful login, a shared HttpOnly cookie on `.het68.cz` is set
- *   so other subdomains (flasher / chirp / qr / dev / apex) do not prompt again
+ *   so other subdomains (flasher / chirp / qr / dev / api / apex) do not prompt again
  * - het68.cz → static marketing site
  * - flasher.het68.cz → web flasher
  * - qr.het68.cz → QR scrambler from fedurca/qr_scrambler
  * - chirp.het68.cz → acoustic chirp decoder
  * - dev.het68.cz → chirpdev tuning playground
+ * - api.het68.cz → API host (auth required; surface TBD)
  * - /api/* → GitHub Releases proxy (flasher host, or /flasher path in dev)
  *
  * Note: DNS alone cannot strip "www" from the hostname — the www custom domain
@@ -431,8 +432,13 @@ function isDevHost(hostname) {
   return host === "dev.het68.cz" || host.startsWith("dev.");
 }
 
+function isApiHost(hostname) {
+  const host = (hostname || "").toLowerCase();
+  return host === "api.het68.cz" || host.startsWith("api.");
+}
+
 /**
- * Resolve request host. Prefer flasher/qr/chirp when any candidate matches —
+ * Resolve request host. Prefer flasher/qr/chirp/api when any candidate matches —
  * local `wrangler dev` rewrites URL/Host to the first custom_domain (het68.cz).
  */
 function requestHostname(request) {
@@ -446,9 +452,87 @@ function requestHostname(request) {
     .map((h) => h.split(":")[0].toLowerCase());
 
   for (const h of candidates) {
-    if (isFlasherHost(h) || isQrHost(h) || isChirpHost(h) || isDevHost(h)) return h;
+    if (
+      isFlasherHost(h) ||
+      isQrHost(h) ||
+      isChirpHost(h) ||
+      isDevHost(h) ||
+      isApiHost(h)
+    ) {
+      return h;
+    }
   }
   return candidates[0] || url.hostname.toLowerCase();
+}
+
+/**
+ * api.het68.cz — dedicated API host. Auth is enforced globally; the public
+ * surface is a placeholder until the REST API ships.
+ */
+async function serveApiHost(request, env) {
+  const url = new URL(request.url);
+  let path = url.pathname;
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, HEAD, OPTIONS",
+        "access-control-allow-headers": "authorization, content-type",
+        "access-control-max-age": "86400",
+      },
+    });
+  }
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return err("Method not allowed", 405);
+  }
+
+  if (path === "/health" || path === "/v1/health") {
+    return json({
+      ok: true,
+      service: "het68-api",
+      host: "api.het68.cz",
+      auth: "required",
+      status: "placeholder",
+    });
+  }
+
+  const sharedRoot = new Set([
+    "/theme.js",
+    "/theme-boot.js",
+    "/styles.css",
+    "/docs.css",
+    "/favicon.svg",
+    "/build-info.json",
+  ]);
+
+  if (path === "/" || path === "" || path === "/index.html") {
+    path = "/apihost/index.html";
+  } else if (path.startsWith("/apihost/")) {
+    // keep
+  } else if (sharedRoot.has(path)) {
+    // keep
+  } else {
+    return json(
+      {
+        ok: false,
+        service: "het68-api",
+        host: "api.het68.cz",
+        auth: "ok",
+        status: "not_implemented",
+        message:
+          "API surface is not public yet. Authenticated access only — endpoints coming soon.",
+        docs: "https://het68.cz/api/",
+      },
+      501
+    );
+  }
+
+  const assetUrl = new URL(request.url);
+  assetUrl.pathname = path;
+  return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
 }
 
 /**
@@ -465,6 +549,9 @@ async function serveFlasherHost(request, env) {
     "/theme.js",
     "/theme-boot.js",
     "/build-info.json",
+    "/styles.css",
+    "/docs.css",
+    "/favicon.svg",
   ]);
 
   if (path === "/" || path === "" || path === "/index.html") {
@@ -727,17 +814,19 @@ export default {
     const host = requestHostname(request);
 
     // Gate every public host + API. One Basic login sets a shared cookie on
-    // .het68.cz so flasher / chirp / qr / dev / apex do not prompt again.
+    // .het68.cz so flasher / chirp / qr / dev / api / apex do not prompt again.
     const auth = await authorizeRequest(request, env);
     if (!auth.ok) return unauthorized();
 
     let response;
 
-    // chirpdev shared-room API (tuning params + node presence)
-    if (url.pathname.startsWith("/api/dev/")) {
+    if (isApiHost(host)) {
+      response = await serveApiHost(request, env);
+    } else if (url.pathname.startsWith("/api/dev/")) {
+      // chirpdev shared-room API (tuning params + node presence)
       response = await handleDevApi(request, env);
     } else if (url.pathname.startsWith("/api/")) {
-      // API available on both hosts
+      // Firmware / releases proxy (flasher + apex paths)
       response = await handleApi(request, env);
     } else if (isDevHost(host)) {
       const redirect = localeRedirect(request, url, chirpdevPathForLang);

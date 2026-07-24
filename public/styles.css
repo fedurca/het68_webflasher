@@ -190,9 +190,67 @@ a:hover {
   border-radius: 10px;
 }
 
-.site-nav a:hover {
+.site-nav a:hover,
+.site-nav .nav-dd-btn:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.nav-dd {
+  position: relative;
+}
+
+.nav-dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nav-dd-btn::after {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: 0.1rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-0.1rem);
+  transition: transform 0.15s ease;
+}
+
+.nav-dd.is-open .nav-dd-btn::after {
+  transform: rotate(225deg) translateY(-0.05rem);
+}
+
+.nav-dd-menu {
+  display: none;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.25rem 0 0.35rem 0.65rem;
+}
+
+.nav-dd.is-open .nav-dd-menu,
+.nav-dd-menu:not([hidden]) {
+  display: flex;
+}
+
+.nav-dd-menu[hidden] {
+  display: none !important;
+}
+
+.nav-dd-menu a {
+  font-size: 0.95rem;
+  padding: 0.55rem 0.85rem;
 }
 
 .theme-btn {
@@ -971,9 +1029,29 @@ a:hover {
     border: 0;
   }
 
-  .site-nav a {
+  .site-nav a,
+  .site-nav .nav-dd-btn {
     font-size: 0.92rem;
     padding: 0.45rem 0.7rem;
+    width: auto;
+  }
+
+  .nav-dd-menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    min-width: 11.5rem;
+    padding: 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg-elev, rgba(8, 12, 16, 0.98));
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+    z-index: 40;
+  }
+
+  .nav-dd-menu a {
+    font-size: 0.88rem;
+    padding: 0.5rem 0.7rem;
   }
 
   .project-links {
@@ -1097,8 +1175,14 @@ body.theme-light .lang-switch {
   background: rgba(15, 23, 42, 0.04);
 }
 
-body.theme-light .site-nav a:hover {
+body.theme-light .site-nav a:hover,
+body.theme-light .site-nav .nav-dd-btn:hover {
   background: rgba(15, 23, 42, 0.05);
+}
+
+body.theme-light .nav-dd-menu {
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
 }
 
 body.theme-light .theme-btn:hover {
