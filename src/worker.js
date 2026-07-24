@@ -460,7 +460,12 @@ async function serveFlasherHost(request, env) {
   let path = url.pathname;
 
   // Shared root assets (not under /flasher/)
-  const sharedRoot = new Set(["/lang.js", "/build-info.json"]);
+  const sharedRoot = new Set([
+    "/lang.js",
+    "/theme.js",
+    "/theme-boot.js",
+    "/build-info.json",
+  ]);
 
   if (path === "/" || path === "" || path === "/index.html") {
     path = "/flasher/index.html";
@@ -531,7 +536,12 @@ async function serveChirpHost(request, env) {
   const url = new URL(request.url);
   let path = url.pathname;
 
-  const sharedRoot = new Set(["/build-info.json", "/lang.js"]);
+  const sharedRoot = new Set([
+    "/build-info.json",
+    "/lang.js",
+    "/theme.js",
+    "/theme-boot.js",
+  ]);
 
   if (path === "/" || path === "" || path === "/index.html") {
     path = "/chirp/index.html";
@@ -573,11 +583,17 @@ async function serveDevHost(request, env) {
   } else if (
     path === "/build-info.json" ||
     path === "/lang.js" ||
+    path === "/theme.js" ||
+    path === "/theme-boot.js" ||
     path.startsWith("/chirp/") // shared chirp assets (styles.css, etc.)
   ) {
     // keep as-is
   } else if (path === "/" || path === "" || path === "/index.html") {
     path = "/chirpdev/index.html";
+  } else if (path === "/en" || path === "/en/" || path === "/en/index.html") {
+    path = "/chirpdev/en/index.html";
+  } else if (path === "/de" || path === "/de/" || path === "/de/index.html") {
+    path = "/chirpdev/de/index.html";
   } else if (!path.startsWith("/chirpdev/")) {
     path = `/chirpdev${path.startsWith("/") ? path : `/${path}`}`;
   }
@@ -656,6 +672,13 @@ function chirpPathForLang(lang) {
   return null; // cs → stay on /
 }
 
+/** Locale path for chirpdev playground (CS / EN / DE). */
+function chirpdevPathForLang(lang) {
+  if (lang === "en") return "/en/";
+  if (lang === "de") return "/de/";
+  return null; // cs → stay on /
+}
+
 function localeRedirect(request, url, pathForLang) {
   if (url.pathname !== "/" && url.pathname !== "") return null;
   if (url.searchParams.has("lang")) return null;
@@ -717,7 +740,8 @@ export default {
       // API available on both hosts
       response = await handleApi(request, env);
     } else if (isDevHost(host)) {
-      response = await serveDevHost(request, env);
+      const redirect = localeRedirect(request, url, chirpdevPathForLang);
+      response = redirect || (await serveDevHost(request, env));
     } else if (isFlasherHost(host)) {
       const redirect = localeRedirect(request, url, flasherPathForLang);
       response = redirect || (await serveFlasherHost(request, env));

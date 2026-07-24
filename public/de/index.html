@@ -18,6 +18,7 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script src="/theme-boot.js"></script>
     <link rel="stylesheet" href="/styles.css" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
@@ -41,8 +42,7 @@
           <a href="#projekt">Projekt</a>
           <a href="#wie-es-funktioniert">So funktioniert’s</a>
           <a href="#szenarien">Szenarien</a>
-          <a href="#hardware">Hardware</a>
-          <a href="#firmen">Für Firmen</a>
+          <a href="#angebot">Angebot</a>
           <a href="#kontakt">Kontakt</a>
           <a class="nav-flasher" href="https://flasher.het68.cz/de/">Flasher</a>
           <a class="nav-flasher" href="https://chirp.het68.cz/de/">Chirp</a>
@@ -70,6 +70,9 @@
 
     <main>
       <section class="hero">
+        <div class="hero-atmos" aria-hidden="true">
+          <canvas id="atmosCanvas"></canvas>
+        </div>
         <div class="wrap hero-grid">
           <div class="hero-copy">
             <p class="brand-mark">HET68</p>
@@ -359,65 +362,73 @@
         </div>
       </section>
 
-<section class="section offers" id="wie">
-        <div class="wrap offers-grid">
-          <article class="offer-card offer-hw" id="hardware">
-            <div class="offer-copy">
-              <p class="offer-kicker teal">Hardware</p>
-              <h2>HET68 Sensor-Appliance</h2>
-              <ul class="checklist">
-                <li>6 MEMS-Mikrofone + lokale Verarbeitung</li>
-                <li>USB‑C- und Wi‑Fi-Konnektivität</li>
-                <li>Open-Source-Firmware auf GitHub</li>
-                <li>
-                  Web-Flasher:
-                  <a href="https://flasher.het68.cz/de/">flasher.het68.cz</a>
-                </li>
-              </ul>
-            </div>
-            <figure class="offer-media">
-              <img src="/assets/hardware.svg" alt="HET68 Hardware" width="640" height="360" />
-            </figure>
-            <div class="offer-foot">
-              <div>
-                <p class="price">8.990&nbsp;Kč</p>
-                <p class="price-note">Kostenloser Versand · 30 Tage Rückgabe · 2 Jahre Garantie</p>
+<section class="section offers" id="angebot">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="offer-kicker teal">Angebot</p>
+            <h2>Drei Wege zur Nutzung</h2>
+          </header>
+          <div class="offers-grid offers-grid-3">
+            <article class="offer-card offer-hw" id="hacker">
+              <div class="offer-copy">
+                <p class="offer-kicker teal">Hacker</p>
+                <h2>USB-Soundkarte + SDK</h2>
+                <ul class="checklist">
+                  <li>6-Kanal-USB-Audio (UAC2) für eigene Pipelines</li>
+                  <li>Open-Source-Firmware und SDK</li>
+                  <li>Web-Flasher und Rohkanalzugriff</li>
+                  <li>Für Entwickler, Labore und schnelle PoCs</li>
+                </ul>
               </div>
-              <div class="offer-actions">
-                <a class="btn btn-teal" href="https://flasher.het68.cz/de/">Firmware flashen</a>
-                <a class="btn btn-ghost" href="#kontakt">Hardware anfragen</a>
+              <div class="offer-foot">
+                <div>
+                  <p class="price-note">Hardware für alle, die den Stack selbst bauen</p>
+                </div>
+                <div class="offer-actions">
+                  <a class="btn btn-teal" href="mailto:orders@het68.cz?subject=HET68%20Hacker%20USB%20SDK">Bestellen / anfragen</a>
+                  <a class="btn btn-ghost" href="https://flasher.het68.cz/de/">Flasher</a>
+                </div>
               </div>
-            </div>
-          </article>
+            </article>
 
-          <article class="offer-card offer-svc" id="firmen">
-            <div class="offer-copy">
-              <p class="offer-kicker blue">Service</p>
-              <h2>Für Firmen — Abo-Service</h2>
-              <ul class="checklist">
-                <li>Cloud-Zugang und Echtzeit-Streaming</li>
-                <li>KI-Modelle, Alerts und Dashboards</li>
-                <li>API / Webhooks und Integrationen</li>
-                <li>SLA und EU-Infrastruktur</li>
-                <li>Optional On-Premise-Deployment</li>
-              </ul>
-            </div>
-            <figure class="offer-media">
-              <img
-                src="/assets/dashboard.svg"
-                alt="Vorschau des HET68-Dashboards"
-                width="640"
-                height="360"
-              />
-            </figure>
-            <div class="offer-foot">
-              <div>
-                <p class="price">ab 1.490&nbsp;Kč / Monat</p>
-                <p class="price-note">Skalierbare Tarife · EU · On-Premise optional</p>
+            <article class="offer-card offer-svc" id="cloud">
+              <div class="offer-copy">
+                <p class="offer-kicker blue">Cloud / on‑prem</p>
+                <h2>Dienst mit Monatsabo</h2>
+                <ul class="checklist">
+                  <li>Cloud- oder On-Premise-Betrieb</li>
+                  <li>Echtzeit-Streaming, Alerts und Dashboards</li>
+                  <li>API / Webhooks und Integrationen</li>
+                  <li>SLA und EU-Infrastruktur</li>
+                </ul>
               </div>
-              <a class="btn btn-blue" href="#kontakt">Firmenservice anfragen</a>
-            </div>
-          </article>
+              <div class="offer-foot">
+                <div>
+                  <p class="price-note">Skalierbare Tarife · monatliches Abo</p>
+                </div>
+                <a class="btn btn-blue" href="mailto:orders@het68.cz?subject=HET68%20cloud%20onprem">Abo anfragen</a>
+              </div>
+            </article>
+
+            <article class="offer-card offer-field" id="feld">
+              <div class="offer-copy">
+                <p class="offer-kicker teal">Für Firmen</p>
+                <h2>Detektionsfeld-Setup</h2>
+                <ul class="checklist">
+                  <li>Maßgeschneiderte Lösung für kritische Infrastruktur</li>
+                  <li>Topologie und Abdeckungsplanung</li>
+                  <li>Integration in bestehende Systeme</li>
+                  <li>Lieferung, Inbetriebnahme und Support</li>
+                </ul>
+              </div>
+              <div class="offer-foot">
+                <div>
+                  <p class="price-note">Individuelles Angebot — kontaktieren Sie uns</p>
+                </div>
+                <a class="btn btn-teal" href="mailto:orders@het68.cz?subject=HET68%20Detektionsfeld">Kontakt</a>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -426,18 +437,13 @@
           <h2>Kontakt</h2>
           <p>
             Schreiben Sie an
-            <a href="mailto:hello@het68.cz">hello@het68.cz</a>
-            — wir melden uns zu Hardware oder Firmenservice.
+            <a href="mailto:orders@het68.cz">orders@het68.cz</a>
+            — Hardware, Abo oder maßgeschneidertes Detektionsfeld.
           </p>
           <div class="contact-actions">
-            <a class="btn btn-teal" href="mailto:hello@het68.cz?subject=HET68%20Hardware"
-              >Hardware anfragen</a
-            >
-            <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=HET68%20Firmenservice"
-              >Service anfragen</a
-            >
-            <a class="btn btn-ghost" href="https://flasher.het68.cz/de/">Flasher</a>
-            <a class="btn btn-ghost" href="https://chirp.het68.cz/de/">Chirp</a>
+            <a class="btn btn-teal" href="mailto:orders@het68.cz?subject=HET68%20Hacker%20USB%20SDK">Hacker / SDK</a>
+            <a class="btn btn-blue" href="mailto:orders@het68.cz?subject=HET68%20cloud%20onprem">Cloud / on‑prem</a>
+            <a class="btn btn-ghost" href="mailto:orders@het68.cz?subject=HET68%20Detektionsfeld">Detektionsfeld</a>
           </div>
         </div>
       </section>
@@ -463,6 +469,7 @@
       </div>
     </footer>
 
+    <script src="/theme.js"></script>
     <script src="/lang.js"></script>
     <script src="/landing.js" defer></script>
   </body>

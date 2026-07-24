@@ -266,10 +266,27 @@ a:hover {
 
 /* Hero — mobile first stacked */
 .hero {
+  position: relative;
   padding: 2.25rem 0 1.5rem;
+  overflow: hidden;
+}
+
+.hero-atmos {
+  position: absolute;
+  inset: -8% -5% -12%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-atmos canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .hero-grid {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 2rem;
 }
@@ -609,6 +626,10 @@ a:hover {
   gap: 1rem;
 }
 
+.offers-grid-3 {
+  margin-top: 0.5rem;
+}
+
 .offer-card {
   background: linear-gradient(180deg, rgba(16, 24, 32, 0.95), rgba(11, 17, 23, 0.98));
   border: 1px solid var(--line);
@@ -616,6 +637,7 @@ a:hover {
   padding: 1.25rem;
   display: grid;
   gap: 1.1rem;
+  align-content: space-between;
 }
 
 .offer-hw {
@@ -624,6 +646,10 @@ a:hover {
 
 .offer-svc {
   box-shadow: inset 0 1px 0 rgba(59, 130, 246, 0.22);
+}
+
+.offer-field {
+  box-shadow: inset 0 1px 0 rgba(31, 191, 160, 0.28);
 }
 
 .offer-kicker {
@@ -1026,6 +1052,10 @@ a:hover {
     gap: 1.25rem;
   }
 
+  .offers-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   .offer-card {
     padding: 1.5rem;
   }
@@ -1042,6 +1072,7 @@ a:hover {
 }
 
 /* Light theme toggle (optional) */
+html[data-theme="light"] body,
 body.theme-light {
   --bg: #f4f7f9;
   --bg-elev: #ffffff;

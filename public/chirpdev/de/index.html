@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="HET68 chirpdev — Spektrogramm, Profilspeicherbank und empirische Abstimmung der akustischen Strecke."
+    />
+    <title>HET68 — chirpdev (Link-Abstimmung)</title>
+        <script src="/theme-boot.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/chirp/styles.css" />
+    <link rel="stylesheet" href="/chirpdev.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <div class="brand">
+          <a class="logo" href="https://het68.cz/de/">HET68</a>
+          <p class="tagline">chirpdev · Link-Abstimmung</p>
+        </div>
+        <div class="header-right">
+          <nav class="top-links">
+            <a href="https://chirp.het68.cz/de/">Chirp</a>
+            <a href="https://het68.cz/de/">Web</a>
+          </nav>
+          <div class="lang-switch" aria-label="Sprache">
+            <a href="/" hreflang="cs" lang="cs">CZ</a>
+            <a href="/en/" hreflang="en" lang="en">EN</a>
+            <a class="is-active" href="/de/" hreflang="de" lang="de">DE</a>
+          </div>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Motiv" title="Helles / dunkles Motiv"></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <p class="overline">Spektrogramm · Bank · empirische Abstimmung</p>
+        <h1>Link live abstimmen.</h1>
+        <p class="lead">
+          Spektrogram s ~10&nbsp;MB oknem (smazání / uložení WAV), sdílené parametry mezi zařízeními
+          a 10 pojmenovatelných paměťových slotů pro perzistentní uložení pokusů.
+        </p>
+        <div class="controls">
+          <button id="micBtn" class="btn btn-teal" type="button">Mikrofon starten</button>
+          <span id="statusPill" class="pill">inaktiv</span>
+          <span id="meId" class="mono"></span>
+        </div>
+        <div id="permWarn" class="banner banner-warn" hidden></div>
+      </section>
+
+      <section class="grid">
+        <div class="card spectro-card">
+          <div class="card-head">
+            <h2>Spektrogram</h2>
+            <span class="hint">~10 MB PCM okno · clear / uložení vzorku</span>
+          </div>
+          <div class="spectro-wrap">
+            <canvas id="spectro" width="960" height="340" aria-label="Realtime spektrogram"></canvas>
+          </div>
+          <div class="spectro-controls">
+            <button id="spectroLive" class="btn btn-ghost btn-sm is-active" type="button">Živě</button>
+            <button id="recPause" class="btn btn-ghost btn-sm" type="button">Pauza</button>
+            <button id="recDownload" class="btn btn-ghost btn-sm" type="button" disabled>Uložit WAV</button>
+            <label class="spectro-field">
+              <span>Měřítko</span>
+              <input id="spectroZoom" type="range" min="0" max="6" value="2" />
+            </label>
+            <label class="spectro-field spectro-field-grow">
+              <span>Posun v historii</span>
+              <input id="spectroScroll" type="range" min="0" max="1" value="1" />
+            </label>
+            <button id="spectroClear" class="btn btn-ghost btn-sm" type="button">Smazat záznam</button>
+          </div>
+          <div class="radar-meta">
+            <span id="domFreq" class="mono">dominantní —</span>
+            <span id="spectroViewHint" class="hint">teď</span>
+            <span id="spectroMem" class="mono">paměť —</span>
+          </div>
+        </div>
+
+        <div class="card params-card">
+          <div class="card-head">
+            <h2>Parametry linky</h2>
+            <span id="syncState" class="hint mono">sync —</span>
+          </div>
+          <div class="tx-grid">
+            <label class="field"><span>Preambule (Hz)</span><input id="pPre" type="number" min="800" max="8000" step="100" value="2000" /></label>
+            <label class="field"><span>Hop base (Hz)</span><input id="pBase" type="number" min="800" max="8000" step="50" value="1400" /></label>
+            <label class="field"><span>Hop step (Hz)</span><input id="pStep" type="number" min="50" max="800" step="10" value="200" /></label>
+            <label class="field"><span>Preamble chip (ms)</span><input id="pPreMs" type="number" min="0.25" max="4" step="0.25" value="1" /></label>
+            <label class="field"><span>Data chip (ms)</span><input id="pDataMs" type="number" min="0.5" max="8" step="0.5" value="4" /></label>
+            <label class="field"><span>Node ID</span><input id="pNode" type="number" min="0" max="7" value="0" readonly /></label>
+          </div>
+          <div class="tx-flags">
+            <button id="applyLocal" class="btn btn-ghost btn-sm" type="button">Použít lokálně</button>
+            <button id="applyAll" class="btn btn-blue btn-sm" type="button">Synchronizovat všem</button>
+            <label class="check"><input type="checkbox" id="followRoom" checked /> přebírat sdílené nastavení</label>
+          </div>
+          <p class="hint mono" id="airInfo"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Vysílání &amp; příjem</h2>
+            <span id="rxStats" class="mono hint">dekódováno 0 · CRC 0 · det 0</span>
+          </div>
+          <div class="tx-grid">
+            <label class="field"><span>Payload (výchozí = ID nodu, 6 znaků)</span><input id="txPayload" type="text" maxlength="16" value="" placeholder="ID nodu" spellcheck="false" /></label>
+            <label class="field"><span>Hlasitost</span><input id="txGain" type="range" min="0" max="100" value="70" /></label>
+          </div>
+          <div class="tx-flags">
+            <button id="txOnce" class="btn btn-blue btn-sm" type="button">Vyslat 1×</button>
+            <label class="check"><input type="checkbox" id="txAuto" /> auto vysílat</label>
+            <button id="txStop" class="btn btn-ghost btn-sm" type="button">Stop</button>
+          </div>
+          <p class="hint mono" id="txInfo"></p>
+          <div class="rx-scroll">
+            <table class="nodes"><thead><tr><th>Čas</th><th>Node</th><th>Seq</th><th>Payload</th><th>ρ</th></tr></thead>
+              <tbody id="rxBody"><tr class="empty"><td colspan="5">Zatím nic přijato.</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <div class="card bank-card">
+          <div class="card-head">
+            <h2>Paměťový bank (10 profilů)</h2>
+            <span class="hint">perzistentní DO úložiště · obnovení pokusů</span>
+          </div>
+          <div class="tx-grid">
+            <label class="field"><span>Slot</span>
+              <select id="bankSlot"></select>
+            </label>
+            <label class="field"><span>Název profilu</span>
+              <input id="bankName" type="text" maxlength="40" placeholder="např. obývák 2 m" spellcheck="false" />
+            </label>
+            <label class="field"><span>Poznámka</span>
+              <input id="bankNote" type="text" maxlength="240" placeholder="volitelná poznámka k pokusu" spellcheck="true" />
+            </label>
+          </div>
+          <div class="tx-flags">
+            <label class="check"><input type="checkbox" id="bankWithAudio" checked /> včetně audio okna (~10&nbsp;MB, chunky)</label>
+          </div>
+          <div class="tx-flags">
+            <button id="bankSave" class="btn btn-teal btn-sm" type="button">Uložit slot</button>
+            <button id="bankLoad" class="btn btn-blue btn-sm" type="button">Načíst slot</button>
+            <button id="bankAudioDl" class="btn btn-ghost btn-sm" type="button">Stáhnout audio slotu</button>
+            <button id="bankRename" class="btn btn-ghost btn-sm" type="button">Přejmenovat</button>
+            <button id="bankClear" class="btn btn-ghost btn-sm" type="button">Smazat slot</button>
+          </div>
+          <p class="hint mono" id="bankInfo">bank —</p>
+          <div class="rx-scroll">
+            <table class="nodes">
+              <thead><tr><th>#</th><th>Název</th><th>air</th><th>pozn. / audio</th><th>uloženo</th></tr></thead>
+              <tbody id="bankBody"><tr class="empty"><td colspan="5">Načítám…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card sweep-card">
+          <div class="card-head">
+            <h2>Automatické ladění</h2>
+            <span id="sweepState" class="hint mono">inaktiv</span>
+          </div>
+          <p class="hint">Projde mřížku parametrů; pro každou sadu nastaví všem stejnou konfiguraci, chvíli vysílá/měří a zaznamená úspěšnost.</p>
+          <div class="tx-flags">
+            <label class="check"><input type="checkbox" id="swPre" checked /> pásmo (1,5/2/2,5 kHz)</label>
+            <label class="check"><input type="checkbox" id="swStep" checked /> rozestup (150/200/300)</label>
+            <label class="check"><input type="checkbox" id="swData" checked /> data chip (2/3/4/6 ms)</label>
+          </div>
+          <div class="tx-flags">
+            <label class="field"><span>Měření/sada (s)</span><input id="swWin" type="number" min="4" max="30" value="8" /></label>
+            <button id="sweepStart" class="btn btn-teal btn-sm" type="button">Spustit sweep</button>
+            <button id="sweepStop" class="btn btn-ghost btn-sm" type="button">Zastavit</button>
+            <button id="sweepBest" class="btn btn-blue btn-sm" type="button" disabled>Použít nejlepší</button>
+          </div>
+          <div class="rx-scroll">
+            <table class="nodes"><thead><tr><th>Pre</th><th>Step</th><th>Data</th><th>OK/pokus</th><th>bit/s</th><th>air</th></tr></thead>
+              <tbody id="sweepBody"><tr class="empty"><td colspan="6">Zatím žádné výsledky.</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <div class="card map-card">
+          <div class="card-head">
+            <h2>Mapa nodů</h2>
+            <span class="hint">otisk prohlížeče · linka = slyším</span>
+          </div>
+          <div class="spectro-wrap"><canvas id="map" width="900" height="420" aria-label="Mapa nodů"></canvas></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card debug-card">
+          <div class="card-head">
+            <h2>Debug &amp; log</h2>
+            <span id="debugStats" class="hint mono">rx 0 · tx 0 · det 0 · CRC✗ 0</span>
+          </div>
+          <div class="tx-flags">
+            <label class="field"><span>Úroveň logu</span>
+              <select id="logLevel">
+                <option value="0">basic</option>
+                <option value="1" selected>verbose</option>
+                <option value="2">trace</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="logShare" checked /> sdílet události přes backend</label>
+            <label class="check"><input type="checkbox" id="logShowRemote" checked /> zobrazit vzdálené nody</label>
+            <label class="check"><input type="checkbox" id="logAutoscroll" checked /> autoscroll</label>
+            <button id="logClear" class="btn btn-ghost btn-sm" type="button">Vyčistit</button>
+            <button id="logCopy" class="btn btn-ghost btn-sm" type="button">Kopírovat</button>
+            <button id="logDownload" class="btn btn-ghost btn-sm" type="button">Stáhnout .log</button>
+          </div>
+          <div class="debug-split">
+            <div class="debug-col">
+              <p class="hint mono">Lokální log</p>
+              <pre id="log" aria-live="polite"></pre>
+            </div>
+            <div class="debug-col">
+              <p class="hint mono">Synchronizované události (všechny nody) · <span id="eventStat" class="mono">0</span></p>
+              <div class="rx-scroll events-scroll">
+                <table class="nodes">
+                  <thead><tr><th>Čas</th><th>Node</th><th>Druh</th><th>Detail</th></tr></thead>
+                  <tbody id="eventsBody"><tr class="empty"><td colspan="4">Zatím žádné události.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <p class="proto-note">
+        chirpdev sdílí konfiguraci, přítomnost nodů a 10slotový bank přes Durable Object
+        (<code>/api/dev/*</code>). Spektrogram drží až ~10&nbsp;MB PCM + hist ring; WAV lze smazat nebo stáhnout.
+        Modulace = het68 ALINK (citlivější demod pro phone pásmo).
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="logo" href="https://het68.cz/de/">HET68</a>
+        <p>
+          © <span id="year"></span> HET68 ·
+          <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
+        </p>
+        <div class="footer-links">
+          <a href="https://het68.cz/de/">Web</a>
+          <a href="https://chirp.het68.cz/de/">Chirp</a>
+          <a href="https://flasher.het68.cz/">Flasher</a>
+        </div>
+        <p class="build-meta" id="buildMeta" hidden></p>
+      </div>
+    </footer>
+
+    <script src="/theme.js"></script>
+    <script src="/lang.js"></script>
+    <script src="/alink.js"></script>
+    <script src="/chirpdev.js"></script>
+  </body>
+</html>
