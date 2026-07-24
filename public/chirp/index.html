@@ -5,22 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 chirp dekodér — snímá mikrofon telefonu, lokálně v prohlížeči dekóduje audio chirpy a zobrazuje ID nodů, jejich polohu a vzdálenost."
+      content="HET68 chirp dekodér — snímá mikrofon telefonu, lokálně v prohlížeči dekóduje audio chirpy a zobrazuje ID nodů, jejich polohu a vzdálenost."
     />
-    <title>het68 — chirp dekodér</title>
+    <title>HET68 — chirp dekodér</title>
     <link rel="alternate" hreflang="cs" href="https://chirp.het68.cz/" />
     <link rel="alternate" hreflang="en" href="https://chirp.het68.cz/en/" />
     <link rel="alternate" hreflang="de" href="https://chirp.het68.cz/de/" />
-    <script>
-      try {
-        var t = localStorage.getItem("het68-theme");
-        if (t !== "light" && t !== "dark") {
-          t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-        }
-        document.documentElement.dataset.theme = t;
-      } catch (e) {}
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <script src="/theme-boot.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
@@ -32,7 +24,7 @@
     <header class="site-header">
       <div class="wrap header-inner">
         <div class="brand">
-          <a class="logo" href="https://het68.cz/">het68</a>
+          <a class="logo" href="https://het68.cz/">HET68</a>
           <p class="tagline">chirp dekodér</p>
         </div>
         <div class="header-right">
@@ -61,7 +53,7 @@
         <p class="overline">Akustická synchronizace · lokální dekódování</p>
         <h1>Poslouchej nody.</h1>
         <p class="lead">
-          Snímá mikrofon telefonu a přímo v prohlížeči dekóduje audio chirpy, kterými se het68 nody
+          Snímá mikrofon telefonu a přímo v prohlížeči dekóduje audio chirpy, kterými se HET68 nody
           synchronizují. Zobrazí zachycené <strong>ID nodů</strong>, jejich odhadovanou
           <strong>polohu</strong> a <strong>vzdálenost</strong>. Nic se nikam neodesílá — vše běží
           lokálně.
@@ -199,7 +191,7 @@
           </div>
           <label class="field tx-payload">
             <span>Payload (max 16 B) · <span id="txPayloadLen">0/16 B</span></span>
-            <input id="txPayload" type="text" maxlength="16" placeholder="het68" spellcheck="false" />
+            <input id="txPayload" type="text" maxlength="16" placeholder="HET68" spellcheck="false" />
           </label>
           <div class="tx-flags">
             <label class="check"><input type="checkbox" id="txSynced" /> synced</label>
@@ -233,7 +225,7 @@
       </details>
 
       <p class="proto-note">
-        het68 chirp link (spec 1.4.0, verze 2): BPSK preambule + 2‑FSK data s frekvenčním hoppingem,
+        HET68 chirp link (spec 1.4.0, verze 2): BPSK preambule + 2‑FSK data s frekvenčním hoppingem,
         CDMA m‑sekvence (8&nbsp;nodů), rámec 31&nbsp;B (verze, node, typ, seq, příznaky, key/nonce,
         payload 0–16&nbsp;B), jen CRC32 (bez FEC). Příjem i vysílání běží lokálně v prohlížeči.
         <br />Pozn.: spec cílí na rezonanční 4&nbsp;kHz piezo; <strong>reproduktory telefonů ořezávají
@@ -245,9 +237,9 @@
 
     <footer class="site-footer">
       <div class="wrap footer-inner">
-        <a class="logo" href="https://het68.cz/">het68</a>
+        <a class="logo" href="https://het68.cz/">HET68</a>
         <p>
-          © <span id="year"></span> het68 ·
+          © <span id="year"></span> HET68 ·
           <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
         </p>
         <div class="footer-links">
@@ -260,7 +252,9 @@
       </div>
     </footer>
 
+    <script src="/theme.js"></script>
     <script src="/lang.js"></script>
+
     <script src="./alink.js"></script>
     <script src="./chirp.js"></script>
   </body>

@@ -189,25 +189,37 @@
     return v || f;
   }
 
-  // ---- Theme ----
+  // ---- Theme (shared cookie via /theme.js) ----
   function currentTheme() {
+    if (window.HET68Theme) return window.HET68Theme.get();
     return document.documentElement.dataset.theme === "light" ? "light" : "dark";
   }
   function applyTheme(x) {
-    document.documentElement.dataset.theme = x;
-    try { localStorage.setItem(THEME_KEY, x); } catch (e) {}
-    if (els.themeToggle) {
-      els.themeToggle.textContent = x === "light" ? "\u263e" : "\u2600";
+    var next = window.HET68Theme ? window.HET68Theme.apply(x) : (x === "light" ? "light" : "dark");
+    if (!window.HET68Theme) {
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+      if (els.themeToggle) {
+        els.themeToggle.textContent = next === "light" ? "\u263e" : "\u2600";
+      }
     }
     // `state` is created later; never touch it during first paint.
     if (typeof state !== "undefined" && state && state.spectroReady) {
       try { drawSpectroFrame(); } catch (e) { /* ignore */ }
     }
+    return next;
   }
   applyTheme(currentTheme());
-  on(els.themeToggle, "click", function () {
-    applyTheme(currentTheme() === "light" ? "dark" : "light");
+  document.addEventListener("het68-theme", function () {
+    if (typeof state !== "undefined" && state && state.spectroReady) {
+      try { drawSpectroFrame(); } catch (e) { /* ignore */ }
+    }
   });
+  if (!window.HET68Theme) {
+    on(els.themeToggle, "click", function () {
+      applyTheme(currentTheme() === "light" ? "dark" : "light");
+    });
+  }
 
   // ---- Fingerprint → node id + label ----
   function fnv1a(str) {

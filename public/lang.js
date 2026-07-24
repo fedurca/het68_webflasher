@@ -56,9 +56,16 @@
     return SUPPORTED.has(lang) ? lang : "cs";
   }
 
+  function hostHasLocales() {
+    const host = location.hostname.toLowerCase();
+    // qr has no locale tree; everything else with / /en/ /de/ participates.
+    if (host === "qr.het68.cz" || host.startsWith("qr.")) return false;
+    return true;
+  }
+
   /** Canonical path for a language on the current host. */
   function pathForLang(lang) {
-    // Marketing site, flasher, and chirp all ship CS / EN / DE at / /en/ /de/.
+    // Marketing site, flasher, chirp, and chirpdev ship CS / EN / DE at / /en/ /de/.
     if (lang === "en") return "/en/";
     if (lang === "de") return "/de/";
     return "/";
@@ -66,10 +73,16 @@
 
   function normalizePath(pathname) {
     if (!pathname || pathname === "/") return "/";
-    return pathname.endsWith("/") ? pathname : `${pathname}/`;
+    // Locale roots only — don't bounce out of deep app paths.
+    if (pathname === "/en" || pathname === "/en/") return "/en/";
+    if (pathname === "/de" || pathname === "/de/") return "/de/";
+    if (pathname === "/") return "/";
+    return null;
   }
 
   function enforceStoredLang() {
+    if (!hostHasLocales()) return;
+
     let stored = getStoredLang();
     const current = pageLang();
 
@@ -79,10 +92,11 @@
       return;
     }
 
-    const target = normalizePath(pathForLang(stored));
     const here = normalizePath(location.pathname);
+    if (here == null) return; // deep path — leave alone
 
-    if (target !== here) {
+    const target = normalizePath(pathForLang(stored));
+    if (target && target !== here) {
       location.replace(target + location.search + location.hash);
     }
   }

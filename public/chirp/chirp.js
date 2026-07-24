@@ -624,28 +624,39 @@
     els.statusPill.textContent = text;
   }
 
-  // ---- Theme --------------------------------------------------------------
+  // ---- Theme (shared cookie via /theme.js) --------------------------------
   function currentTheme() {
+    if (window.HET68Theme) return window.HET68Theme.get();
     var cur = document.documentElement.dataset.theme;
     return cur === "light" ? "light" : "dark";
   }
 
   function applyTheme(theme) {
-    var next = theme === "light" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem(THEME_KEY, next);
-    } catch (e) {
-      /* ignore */
+    var next = window.HET68Theme
+      ? window.HET68Theme.apply(theme)
+      : theme === "light"
+        ? "light"
+        : "dark";
+    if (!window.HET68Theme) {
+      document.documentElement.dataset.theme = next;
+      try {
+        localStorage.setItem(THEME_KEY, next);
+      } catch (e) {
+        /* ignore */
+      }
+      if (els.themeToggle) {
+        els.themeToggle.textContent = next === "light" ? "\u263e" : "\u2600";
+        els.themeToggle.setAttribute("aria-pressed", String(next === "light"));
+      }
     }
-    if (els.themeToggle) {
-      els.themeToggle.textContent = next === "light" ? "\u263e" : "\u2600";
-      els.themeToggle.setAttribute("aria-pressed", String(next === "light"));
-    }
+    return next;
   }
 
-  if (els.themeToggle) {
-    applyTheme(currentTheme());
+  applyTheme(currentTheme());
+  document.addEventListener("het68-theme", function () {
+    if (state.spectroReady) drawSpectroFrame();
+  });
+  if (els.themeToggle && !window.HET68Theme) {
     els.themeToggle.addEventListener("click", function () {
       applyTheme(currentTheme() === "light" ? "dark" : "light");
       if (state.spectroReady) drawSpectroFrame();
