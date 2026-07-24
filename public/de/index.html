@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 — 6-Kanal-Plattform für räumliche Akustik für Edge-Deployments. Open-Source-Firmware, Web-Flasher, Richtungserkennung."
+      content="HET68 — akustischer Empfang für ungebetene Gäste. 6-Kanal-Mikrofonarray mit räumlichem Gehör für Verteidigung und Industrie."
     />
-    <title>het68 — räumliche Akustik</title>
+    <title>HET68 — nimmt Raum wahr, verändert Wirkung</title>
     <link rel="alternate" hreflang="cs" href="https://het68.cz/" />
     <link rel="alternate" hreflang="en" href="https://het68.cz/en/" />
     <link rel="alternate" hreflang="de" href="https://het68.cz/de/" />
@@ -24,7 +24,7 @@
   <body>
     <header class="site-header">
       <div class="wrap header-inner">
-        <a class="logo" href="/de/">het68</a>
+        <a class="logo" href="/de/">HET68</a>
 
         <button
           class="nav-toggle"
@@ -39,6 +39,7 @@
 
         <nav class="site-nav" id="siteNav" aria-label="Hauptnavigation">
           <a href="#projekt">Projekt</a>
+          <a href="#wie-es-funktioniert">So funktioniert’s</a>
           <a href="#szenarien">Szenarien</a>
           <a href="#hardware">Hardware</a>
           <a href="#firmen">Für Firmen</a>
@@ -53,7 +54,7 @@
             <a href="/en/" hreflang="en" lang="en">EN</a>
             <a class="is-active" href="/de/" hreflang="de" lang="de">DE</a>
           </div>
-          <button class="theme-btn" type="button" id="themeBtn" aria-label="Motiv wechseln" title="Motiv">
+          <button class="theme-btn" type="button" id="themeBtn" aria-label="Motiv umschalten" title="Motiv">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
                 d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z"
@@ -71,135 +72,129 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <p class="overline">Räumliche Akustik · 6 Mikrofone</p>
-            <h1>Hört die Richtung.<br />Erkennt früher,<br />als Sie sehen.</h1>
-            <p class="lead">
-              het68 ist eine 6-Kanal-Plattform für räumliche Akustik für Edge-Deployments.
-              Sie erfasst Schall in Zeit und Raum — und liefert Daten, die zählen.
-            </p>
-            <div class="hero-actions">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/de/">Flasher öffnen</a>
-              <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                >GitHub-Repo</a
-              >
-              <a class="btn btn-ghost" href="#projekt">Zum Projekt →</a>
+            <p class="brand-mark">HET68</p>
+            <h1>Nimmt Raum wahr.<br />Verändert Wirkung.</h1>
+            <p class="lead-kicker">Akustischer Empfang für ungebetene Gäste.</p>
+            <div class="lead lead-long">
+              <p>
+                Die meisten Bedrohungen setzen darauf, dass man sie in Dunkelheit, Nebel oder
+                niedriger Flughöhe nicht sieht. Wir setzen darauf, dass die Physik des Schalls
+                keine Dunkelheit kennt — und eine akustische Signatur sich nicht maskieren lässt.
+                HET68 ist ein fortschrittliches 6-Kanal-Mikrofonarray, das Verteidigungs- und
+                Industriesystemen präzises räumliches Gehör gibt.
+              </p>
+              <p>
+                Wir hören die Richtung, berechnen die Trajektorie und senden Koordinaten. Bevor
+                der Besuch anklopfen kann.
+              </p>
             </div>
-            <ul class="trust-badges">
-              <li>
-                <span class="badge-icon cz" aria-hidden="true"></span>
-                Entwickelt in Tschechien
-              </li>
-              <li>
-                <span class="badge-icon wave" aria-hidden="true"></span>
-                Niedrige Latenz
-              </li>
-              <li>
-                <span class="badge-icon lock" aria-hidden="true"></span>
-                Lokale Verarbeitung
-              </li>
-            </ul>
+            <div class="hero-actions">
+              <a class="btn btn-teal" href="#projekt">Über das Projekt</a>
+              <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
+                >GitHub</a
+              >
+              <a class="btn btn-ghost" href="#szenarien">Szenarien →</a>
+            </div>
           </div>
 
           <div class="hero-visual">
             <img
               class="poc-image"
               src="/assets/PoC.jpg"
-              alt="het68 — akustischer Proof of Concept, Visualisierung aus dem Projekt"
+              alt="HET68 — akustischer Proof of Concept"
               width="1600"
               height="873"
             />
-            <div class="hero-stats">
-              <div><strong>6×</strong><span>Kanäle</span></div>
-              <div><strong>48 kHz</strong><span>Abtastung</span></div>
-              <div><strong>24-bit</strong><span>S24_3LE</span></div>
-            </div>
           </div>
         </div>
       </section>
 
       <section class="section project" id="projekt">
-        <div class="wrap project-grid">
+        <div class="wrap prose-section">
           <header class="section-head project-head">
-            <p class="offer-kicker teal">Open Source</p>
-            <h2>het68 Firmware und Hardware</h2>
-            <p>
-              Open-Source-Projekt
-              <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                >github.com/fedurca/het68</a
-              >
-              — 6-Kanal-I2S-USB-Soundkarte und Plattform für räumliche Akustik.
-            </p>
+            <p class="offer-kicker teal">Über das Projekt</p>
+            <h2>Früher Empfang für unerwartete Besucher</h2>
           </header>
-
-          <div class="project-card">
-            <h3>Was die Firmware macht</h3>
+          <div class="prose">
             <p>
-              Das het68-Gerät wird zu einem 6-Kanal-USB-Mikrofon (UAC2). Es erfasst sechs
-              unabhängige I2S-Leitungen von ICS-43434-MEMS-Mikrofonen, bewegt Samples per DMA und
-              streamt sie über TinyUSB an den Host.
+              Optische Kameras brauchen Sichtlinie. Radare kämpfen mit Geländeschatten und
+              elektronischer Störung. Doch Drohne, nahender Zug oder defekte Achse haben eines
+              gemeinsam — sie machen Krach.
             </p>
-            <ul class="checklist">
-              <li>USB Audio Class 2.0 · isochron IN</li>
-              <li>6 Kanäle · 48&nbsp;kHz · 24-bit packed (<code>S24_3LE</code>)</li>
-              <li>PIO + DMA Capture, Pipeline für DOA / Detektion</li>
-              <li>Signierte Firmware-Images · Bereitstellung über den Web-Flasher</li>
-            </ul>
-          </div>
-
-          <div class="project-card">
-            <h3>Schnellzugriff</h3>
-            <div class="project-links">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/de/">Web-Flasher</a>
-              <a
-                class="btn btn-ghost"
-                href="https://github.com/fedurca/het68"
-                target="_blank"
-                rel="noopener"
-                >GitHub-Repository</a
-              >
-              <a
-                class="btn btn-ghost"
-                href="https://github.com/fedurca/het68/releases"
-                target="_blank"
-                rel="noopener"
-                >Firmware-Releases</a
-              >
-            </div>
-            <dl class="spec-list">
-              <div>
-                <dt>MCU</dt>
-                <dd>RP2350 · Dual-Core</dd>
-              </div>
-              <div>
-                <dt>Audio</dt>
-                <dd>6× ICS-43434 · 48 kHz / 24-bit</dd>
-              </div>
-              <div>
-                <dt>Flasher</dt>
-                <dd>
-                  <a href="https://flasher.het68.cz/de/">flasher.het68.cz</a> · WebUSB
-                </dd>
-              </div>
-              <div>
-                <dt>Chirp</dt>
-                <dd>
-                  <a href="https://chirp.het68.cz/de/">chirp.het68.cz</a> · akustischer Decoder
-                </dd>
-              </div>
-              <div>
-                <dt>Quelle</dt>
-                <dd>
-                  <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                    >fedurca/het68</a
-                  >
-                </dd>
-              </div>
-            </dl>
+            <p>
+              Projekt HET68 verwandelt diesen Lärm in einen taktischen Vorteil. Wir haben eine
+              kompakte, hochsensible Plattform für räumliche Akustik entwickelt, die das
+              Schallfeld in Echtzeit analysiert. Nichts wandert zur langsamen Verarbeitung in
+              ferne Clouds. Die gesamte Mathematik läuft am Edge. In der Luftverteidigung und
+              kritischen Infrastruktur gilt eine einfache Regel: Wer zu spät reagiert, räumt nur
+              noch Trümmer.
+            </p>
           </div>
         </div>
       </section>
 
-      <section class="section" id="szenarien">
+      <section class="section howto" id="wie-es-funktioniert">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="offer-kicker blue">So funktioniert’s</p>
+            <h2>Mathematik statt Magie</h2>
+          </header>
+          <div class="howto-grid">
+            <article class="howto-card">
+              <h3>Sechs Ohren hören mehr</h3>
+              <p>
+                Ein Array aus sechs unabhängigen MEMS-Mikrofonen tastet den Raum bei
+                48&nbsp;kHz und 24&nbsp;Bit ab. Es erfasst selbst winzige Zeitabweichungen, wenn
+                die Schallwelle die einzelnen Sensoren erreicht.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Geometrie statt Raten</h3>
+              <p>
+                Mit fortschrittlichen DOA-Algorithmen (Direction of Arrival) berechnet das Gerät
+                Winkel und Richtung des Schalls. Mit mehreren Knoten erhalten Sie präzise
+                3D-Triangulation eines Ziels über Kilometer.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Kein überflüssiges Gerede</h3>
+              <p>
+                Ein zweikerniger RP2350-Chip verarbeitet Rohdaten vor Ort. Nach außen gehen nur
+                saubere, strukturierte Informationen mit nahezu null Latenz — präzise
+                Koordinaten für Systeme, die für einen entsprechend warmen Empfang sorgen.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Offener Code, geschlossener Himmel</h3>
+              <p>
+                Keine Black-Box-Geräte mit geheimnisvollem Inhalt. Unsere Hardware und Firmware
+                sind Open Source. Sie wissen genau, was das Gerät tut, welche Daten es
+                verarbeitet und wie Sie es in Ihre bestehende Sicherheitsinfrastruktur
+                integrieren.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section memory" id="erinnerung">
+        <div class="wrap prose-section">
+          <header class="section-head project-head">
+            <h2>Erinnerung im Silizium.</h2>
+          </header>
+          <div class="prose">
+            <p>
+              Das Akronym HET68 (nicht 1968) ist für uns mehr als ein Codename. Es ist eine
+              Erinnerung. In unserer Geschichte hat uns eine Überraschung aus dem Himmel einmal
+              Jahrzehnte der Freiheit gekostet. Wir entwickeln und liefern diese Technologie mit
+              einem klaren Ziel: dass keine unerwartete Parade fremder Maschinen unbemerkt
+              bleibt — und ohne sofortige, präzise Antwort.
+            </p>
+          </div>
+        </div>
+      </section>
+
+<section class="section" id="szenarien">
         <div class="wrap">
           <header class="section-head">
             <h2>Szenarien</h2>
@@ -364,12 +359,12 @@
         </div>
       </section>
 
-      <section class="section offers" id="wie">
+<section class="section offers" id="wie">
         <div class="wrap offers-grid">
           <article class="offer-card offer-hw" id="hardware">
             <div class="offer-copy">
               <p class="offer-kicker teal">Hardware</p>
-              <h2>het68 Sensor-Appliance</h2>
+              <h2>HET68 Sensor-Appliance</h2>
               <ul class="checklist">
                 <li>6 MEMS-Mikrofone + lokale Verarbeitung</li>
                 <li>USB‑C- und Wi‑Fi-Konnektivität</li>
@@ -381,7 +376,7 @@
               </ul>
             </div>
             <figure class="offer-media">
-              <img src="/assets/hardware.svg" alt="het68 Hardware" width="640" height="360" />
+              <img src="/assets/hardware.svg" alt="HET68 Hardware" width="640" height="360" />
             </figure>
             <div class="offer-foot">
               <div>
@@ -410,7 +405,7 @@
             <figure class="offer-media">
               <img
                 src="/assets/dashboard.svg"
-                alt="Vorschau des het68-Dashboards"
+                alt="Vorschau des HET68-Dashboards"
                 width="640"
                 height="360"
               />
@@ -426,7 +421,7 @@
         </div>
       </section>
 
-      <section class="section contact" id="kontakt">
+<section class="section contact" id="kontakt">
         <div class="wrap contact-inner">
           <h2>Kontakt</h2>
           <p>
@@ -435,10 +430,10 @@
             — wir melden uns zu Hardware oder Firmenservice.
           </p>
           <div class="contact-actions">
-            <a class="btn btn-teal" href="mailto:hello@het68.cz?subject=het68%20Hardware"
+            <a class="btn btn-teal" href="mailto:hello@het68.cz?subject=HET68%20Hardware"
               >Hardware anfragen</a
             >
-            <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=het68%20Firmenservice"
+            <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=HET68%20Firmenservice"
               >Service anfragen</a
             >
             <a class="btn btn-ghost" href="https://flasher.het68.cz/de/">Flasher</a>
@@ -450,9 +445,9 @@
 
     <footer class="site-footer">
       <div class="wrap footer-inner">
-        <a class="logo" href="/de/">het68</a>
+        <a class="logo" href="/de/">HET68</a>
         <p>
-          © <span id="year"></span> het68 ·
+          © <span id="year"></span> HET68 ·
           <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
         </p>
         <div class="footer-links">
@@ -462,6 +457,9 @@
           <a href="https://chirp.het68.cz/de/">Chirp</a>
         </div>
         <p class="build-meta" id="buildMeta" hidden></p>
+        <p class="footer-gate">
+          <a href="/de/?hb=d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e">?hb=d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e</a>
+        </p>
       </div>
     </footer>
 

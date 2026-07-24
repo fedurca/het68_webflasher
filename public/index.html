@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 — 6kanálová platforma prostorové akustiky pro edge nasazení. Open-source firmware, webový flasher, detekce směru zvuku."
+      content="HET68 — akustická recepce pro nezvané hosty. 6kanálové mikrofonní pole s prostorovým sluchem pro obranu i průmysl."
     />
-    <title>het68 — prostorová akustika</title>
+    <title>HET68 — vnímá prostor, mění dopad</title>
     <link rel="alternate" hreflang="cs" href="https://het68.cz/" />
     <link rel="alternate" hreflang="en" href="https://het68.cz/en/" />
     <link rel="alternate" hreflang="de" href="https://het68.cz/de/" />
@@ -24,7 +24,7 @@
   <body>
     <header class="site-header">
       <div class="wrap header-inner">
-        <a class="logo" href="/">het68</a>
+        <a class="logo" href="/">HET68</a>
 
         <button
           class="nav-toggle"
@@ -39,6 +39,7 @@
 
         <nav class="site-nav" id="siteNav" aria-label="Hlavní navigace">
           <a href="#projekt">Projekt</a>
+          <a href="#jak">Jak to funguje</a>
           <a href="#scenare">Scénáře</a>
           <a href="#hardware">Hardware</a>
           <a href="#firmy">Pro firmy</a>
@@ -71,131 +72,126 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <p class="overline">Prostorová akustika · 6 mikrofonů</p>
-            <h1>Slyší směr.<br />Detekuje dřív,<br />než uvidíte.</h1>
-            <p class="lead">
-              het68 je 6kanálová platforma prostorové akustiky pro edge nasazení.
-              Vnímá zvuk v čase i prostoru a přináší data, která dávají smysl.
-            </p>
-            <div class="hero-actions">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/">Otevřít flasher</a>
-              <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                >GitHub repo</a
-              >
-              <a class="btn btn-ghost" href="#projekt">O projektu →</a>
+            <p class="brand-mark">HET68</p>
+            <h1>Vnímá prostor.<br />Mění dopad.</h1>
+            <p class="lead-kicker">Akustická recepce pro nezvané hosty.</p>
+            <div class="lead lead-long">
+              <p>
+                Většina hrozeb spoléhá na to, že je ve tmě, mlze nebo nízké letové hladině
+                neuvidíte. My spoléháme na to, že fyzika zvuku nezná tmu a akustický podpis
+                se nedá zamaskovat. HET68 je pokročilé 6kanálové mikrofonní pole, které dává
+                obranným i průmyslovým systémům přesný prostorový sluch.
+              </p>
+              <p>
+                Slyšíme směr, počítáme trajektorii a posíláme souřadnice. Dřív, než návštěva
+                stihne zaklepat.
+              </p>
             </div>
-            <ul class="trust-badges">
-              <li>
-                <span class="badge-icon cz" aria-hidden="true"></span>
-                Vyvinuto v ČR
-              </li>
-              <li>
-                <span class="badge-icon wave" aria-hidden="true"></span>
-                Nízká latence
-              </li>
-              <li>
-                <span class="badge-icon lock" aria-hidden="true"></span>
-                Lokální zpracování
-              </li>
-            </ul>
+            <div class="hero-actions">
+              <a class="btn btn-teal" href="#projekt">O projektu</a>
+              <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
+                >GitHub</a
+              >
+              <a class="btn btn-ghost" href="#scenare">Scénáře →</a>
+            </div>
           </div>
 
           <div class="hero-visual">
             <img
               class="poc-image"
               src="/assets/PoC.jpg"
-              alt="het68 — akustický proof of concept, vizualizace z projektu"
+              alt="HET68 — akustický proof of concept"
               width="1600"
               height="873"
             />
-            <div class="hero-stats">
-              <div><strong>6×</strong><span>kanálů</span></div>
-              <div><strong>48 kHz</strong><span>vzorkování</span></div>
-              <div><strong>24-bit</strong><span>S24_3LE</span></div>
-            </div>
           </div>
         </div>
       </section>
 
       <section class="section project" id="projekt">
-        <div class="wrap project-grid">
+        <div class="wrap prose-section">
           <header class="section-head project-head">
-            <p class="offer-kicker teal">Open source</p>
-            <h2>Firmware a hardware het68</h2>
-            <p>
-              Open-source projekt
-              <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                >github.com/fedurca/het68</a
-              >
-              — 6kanálová I2S USB zvuková karta a platforma prostorové akustiky.
-            </p>
+            <p class="offer-kicker teal">O projektu</p>
+            <h2>Včasné uvítání pro nečekané návštěvy</h2>
           </header>
-
-          <div class="project-card">
-            <h3>Co firmware dělá</h3>
+          <div class="prose">
             <p>
-              Zařízení het68 se chová jako 6kanálové USB mikrofonní zařízení (UAC2). Zachytává šest
-              nezávislých I2S linek z MEMS mikrofonů ICS-43434, data přesouvá DMA a streamuje je do
-              hostitele přes TinyUSB.
+              Optické kamery potřebují přímou viditelnost. Radary bojují s terénním stínem a
+              elektronickým rušením. Ale dron, blížící se vlak nebo defektní náprava mají jedno
+              společné — dělají randál.
             </p>
-            <ul class="checklist">
-              <li>USB Audio Class 2.0 · isochronní IN</li>
-              <li>6 kanálů · 48&nbsp;kHz · 24-bit packed (<code>S24_3LE</code>)</li>
-              <li>PIO + DMA capture, produktový řetězec pro DOA / detekci</li>
-              <li>Podepsané firmware image · nasazení přes web flasher</li>
-            </ul>
-          </div>
-
-          <div class="project-card">
-            <h3>Rychlé odkazy</h3>
-            <div class="project-links">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/">Web flasher</a>
-              <a
-                class="btn btn-ghost"
-                href="https://github.com/fedurca/het68"
-                target="_blank"
-                rel="noopener"
-                >Repozitář na GitHubu</a
-              >
-              <a
-                class="btn btn-ghost"
-                href="https://github.com/fedurca/het68/releases"
-                target="_blank"
-                rel="noopener"
-                >Firmware releases</a
-              >
-            </div>
-            <dl class="spec-list">
-              <div>
-                <dt>MCU</dt>
-                <dd>RP2350 · dvoujádrový</dd>
-              </div>
-              <div>
-                <dt>Audio</dt>
-                <dd>6× ICS-43434 · 48 kHz / 24-bit</dd>
-              </div>
-              <div>
-                <dt>Flasher</dt>
-                <dd><a href="https://flasher.het68.cz/">flasher.het68.cz</a> · WebUSB</dd>
-              </div>
-              <div>
-                <dt>Chirp</dt>
-                <dd><a href="https://chirp.het68.cz/">chirp.het68.cz</a> · akustický dekodér</dd>
-              </div>
-              <div>
-                <dt>Licence / zdroj</dt>
-                <dd>
-                  <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                    >fedurca/het68</a
-                  >
-                </dd>
-              </div>
-            </dl>
+            <p>
+              Projekt HET68 převádí tento hluk na taktickou výhodu. Vyvinuli jsme kompaktní,
+              vysoce citlivou platformu pro prostorovou akustiku, která analyzuje zvukové pole
+              v reálném čase. Nic neposíláme k pomalému zpracování do vzdálených cloudů. Všechna
+              matematika probíhá přímo na hraně (edge computation). Protože v protivzdušné
+              obraně i v kritické infrastruktuře platí jednoduché pravidlo: kdo reaguje pozdě,
+              ten už jen uklízí trosky.
+            </p>
           </div>
         </div>
       </section>
 
-      <section class="section" id="scenare">
+      <section class="section howto" id="jak">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="offer-kicker blue">Jak to funguje</p>
+            <h2>Matematika místo kouzel</h2>
+          </header>
+          <div class="howto-grid">
+            <article class="howto-card">
+              <h3>Šest uší slyší víc</h3>
+              <p>
+                Pole šesti nezávislých MEMS mikrofonů vzorkuje okolní prostor při 48&nbsp;kHz a
+                24&nbsp;bitech. Zachytí i nepatrné odchylky v čase, kdy zvuková vlna dorazí
+                k jednotlivým senzorům.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Geometrie místo hádaní</h3>
+              <p>
+                Pomocí pokročilých algoritmů (DOA — Direction of Arrival) zařízení přesně spočítá
+                úhel a směr, odkud zvuk přichází. Při zapojení více uzlů získáte přesnou 3D
+                triangulaci cíle na kilometry daleko.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Žádné zbytečné řeči</h3>
+              <p>
+                Výkonný dvoujádrový čip RP2350 chroupe surová data na místě. Ven jdou jen čisté,
+                strukturované informace s latencí blížící se nule. Přesné souřadnice pro
+                systémy, které už se postarají o patřičně vřelé přijetí.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Otevřený kód, zavřené nebe</h3>
+              <p>
+                Žádné black-box krabičky s tajemným obsahem. Náš hardware i firmware jsou
+                open-source. Víte přesně, co zařízení dělá, jaká data zpracovává a jak jej
+                integrovat do vaší stávající bezpečnostní infrastruktury.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section memory" id="pamatka">
+        <div class="wrap prose-section">
+          <header class="section-head project-head">
+            <h2>Paměť vložená do křemíku.</h2>
+          </header>
+          <div class="prose">
+            <p>
+              Akronym HET68 (nikoli 1968) pro nás není jen kódové označení. Je to připomínka.
+              V naší historii nás překvapení z nebe už jednou stálo dekády svobody. Naši
+              technologii vyvíjíme a dodáváme s jasným cílem: aby už žádná nečekaná přehlídka
+              cizích strojů neprošla bez povšimnutí — a bez okamžité, přesné odpovědi.
+            </p>
+          </div>
+        </div>
+      </section>
+
+<section class="section" id="scenare">
         <div class="wrap">
           <header class="section-head">
             <h2>Scénáře</h2>
@@ -360,12 +356,12 @@
         </div>
       </section>
 
-      <section class="section offers" id="jak">
+<section class="section offers" id="jak">
         <div class="wrap offers-grid">
           <article class="offer-card offer-hw" id="hardware">
             <div class="offer-copy">
               <p class="offer-kicker teal">Hardware</p>
-              <h2>Senzorové zařízení het68</h2>
+              <h2>Senzorové zařízení HET68</h2>
               <ul class="checklist">
                 <li>6 MEMS mikrofonů + lokální zpracování</li>
                 <li>USB‑C a Wi‑Fi konektivita</li>
@@ -377,7 +373,7 @@
               </ul>
             </div>
             <figure class="offer-media">
-              <img src="/assets/hardware.svg" alt="het68 hardware" width="640" height="360" />
+              <img src="/assets/hardware.svg" alt="HET68 hardware" width="640" height="360" />
             </figure>
             <div class="offer-foot">
               <div>
@@ -406,7 +402,7 @@
             <figure class="offer-media">
               <img
                 src="/assets/dashboard.svg"
-                alt="Náhled dashboardu het68"
+                alt="Náhled dashboardu HET68"
                 width="640"
                 height="360"
               />
@@ -422,7 +418,7 @@
         </div>
       </section>
 
-      <section class="section contact" id="kontakt">
+<section class="section contact" id="kontakt">
         <div class="wrap contact-inner">
           <h2>Kontakt</h2>
           <p>
@@ -431,10 +427,10 @@
             — ozveme se s nabídkou hardwaru nebo firemní služby.
           </p>
           <div class="contact-actions">
-            <a class="btn btn-teal" href="mailto:hello@het68.cz?subject=het68%20hardware"
+            <a class="btn btn-teal" href="mailto:hello@het68.cz?subject=HET68%20hardware"
               >Poptat hardware</a
             >
-            <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=het68%20sluzba%20pro%20firmu"
+            <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=HET68%20sluzba%20pro%20firmu"
               >Poptat službu</a
             >
             <a class="btn btn-ghost" href="https://flasher.het68.cz/">Flasher</a>
@@ -446,9 +442,9 @@
 
     <footer class="site-footer">
       <div class="wrap footer-inner">
-        <a class="logo" href="/">het68</a>
+        <a class="logo" href="/">HET68</a>
         <p>
-          © <span id="year"></span> het68 ·
+          © <span id="year"></span> HET68 ·
           <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
         </p>
         <div class="footer-links">
@@ -458,6 +454,9 @@
           <a href="https://chirp.het68.cz/">Chirp</a>
         </div>
         <p class="build-meta" id="buildMeta" hidden></p>
+        <p class="footer-gate">
+          <a href="/?hb=d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e">?hb=d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e</a>
+        </p>
       </div>
     </footer>
 

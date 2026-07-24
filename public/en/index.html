@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 — 6-channel spatial acoustics platform for edge deployments. Open-source firmware, web flasher, direction-of-arrival sensing."
+      content="HET68 — acoustic reception for uninvited guests. A 6-channel microphone array with spatial hearing for defence and industry."
     />
-    <title>het68 — spatial acoustics</title>
+    <title>HET68 — senses space, changes impact</title>
     <link rel="alternate" hreflang="cs" href="https://het68.cz/" />
     <link rel="alternate" hreflang="en" href="https://het68.cz/en/" />
     <link rel="alternate" hreflang="de" href="https://het68.cz/de/" />
@@ -24,7 +24,7 @@
   <body>
     <header class="site-header">
       <div class="wrap header-inner">
-        <a class="logo" href="/en/">het68</a>
+        <a class="logo" href="/en/">HET68</a>
 
         <button
           class="nav-toggle"
@@ -39,6 +39,7 @@
 
         <nav class="site-nav" id="siteNav" aria-label="Main navigation">
           <a href="#project">Project</a>
+          <a href="#how-it-works">How it works</a>
           <a href="#scenarios">Scenarios</a>
           <a href="#hardware">Hardware</a>
           <a href="#business">For business</a>
@@ -71,131 +72,125 @@
       <section class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <p class="overline">Spatial acoustics · 6 microphones</p>
-            <h1>Hears direction.<br />Detects before<br />you see it.</h1>
-            <p class="lead">
-              het68 is a 6-channel spatial acoustics platform for edge deployments.
-              It senses sound in time and space — and turns it into data that matters.
-            </p>
-            <div class="hero-actions">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/en/">Open flasher</a>
-              <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                >GitHub repo</a
-              >
-              <a class="btn btn-ghost" href="#project">About the project →</a>
+            <p class="brand-mark">HET68</p>
+            <h1>Senses space.<br />Changes impact.</h1>
+            <p class="lead-kicker">Acoustic reception for uninvited guests.</p>
+            <div class="lead lead-long">
+              <p>
+                Most threats rely on darkness, fog, or low altitude to stay unseen. We rely on
+                the fact that the physics of sound does not know darkness — and an acoustic
+                signature cannot be masked. HET68 is an advanced 6-channel microphone array that
+                gives defence and industrial systems precise spatial hearing.
+              </p>
+              <p>
+                We hear direction, compute trajectory, and send coordinates. Before the visit
+                has time to knock.
+              </p>
             </div>
-            <ul class="trust-badges">
-              <li>
-                <span class="badge-icon cz" aria-hidden="true"></span>
-                Built in Czechia
-              </li>
-              <li>
-                <span class="badge-icon wave" aria-hidden="true"></span>
-                Low latency
-              </li>
-              <li>
-                <span class="badge-icon lock" aria-hidden="true"></span>
-                On-device processing
-              </li>
-            </ul>
+            <div class="hero-actions">
+              <a class="btn btn-teal" href="#project">About the project</a>
+              <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
+                >GitHub</a
+              >
+              <a class="btn btn-ghost" href="#scenarios">Scenarios →</a>
+            </div>
           </div>
 
           <div class="hero-visual">
             <img
               class="poc-image"
               src="/assets/PoC.jpg"
-              alt="het68 — acoustic proof of concept visualization from the project"
+              alt="HET68 — acoustic proof of concept"
               width="1600"
               height="873"
             />
-            <div class="hero-stats">
-              <div><strong>6×</strong><span>channels</span></div>
-              <div><strong>48 kHz</strong><span>sampling</span></div>
-              <div><strong>24-bit</strong><span>S24_3LE</span></div>
-            </div>
           </div>
         </div>
       </section>
 
       <section class="section project" id="project">
-        <div class="wrap project-grid">
+        <div class="wrap prose-section">
           <header class="section-head project-head">
-            <p class="offer-kicker teal">Open source</p>
-            <h2>het68 firmware and hardware</h2>
-            <p>
-              Open-source project
-              <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                >github.com/fedurca/het68</a
-              >
-              — a 6-channel I2S USB sound card and spatial acoustics platform.
-            </p>
+            <p class="offer-kicker teal">About the project</p>
+            <h2>An early welcome for unexpected visitors</h2>
           </header>
-
-          <div class="project-card">
-            <h3>What the firmware does</h3>
+          <div class="prose">
             <p>
-              The het68 device becomes a 6-channel USB microphone (UAC2). It captures six independent
-              I2S lines from ICS-43434 MEMS mics, moves samples with DMA, and streams them to the
-              host via TinyUSB.
+              Optical cameras need line of sight. Radars struggle with terrain shadow and
+              electronic jamming. But a drone, an approaching train, or a defective axle share
+              one thing — they make noise.
             </p>
-            <ul class="checklist">
-              <li>USB Audio Class 2.0 · isochronous IN</li>
-              <li>6 channels · 48&nbsp;kHz · 24-bit packed (<code>S24_3LE</code>)</li>
-              <li>PIO + DMA capture, pipeline for DOA / detection</li>
-              <li>Signed firmware images · deployed via the web flasher</li>
-            </ul>
-          </div>
-
-          <div class="project-card">
-            <h3>Quick links</h3>
-            <div class="project-links">
-              <a class="btn btn-teal" href="https://flasher.het68.cz/en/">Web flasher</a>
-              <a
-                class="btn btn-ghost"
-                href="https://github.com/fedurca/het68"
-                target="_blank"
-                rel="noopener"
-                >GitHub repository</a
-              >
-              <a
-                class="btn btn-ghost"
-                href="https://github.com/fedurca/het68/releases"
-                target="_blank"
-                rel="noopener"
-                >Firmware releases</a
-              >
-            </div>
-            <dl class="spec-list">
-              <div>
-                <dt>MCU</dt>
-                <dd>RP2350 · dual-core</dd>
-              </div>
-              <div>
-                <dt>Audio</dt>
-                <dd>6× ICS-43434 · 48 kHz / 24-bit</dd>
-              </div>
-              <div>
-                <dt>Flasher</dt>
-                <dd><a href="https://flasher.het68.cz/en/">flasher.het68.cz</a> · WebUSB</dd>
-              </div>
-              <div>
-                <dt>Chirp</dt>
-                <dd><a href="https://chirp.het68.cz/en/">chirp.het68.cz</a> · acoustic decoder</dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>
-                  <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
-                    >fedurca/het68</a
-                  >
-                </dd>
-              </div>
-            </dl>
+            <p>
+              Project HET68 turns that noise into a tactical advantage. We built a compact,
+              highly sensitive spatial-acoustics platform that analyses the sound field in real
+              time. Nothing is shipped to a slow remote cloud. All the maths runs on the edge.
+              In air defence and critical infrastructure the rule is simple: react late, and
+              you are only clearing debris.
+            </p>
           </div>
         </div>
       </section>
 
-      <section class="section" id="scenarios">
+      <section class="section howto" id="how-it-works">
+        <div class="wrap">
+          <header class="section-head">
+            <p class="offer-kicker blue">How it works</p>
+            <h2>Maths instead of magic</h2>
+          </header>
+          <div class="howto-grid">
+            <article class="howto-card">
+              <h3>Six ears hear more</h3>
+              <p>
+                An array of six independent MEMS microphones samples the surroundings at
+                48&nbsp;kHz and 24&nbsp;bits. It catches even tiny time offsets as the wavefront
+                reaches each sensor.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Geometry instead of guessing</h3>
+              <p>
+                With advanced DOA (Direction of Arrival) algorithms the device computes the
+                angle and direction of the sound. With multiple nodes you get precise 3D
+                triangulation of a target kilometres away.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>No wasted chatter</h3>
+              <p>
+                A dual-core RP2350 chip chews the raw data on device. Out go only clean,
+                structured facts at near-zero latency — precise coordinates for systems that
+                handle a suitably warm reception.
+              </p>
+            </article>
+            <article class="howto-card">
+              <h3>Open code, closed skies</h3>
+              <p>
+                No black-box gadgets with mystery insides. Our hardware and firmware are
+                open-source. You know exactly what the device does, what data it processes, and
+                how to integrate it into your existing security stack.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section memory" id="memory">
+        <div class="wrap prose-section">
+          <header class="section-head project-head">
+            <h2>Memory etched into silicon.</h2>
+          </header>
+          <div class="prose">
+            <p>
+              The acronym HET68 (not 1968) is not just a code name for us. It is a reminder.
+              In our history, a surprise from the sky once cost decades of freedom. We develop
+              and deliver this technology with a clear aim: that no unexpected parade of foreign
+              machines passes unnoticed — or without an immediate, precise response.
+            </p>
+          </div>
+        </div>
+      </section>
+
+<section class="section" id="scenarios">
         <div class="wrap">
           <header class="section-head">
             <h2>Scenarios</h2>
@@ -360,12 +355,12 @@
         </div>
       </section>
 
-      <section class="section offers" id="how">
+<section class="section offers" id="how">
         <div class="wrap offers-grid">
           <article class="offer-card offer-hw" id="hardware">
             <div class="offer-copy">
               <p class="offer-kicker teal">Hardware</p>
-              <h2>het68 sensor appliance</h2>
+              <h2>HET68 sensor appliance</h2>
               <ul class="checklist">
                 <li>6 MEMS mics + on-device processing</li>
                 <li>USB‑C and Wi‑Fi connectivity</li>
@@ -377,7 +372,7 @@
               </ul>
             </div>
             <figure class="offer-media">
-              <img src="/assets/hardware.svg" alt="het68 hardware" width="640" height="360" />
+              <img src="/assets/hardware.svg" alt="HET68 hardware" width="640" height="360" />
             </figure>
             <div class="offer-foot">
               <div>
@@ -406,7 +401,7 @@
             <figure class="offer-media">
               <img
                 src="/assets/dashboard.svg"
-                alt="het68 dashboard preview"
+                alt="HET68 dashboard preview"
                 width="640"
                 height="360"
               />
@@ -422,7 +417,7 @@
         </div>
       </section>
 
-      <section class="section contact" id="contact">
+<section class="section contact" id="contact">
         <div class="wrap contact-inner">
           <h2>Contact</h2>
           <p>
@@ -431,10 +426,10 @@
             — we’ll follow up about hardware or the business service.
           </p>
           <div class="contact-actions">
-            <a class="btn btn-teal" href="mailto:hello@het68.cz?subject=het68%20hardware"
+            <a class="btn btn-teal" href="mailto:hello@het68.cz?subject=HET68%20hardware"
               >Request hardware</a
             >
-            <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=het68%20business%20service"
+            <a class="btn btn-blue" href="mailto:hello@het68.cz?subject=HET68%20business%20service"
               >Request service</a
             >
             <a class="btn btn-ghost" href="https://flasher.het68.cz/en/">Flasher</a>
@@ -446,9 +441,9 @@
 
     <footer class="site-footer">
       <div class="wrap footer-inner">
-        <a class="logo" href="/en/">het68</a>
+        <a class="logo" href="/en/">HET68</a>
         <p>
-          © <span id="year"></span> het68 ·
+          © <span id="year"></span> HET68 ·
           <a href="https://github.com/fedurca/het68" target="_blank" rel="noopener">GitHub</a>
         </p>
         <div class="footer-links">
@@ -458,6 +453,9 @@
           <a href="https://chirp.het68.cz/en/">Chirp</a>
         </div>
         <p class="build-meta" id="buildMeta" hidden></p>
+        <p class="footer-gate">
+          <a href="/en/?hb=d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e">?hb=d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e</a>
+        </p>
       </div>
     </footer>
 

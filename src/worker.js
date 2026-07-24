@@ -291,15 +291,33 @@ function timingSafeEqual(a, b) {
 const AUTH_COOKIE = "het68_auth";
 const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
+/** Long random query token (footer link) that grants the same session cookie as Basic. */
+const AUTH_BYPASS_PARAM = "hb";
+const AUTH_BYPASS_TOKEN =
+  "d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e";
+
 function unauthorized() {
   return new Response("Authentication required", {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Basic realm="het68", charset="UTF-8"',
+      "WWW-Authenticate": 'Basic realm="HET68", charset="UTF-8"',
       "Cache-Control": "no-store",
       "Content-Type": "text/plain; charset=utf-8",
     },
   });
+}
+
+function checkAuthBypass(request, env) {
+  const expected = env.AUTH_BYPASS_TOKEN || AUTH_BYPASS_TOKEN;
+  if (!expected) return false;
+  try {
+    const url = new URL(request.url);
+    const got = url.searchParams.get(AUTH_BYPASS_PARAM);
+    if (!got) return false;
+    return timingSafeEqual(got, expected);
+  } catch {
+    return false;
+  }
 }
 
 function checkBasicAuth(request, env) {
@@ -374,7 +392,8 @@ function withAuthCookie(response, hostname, token) {
 /**
  * Accept either:
  *  - shared auth cookie (set after login on any *.het68.cz host), or
- *  - valid Basic Auth (then caller should attach Set-Cookie to the response).
+ *  - valid Basic Auth (then caller should attach Set-Cookie to the response), or
+ *  - footer bypass query `?hb=<long token>` (sets the same shared cookie).
  */
 async function authorizeRequest(request, env) {
   const expected = await authToken(env);
@@ -384,6 +403,9 @@ async function authorizeRequest(request, env) {
     return { ok: true, setCookie: false, token: expected };
   }
   if (checkBasicAuth(request, env)) {
+    return { ok: true, setCookie: true, token: expected };
+  }
+  if (checkAuthBypass(request, env)) {
     return { ok: true, setCookie: true, token: expected };
   }
   return { ok: false, setCookie: false, token: null };
