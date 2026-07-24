@@ -273,9 +273,10 @@ a:hover {
 
 .hero-atmos {
   position: absolute;
-  inset: -8% -5% -12%;
+  inset: -10% -12% -14%;
   z-index: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .hero-atmos canvas {
