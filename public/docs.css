@@ -66,7 +66,7 @@
 
 .docs-aside a:hover {
   color: var(--text);
-  background: rgba(31, 191, 160, 0.08);
+  background: rgba(8, 104, 33, 0.08);
 }
 
 .docs-card {
@@ -174,8 +174,8 @@ body:not(.theme-light) .swagger-shell {
   margin: 0 0 0.65rem;
   padding: 0.28rem 0.55rem;
   border-radius: 999px;
-  border: 1px solid rgba(31, 191, 160, 0.35);
-  background: rgba(31, 191, 160, 0.1);
+  border: 1px solid rgba(8, 104, 33, 0.35);
+  background: rgba(8, 104, 33, 0.1);
   color: var(--teal);
   font-size: 0.72rem;
   font-weight: 800;
@@ -223,8 +223,8 @@ body:not(.theme-light) .swagger-shell {
 
 .admin-pill.ok {
   color: var(--teal);
-  border-color: rgba(31, 191, 160, 0.35);
-  background: rgba(31, 191, 160, 0.1);
+  border-color: rgba(8, 104, 33, 0.35);
+  background: rgba(8, 104, 33, 0.1);
 }
 
 .admin-pill.warn {
@@ -248,7 +248,7 @@ body:not(.theme-light) .swagger-shell {
   min-height: 280px;
   position: relative;
   background:
-    radial-gradient(circle at 30% 40%, rgba(31, 191, 160, 0.18), transparent 28%),
+    radial-gradient(circle at 30% 40%, rgba(8, 104, 33, 0.18), transparent 28%),
     radial-gradient(circle at 68% 55%, rgba(59, 130, 246, 0.16), transparent 22%),
     linear-gradient(160deg, rgba(16, 24, 32, 0.9), rgba(8, 12, 16, 0.95));
   border-right: 1px solid var(--line);
@@ -260,7 +260,7 @@ body:not(.theme-light) .swagger-shell {
   height: 12px;
   border-radius: 50%;
   background: var(--teal);
-  box-shadow: 0 0 0 6px rgba(31, 191, 160, 0.18);
+  box-shadow: 0 0 0 6px rgba(8, 104, 33, 0.18);
 }
 
 .admin-node.n1 { left: 28%; top: 38%; }

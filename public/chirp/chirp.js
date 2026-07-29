@@ -1753,8 +1753,8 @@
     if (typeof ALINK !== "undefined") {
       var hops = ALINK.CONST.HOPS;
       bandLine(ALINK.CONST.PREAMBLE_HZ, "rgba(59,130,246,0.55)");
-      bandLine(hops[0], "rgba(31,191,160,0.4)");
-      bandLine(hops[hops.length - 1], "rgba(31,191,160,0.4)");
+      bandLine(hops[0], "rgba(8, 104, 33,0.4)");
+      bandLine(hops[hops.length - 1], "rgba(8, 104, 33,0.4)");
     }
 
     // dominant frequency graph — colored by waveform class when pure

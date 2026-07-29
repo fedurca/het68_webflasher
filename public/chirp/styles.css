@@ -8,8 +8,8 @@
   --line: rgba(148, 163, 184, 0.16);
   --text: #f2f6f8;
   --muted: #9aa8b5;
-  --teal: #1fbfa0;
-  --teal-ink: #04251e;
+  --teal: #086821;
+  --teal-ink: #f2f8f3;
   --blue: #3b82f6;
   --danger: #e07a6a;
   --warn-bg: rgba(226, 180, 90, 0.1);
@@ -36,8 +36,8 @@ html[data-theme="light"] {
   --line: rgba(15, 23, 32, 0.12);
   --text: #0f1720;
   --muted: #5b6b78;
-  --teal: #0f9f84;
-  --teal-ink: #04251e;
+  --teal: #086821;
+  --teal-ink: #ffffff;
   --blue: #2563eb;
   --danger: #c2410c;
   --warn-bg: rgba(180, 130, 20, 0.1);
@@ -59,7 +59,7 @@ body {
   font-family: var(--font);
   color: var(--text);
   background:
-    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(31, 191, 160, 0.14), transparent 55%),
+    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(8, 104, 33, 0.14), transparent 55%),
     radial-gradient(ellipse 60% 40% at 100% 15%, rgba(59, 130, 246, 0.1), transparent 50%),
     var(--bg);
 }
@@ -137,7 +137,7 @@ a { color: var(--teal); }
 }
 .lang-switch a:hover { color: var(--text); }
 .lang-switch a.is-active {
-  background: rgba(31, 191, 160, 0.18);
+  background: rgba(8, 104, 33, 0.18);
   color: var(--text);
 }
 
@@ -181,7 +181,7 @@ a { color: var(--teal); }
   padding: 0.3rem 0.7rem; border-radius: 999px; border: 1px solid var(--line);
   font-size: 0.78rem; font-weight: 700; color: var(--muted); background: var(--bg-pill);
 }
-.pill.on { color: var(--teal); border-color: rgba(31,191,160,0.5); }
+.pill.on { color: var(--teal); border-color: rgba(8, 104, 33,0.5); }
 .pill.err { color: var(--danger); border-color: rgba(224,122,106,0.5); }
 
 .banner { margin-top: 1rem; padding: 0.75rem 0.9rem; border-radius: 12px; border: 1px solid var(--line); }
@@ -235,7 +235,7 @@ html[data-theme="light"] .spectro-wrap {
 }
 .spectro-field input[type="range"] { width: 100%; }
 #spectroLive.is-active {
-  border-color: rgba(31, 191, 160, 0.55);
+  border-color: rgba(8, 104, 33, 0.55);
   color: var(--teal);
 }
 #recPause.is-active {
@@ -309,7 +309,7 @@ table.nodes td { white-space: nowrap; }
 
 #radar {
   width: 100%; height: auto; max-width: 520px; margin: 0 auto; display: block;
-  background: radial-gradient(circle at 50% 50%, rgba(31,191,160,0.05), transparent 70%);
+  background: radial-gradient(circle at 50% 50%, rgba(8, 104, 33,0.05), transparent 70%);
   border-radius: 12px;
 }
 .radar-meta {

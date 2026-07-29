@@ -18,8 +18,8 @@
       <stop offset="1" stop-color="#232c34"/>
     </linearGradient>
     <radialGradient id="h68glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#1fbfa0" stop-opacity="0.5"/>
-      <stop offset="1" stop-color="#1fbfa0" stop-opacity="0"/>
+      <stop offset="0" stop-color="#086821" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#086821" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
@@ -34,18 +34,18 @@
 
   <polygon points="222,110 150,150 150,232 222,192" fill="url(#h68right)" stroke="#0f151a" stroke-width="1"/>
   <polygon points="78,110 150,150 150,232 78,192" fill="url(#h68left)" stroke="#0f151a" stroke-width="1"/>
-  <polygon points="150,70 222,110 150,150 78,110" fill="url(#h68top)" stroke="#1fbfa0" stroke-width="1.6"/>
+  <polygon points="150,70 222,110 150,150 78,110" fill="url(#h68top)" stroke="#086821" stroke-width="1.6"/>
 
-  <g stroke="#1fbfa0" stroke-opacity="0.35" stroke-width="1.2">
+  <g stroke="#086821" stroke-opacity="0.35" stroke-width="1.2">
     <line x1="122" y1="98" x2="178" y2="130"/>
     <line x1="134" y1="92" x2="190" y2="124"/>
     <line x1="110" y1="104" x2="166" y2="136"/>
   </g>
 
-  <circle cx="200" cy="132" r="4.5" fill="#1fbfa0"/>
-  <circle cx="200" cy="132" r="8" fill="none" stroke="#1fbfa0" stroke-opacity="0.4" stroke-width="1.5"/>
+  <circle cx="200" cy="132" r="4.5" fill="#086821"/>
+  <circle cx="200" cy="132" r="8" fill="none" stroke="#086821" stroke-opacity="0.4" stroke-width="1.5"/>
 
   <text x="114" y="196" transform="skewY(29)" font-family="Manrope, Arial, sans-serif" font-size="22" font-weight="800" letter-spacing="0.5" fill="#eef3f6">het68</text>
 
-  <line x1="150" y1="150" x2="150" y2="232" stroke="#1fbfa0" stroke-opacity="0.5" stroke-width="1.4"/>
+  <line x1="150" y1="150" x2="150" y2="232" stroke="#086821" stroke-opacity="0.5" stroke-width="1.4"/>
 </svg>

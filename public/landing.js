@@ -107,13 +107,15 @@
       .catch(() => {});
   }
 
-  // ---- Atmospheric drones + per-rotor Doppler rings (hero background) ----
-  // Alternating waves (2–6 drones): L→R always finish; R→L always destroyed mid-path.
-  // Leading-side rotors spin faster → denser acoustic contours.
+  // ---- Atmospheric drones + single acoustic wave (hero background) -------
+  // Alternating waves (2–6 drones): L→R always finish; R→L destroyed mid-path.
+  // One expanding wavefront per drone (emitted from the craft center).
   const canvas = document.getElementById("atmosCanvas");
   if (!canvas || !canvas.getContext) return;
 
   const ctx = canvas.getContext("2d");
+  const ACCENT = { r: 8, g: 104, b: 33 }; // #086821
+  const ACCENT_HI = { r: 26, g: 154, b: 60 };
   let w = 0;
   let h = 0;
   let dpr = 1;
@@ -122,12 +124,11 @@
   let spawnIn = 0.35;
   /** Wave direction: 1 = L→R, -1 = R→L. Flip after each wave. */
   let waveDir = 1;
-  /** Local rotor offsets (nose +X). Leading side gets denser contours. */
   const ROTOR_DEFS = [
-    { ox: -28, oy: -14, side: "left" },
-    { ox: 28, oy: -14, side: "right" },
-    { ox: -28, oy: 14, side: "left" },
-    { ox: 28, oy: 14, side: "right" },
+    { ox: -28, oy: -14 },
+    { ox: 28, oy: -14 },
+    { ox: -28, oy: 14 },
+    { ox: 28, oy: 14 },
   ];
   /** @type {any[]} */
   const drones = [];
@@ -135,6 +136,10 @@
   const pulses = [];
   /** @type {any[]} */
   const blasts = [];
+
+  function rgba(c, a) {
+    return `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
+  }
 
   function isLight() {
     if (window.HET68Theme) return window.HET68Theme.get() === "light";
@@ -154,32 +159,8 @@
   }
 
   function droneAngle(d, now) {
-    // Local nose is +X; R→L drones add π so nose points left.
     const facing = d.dir < 0 ? Math.PI : 0;
     return facing + Math.sin(now / 1000 + d.phase) * 0.06 + d.vy * 0.002;
-  }
-
-  function rotorWorldPositions(d, angle) {
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    const s = d.s;
-    return ROTOR_DEFS.map((r) => {
-      const lx = r.ox * s;
-      const ly = r.oy * s;
-      // Map local left/right into screen leading/trailing based on flight dir.
-      const screenSide =
-        d.dir > 0
-          ? r.side
-          : r.side === "left"
-            ? "right"
-            : "left";
-      return {
-        x: d.x + lx * cos - ly * sin,
-        y: d.y + lx * sin + ly * cos,
-        side: r.side,
-        screenSide,
-      };
-    });
   }
 
   function dronePath(g, x, y, s) {
@@ -200,12 +181,6 @@
   function spawnDrone(dir, stagger = 0) {
     const span = Math.max(w, 320);
     const speed = span / (7.5 + Math.random() * 4.5);
-    // Leading motors faster → denser contours (right when L→R, left when R→L in local after flip).
-    // Emit period keyed by local side relative to nose (+X): "front" = local right when L→R.
-    // When flying R→L, drone is rotated 180°, so local +X points left (flight direction).
-    // Leading rotors in local frame are always +ox (local "right" in ROTOR_DEFS).
-    const trailPeriod = 0.2 + Math.random() * 0.04;
-    const leadPeriod = 0.075 + Math.random() * 0.025;
     const fromLeft = dir > 0;
     drones.push({
       dir,
@@ -217,69 +192,44 @@
       vy: (Math.random() - 0.5) * (h * 0.04),
       s: Math.max(0.7, Math.min(w, h) / 560) * (0.85 + Math.random() * 0.35),
       progress: 0,
-      // L→R always finish; R→L always destroyed before left edge.
       willBlast: !fromLeft,
       blastAt: fromLeft ? 2 : 0.35 + Math.random() * 0.45,
       phase: Math.random() * Math.PI * 2,
       alive: true,
-      rotors: ROTOR_DEFS.map((r) => {
-        // Local +X is flight direction after facing rotation → local "right" leads.
-        const leading = r.side === "right";
-        const period = leading ? leadPeriod : trailPeriod;
-        return {
-          side: r.side,
-          leading,
-          emit: Math.random() * period,
-          period,
-        };
-      }),
+      emit: Math.random() * 0.12,
     });
   }
 
-  function emitPulse(x, y, strength, kind, life, speed, vx, side) {
+  function emitPulse(x, y, strength, kind, life, speed, vx) {
     pulses.push({
       x,
       y,
       born: 0,
-      life: life || 2.4,
+      life: life || 2.6,
       speed: speed || (95 + Math.random() * 40),
       strength: strength || 1,
       kind: kind || "cruise",
       vx: vx || 0,
-      side: side || "left",
     });
   }
 
-  function triggerBlast(d, now) {
+  function triggerBlast(d) {
     blasts.push({ x: d.x, y: d.y, born: 0, life: 1.35 });
-    const rotors = rotorWorldPositions(d, droneAngle(d, now));
-    rotors.forEach((r, ri) => {
-      const dense = r.side === "right"; // local leading after facing
-      const n = dense ? 5 : 3;
-      for (let i = 0; i < n; i++) {
-        emitPulse(
-          r.x,
-          r.y,
-          (dense ? 1.35 : 1.1) - i * 0.12,
-          "blast",
-          1.35 + i * 0.08,
-          (dense ? 155 : 130) + i * 26,
-          d.vx,
-          r.side
-        );
-      }
-      const ang = (ri / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
+    for (let i = 0; i < 7; i++) {
+      emitPulse(d.x, d.y, 1.35 - i * 0.12, "blast", 1.4 + i * 0.08, 140 + i * 28, d.vx);
+    }
+    for (let i = 0; i < 4; i++) {
+      const ang = (i / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
       emitPulse(
-        r.x + Math.cos(ang) * 4,
-        r.y + Math.sin(ang) * 3,
-        dense ? 1.15 : 0.95,
+        d.x + Math.cos(ang) * 5,
+        d.y + Math.sin(ang) * 4,
+        1.05,
         "shock",
         1.05,
         170 + Math.random() * 50,
-        d.vx,
-        r.side
+        d.vx
       );
-    });
+    }
     d.alive = false;
   }
 
@@ -314,17 +264,13 @@
     ctx.fillRect(0, 0, w, h);
   }
 
-  /**
-   * Wavefront from a rotor hub. Compress on the leading flight side;
-   * leading rotors use denser emission (handled at emit time).
-   */
+  /** Single acoustic wavefront from the craft. Leading crest is Doppler-compressed. */
   function drawDopplerPulse(p, light, age) {
     const u = age / p.life;
     if (u >= 1) return;
     const r = p.speed * age;
     const mach = Math.min(0.55, Math.abs(p.vx) / Math.max(p.speed, 1));
-    // Bias: shift ellipse center toward trailing side so leading crest bunches.
-    const dir = p.vx >= 0 ? -1 : 1; // L→R → compress further right
+    const dir = p.vx >= 0 ? -1 : 1;
     const compress = 1 - mach * (p.kind === "cruise" ? 0.45 : 0.65);
     const stretch = 1 + mach * (p.kind === "cruise" ? 0.55 : 0.85);
     const rx = r * ((compress + stretch) * 0.5);
@@ -332,7 +278,6 @@
     const bias = dir * r * ((stretch - compress) * 0.5);
     const cx = p.x + bias;
     const cy = p.y;
-    const denseBoost = p.side === "right" || p.side === "lead" ? 1.15 : 1;
     const base =
       p.kind === "blast"
         ? light
@@ -345,22 +290,20 @@
           : light
             ? 0.16
             : 0.22;
-    const alpha = (1 - u) * (1 - u) * base * p.strength * denseBoost;
+    const alpha = (1 - u) * (1 - u) * base * p.strength;
     if (alpha < 0.01) return;
 
     ctx.beginPath();
     ctx.ellipse(cx, cy, Math.max(0.5, rx), Math.max(0.5, ry), 0, 0, Math.PI * 2);
     if (p.kind === "blast") {
-      ctx.strokeStyle = `rgba(45, 212, 168, ${alpha})`;
+      ctx.strokeStyle = rgba(ACCENT_HI, alpha);
       ctx.lineWidth = light ? 1.3 : 1.55;
     } else if (p.kind === "shock") {
-      ctx.strokeStyle = `rgba(160, 220, 200, ${alpha * 0.9})`;
+      ctx.strokeStyle = rgba(ACCENT_HI, alpha * 0.85);
       ctx.lineWidth = 1.05;
     } else {
-      ctx.strokeStyle = `rgba(31, 191, 160, ${alpha})`;
-      ctx.lineWidth =
-        (light ? 0.95 : 1.15) *
-        (p.side === "right" || p.side === "lead" ? 1.05 : 0.95);
+      ctx.strokeStyle = rgba(ACCENT, alpha);
+      ctx.lineWidth = light ? 0.95 : 1.15;
     }
     ctx.stroke();
 
@@ -377,7 +320,7 @@
         -Math.PI * 0.55,
         Math.PI * 0.55
       );
-      ctx.strokeStyle = `rgba(80, 230, 190, ${crest})`;
+      ctx.strokeStyle = rgba(ACCENT_HI, crest);
       ctx.lineWidth = 1.2;
       ctx.stroke();
     }
@@ -390,12 +333,12 @@
     const r = 18 + u * 90;
     const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, r);
     if (light) {
-      g.addColorStop(0, `rgba(31, 191, 160, ${0.22 * flash})`);
-      g.addColorStop(0.35, `rgba(45, 212, 168, ${0.1 * flash})`);
+      g.addColorStop(0, rgba(ACCENT, 0.22 * flash));
+      g.addColorStop(0.35, rgba(ACCENT_HI, 0.1 * flash));
       g.addColorStop(1, "rgba(244, 247, 249, 0)");
     } else {
-      g.addColorStop(0, `rgba(45, 212, 168, ${0.28 * flash})`);
-      g.addColorStop(0.4, `rgba(31, 191, 160, ${0.1 * flash})`);
+      g.addColorStop(0, rgba(ACCENT_HI, 0.28 * flash));
+      g.addColorStop(0.4, rgba(ACCENT, 0.1 * flash));
       g.addColorStop(1, "rgba(5, 8, 10, 0)");
     }
     ctx.fillStyle = g;
@@ -406,7 +349,7 @@
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.globalAlpha = flash * (light ? 0.35 : 0.45);
-    ctx.strokeStyle = light ? "rgba(20, 120, 100, 0.8)" : "rgba(140, 235, 200, 0.85)";
+    ctx.strokeStyle = light ? rgba(ACCENT, 0.85) : rgba(ACCENT_HI, 0.9);
     ctx.lineWidth = 1;
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + u * 0.4;
@@ -442,37 +385,20 @@
         d.progress = Math.max(0, Math.min(1, (w + 60 - d.x) / (w + 120)));
       }
 
-      const angle = droneAngle(d, now);
-      const hubs = rotorWorldPositions(d, angle);
-      for (let ri = 0; ri < 4; ri++) {
-        const rotor = d.rotors[ri];
-        const hub = hubs[ri];
-        rotor.emit += dt;
-        if (rotor.emit < rotor.period) continue;
-        rotor.emit = 0;
-        const dense = !!rotor.leading;
-        emitPulse(
-          hub.x,
-          hub.y,
-          dense ? 0.95 + Math.random() * 0.2 : 0.7 + Math.random() * 0.2,
-          "cruise",
-          dense ? 2.4 : 2.7,
-          dense ? 78 + Math.random() * 28 : 90 + Math.random() * 34,
-          d.vx,
-          dense ? "lead" : "trail"
-        );
+      d.emit += dt;
+      if (d.emit >= 0.22) {
+        d.emit = 0;
+        emitPulse(d.x, d.y, 0.9 + Math.random() * 0.2, "cruise", 2.7, 95 + Math.random() * 35, d.vx);
       }
 
       if (d.willBlast && d.progress >= d.blastAt) {
-        triggerBlast(d, now);
+        triggerBlast(d);
         drones.splice(i, 1);
         continue;
       }
-      // L→R always reach the far edge; R→L never should (blast earlier).
       if (d.dir > 0 && d.x > w + 70) {
         drones.splice(i, 1);
       } else if (d.dir < 0 && d.x < -70) {
-        // safety net — should not happen
         drones.splice(i, 1);
       }
     }

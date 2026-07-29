@@ -5,51 +5,51 @@
       <stop offset="100%" stop-color="#0a1218"/>
     </linearGradient>
     <radialGradient id="glow" cx="50%" cy="45%" r="55%">
-      <stop offset="0%" stop-color="#1fbfa0" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="#1fbfa0" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#086821" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#086821" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="520" height="420" rx="28" fill="url(#panel)" stroke="#1e2a33"/>
   <ellipse cx="260" cy="200" rx="180" ry="140" fill="url(#glow)"/>
-  <circle cx="260" cy="200" r="34" fill="#0b141b" stroke="#1fbfa0" stroke-width="2"/>
-  <circle cx="260" cy="200" r="10" fill="#1fbfa0"/>
+  <circle cx="260" cy="200" r="34" fill="#0b141b" stroke="#086821" stroke-width="2"/>
+  <circle cx="260" cy="200" r="10" fill="#086821"/>
   <!-- mics -->
   <g font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#e8eef2">
     <g transform="translate(120,70)">
       <circle cx="40" cy="40" r="36" fill="#101920" stroke="#2a3a46"/>
-      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#1fbfa0" stroke-width="2"/>
+      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#086821" stroke-width="2"/>
       <text x="40" y="96" text-anchor="middle">M1</text>
     </g>
     <g transform="translate(220,50)">
       <circle cx="40" cy="40" r="36" fill="#101920" stroke="#2a3a46"/>
-      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#1fbfa0" stroke-width="2"/>
+      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#086821" stroke-width="2"/>
       <text x="40" y="96" text-anchor="middle">M2</text>
     </g>
     <g transform="translate(320,70)">
       <circle cx="40" cy="40" r="36" fill="#101920" stroke="#2a3a46"/>
-      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#1fbfa0" stroke-width="2"/>
+      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#086821" stroke-width="2"/>
       <text x="40" y="96" text-anchor="middle">M3</text>
     </g>
     <g transform="translate(120,230)">
       <circle cx="40" cy="40" r="36" fill="#101920" stroke="#2a3a46"/>
-      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#1fbfa0" stroke-width="2"/>
+      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#086821" stroke-width="2"/>
       <text x="40" y="96" text-anchor="middle">M4</text>
     </g>
     <g transform="translate(220,250)">
       <circle cx="40" cy="40" r="36" fill="#101920" stroke="#2a3a46"/>
-      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#1fbfa0" stroke-width="2"/>
+      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#086821" stroke-width="2"/>
       <text x="40" y="96" text-anchor="middle">M5</text>
     </g>
     <g transform="translate(320,230)">
       <circle cx="40" cy="40" r="36" fill="#101920" stroke="#2a3a46"/>
-      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#1fbfa0" stroke-width="2"/>
+      <circle cx="40" cy="40" r="14" fill="#152028" stroke="#086821" stroke-width="2"/>
       <text x="40" y="96" text-anchor="middle">M6</text>
     </g>
   </g>
-  <path d="M160 140 C200 170 220 170 260 200" stroke="#1fbfa055" stroke-width="1.5"/>
-  <path d="M260 90 C260 140 260 160 260 200" stroke="#1fbfa055" stroke-width="1.5"/>
-  <path d="M360 140 C320 170 300 170 260 200" stroke="#1fbfa055" stroke-width="1.5"/>
-  <path d="M160 270 C200 240 220 230 260 200" stroke="#1fbfa055" stroke-width="1.5"/>
-  <path d="M260 330 C260 280 260 240 260 200" stroke="#1fbfa055" stroke-width="1.5"/>
-  <path d="M360 270 C320 240 300 230 260 200" stroke="#1fbfa055" stroke-width="1.5"/>
+  <path d="M160 140 C200 170 220 170 260 200" stroke="#08682155" stroke-width="1.5"/>
+  <path d="M260 90 C260 140 260 160 260 200" stroke="#08682155" stroke-width="1.5"/>
+  <path d="M360 140 C320 170 300 170 260 200" stroke="#08682155" stroke-width="1.5"/>
+  <path d="M160 270 C200 240 220 230 260 200" stroke="#08682155" stroke-width="1.5"/>
+  <path d="M260 330 C260 280 260 240 260 200" stroke="#08682155" stroke-width="1.5"/>
+  <path d="M360 270 C320 240 300 230 260 200" stroke="#08682155" stroke-width="1.5"/>
 </svg>

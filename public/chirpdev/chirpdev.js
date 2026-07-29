@@ -683,8 +683,8 @@
         g.setLineDash([]);
       }
       bandLine(ALINK.CONST.PREAMBLE_HZ, "rgba(59,130,246,0.55)");
-      bandLine(hops[0], "rgba(31,191,160,0.4)");
-      bandLine(hops[hops.length - 1], "rgba(31,191,160,0.4)");
+      bandLine(hops[0], "rgba(8, 104, 33,0.4)");
+      bandLine(hops[hops.length - 1], "rgba(8, 104, 33,0.4)");
     }
 
     // dominant line
@@ -1491,7 +1491,7 @@
         nodes.forEach(function (m) {
           if (m.node === hn && m.fp !== n.fp) {
             var a = pos[n.fp], b = pos[m.fp];
-            g.strokeStyle = "rgba(31,191,160,0.5)";
+            g.strokeStyle = "rgba(8, 104, 33,0.5)";
             g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
           }
         });
@@ -1501,7 +1501,7 @@
     nodes.forEach(function (n) {
       var pt = pos[n.fp];
       var isSelf = n.fp === fp;
-      g.fillStyle = isSelf ? cssVar("--teal", "#1fbfa0") : "#3b82f6";
+      g.fillStyle = isSelf ? cssVar("--teal", "#086821") : "#3b82f6";
       g.beginPath(); g.arc(pt.x, pt.y, 20, 0, Math.PI * 2); g.fill();
       g.fillStyle = "#fff"; g.font = "700 13px Manrope, sans-serif";
       g.fillText("#" + n.node, pt.x, pt.y);

@@ -5,10 +5,10 @@
   --line: rgba(148, 163, 184, 0.14);
   --text: #f3f6f8;
   --muted: #9aa8b5;
-  --teal: #1fbfa0;
-  --teal-ink: #04251e;
+  --teal: #086821;
+  --teal-ink: #f2f8f3;
   --blue: #3b82f6;
-  --ok: #1fbfa0;
+  --ok: #086821;
   --warn: #e2b45a;
   --danger: #e07a6a;
   --radius: 14px;
@@ -20,7 +20,7 @@
   --ink: var(--text);
   --accent: var(--teal);
   --accent-ink: var(--teal-ink);
-  --glow: rgba(31, 191, 160, 0.18);
+  --glow: rgba(8, 104, 33, 0.18);
 }
 
 /* Light theme — activated by data-theme="light" on <html>. */
@@ -31,19 +31,19 @@ html[data-theme="light"] {
   --line: rgba(15, 27, 36, 0.16);
   --text: #0f1b24;
   --muted: #4c5b68;
-  --teal: #0d9c82;
+  --teal: #086821;
   --teal-ink: #ffffff;
   --blue: #2563eb;
-  --ok: #0d9c82;
+  --ok: #086821;
   --warn: #a9761b;
   --danger: #c9503d;
-  --glow: rgba(13, 156, 130, 0.16);
+  --glow: rgba(8, 104, 33, 0.16);
   color-scheme: light;
 }
 
 html[data-theme="light"] body {
   background:
-    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(13, 156, 130, 0.1), transparent 55%),
+    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(8, 104, 33, 0.1), transparent 55%),
     radial-gradient(ellipse 60% 40% at 100% 20%, rgba(37, 99, 235, 0.08), transparent 50%),
     var(--bg);
 }
@@ -54,7 +54,7 @@ html[data-theme="light"] .site-header {
 
 html[data-theme="light"] .panel {
   background: linear-gradient(180deg, #ffffff, #f7fafc);
-  box-shadow: inset 0 1px 0 rgba(13, 156, 130, 0.12);
+  box-shadow: inset 0 1px 0 rgba(8, 104, 33, 0.12);
 }
 
 html[data-theme="light"] .board-card {
@@ -62,7 +62,7 @@ html[data-theme="light"] .board-card {
 }
 
 html[data-theme="light"] .board-card[aria-checked="true"] {
-  background: rgba(13, 156, 130, 0.09);
+  background: rgba(8, 104, 33, 0.09);
 }
 
 html[data-theme="light"] .lang-switch,
@@ -126,7 +126,7 @@ body {
   line-height: 1.55;
   color: var(--text);
   background:
-    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(31, 191, 160, 0.12), transparent 55%),
+    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(8, 104, 33, 0.12), transparent 55%),
     radial-gradient(ellipse 60% 40% at 100% 20%, rgba(59, 130, 246, 0.1), transparent 50%),
     var(--bg);
 }
@@ -199,7 +199,7 @@ a:hover {
 }
 
 .lang-switch a.is-active {
-  background: rgba(31, 191, 160, 0.18);
+  background: rgba(8, 104, 33, 0.18);
   color: var(--text);
 }
 
@@ -369,7 +369,7 @@ main.wrap {
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(16, 24, 32, 0.95), rgba(11, 17, 23, 0.98));
   padding: 1.25rem;
-  box-shadow: inset 0 1px 0 rgba(31, 191, 160, 0.16);
+  box-shadow: inset 0 1px 0 rgba(8, 104, 33, 0.16);
 }
 
 .panel-head {
@@ -513,13 +513,13 @@ html[data-theme="light"] .browser-check {
 }
 
 .board-card:hover:not(:disabled) {
-  border-color: rgba(31, 191, 160, 0.45);
+  border-color: rgba(8, 104, 33, 0.45);
 }
 
 .board-card[aria-checked="true"] {
   border-color: var(--teal);
-  background: rgba(31, 191, 160, 0.08);
-  box-shadow: 0 0 0 1px rgba(31, 191, 160, 0.25), 0 0 24px var(--glow);
+  background: rgba(8, 104, 33, 0.08);
+  box-shadow: 0 0 0 1px rgba(8, 104, 33, 0.25), 0 0 24px var(--glow);
 }
 
 .board-card:disabled {
@@ -673,7 +673,7 @@ select:focus {
 .progress-bar {
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, #178f78, var(--teal) 55%, var(--blue));
+  background: linear-gradient(90deg, #065c1a, var(--teal) 55%, var(--blue));
   transition: width 0.12s linear;
 }
 
@@ -682,7 +682,7 @@ select:focus {
 }
 
 .progress-bar.phase-write {
-  background: linear-gradient(90deg, #178f78, var(--teal));
+  background: linear-gradient(90deg, #065c1a, var(--teal));
 }
 
 .progress-label {
