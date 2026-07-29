@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" fill="none" role="img" aria-label="HET68 drone logo">
   <title>HET68 — drone flying right to left with one acoustic wave</title>
-  <g transform="translate(500 500)">
+  <g transform="translate(500 500) scale(1,-1)">
     <ellipse cx="64.81" cy="0.00" rx="340.76" ry="231.89" stroke="#086821" stroke-width="1.20" stroke-opacity="0.005"/>
     <ellipse cx="78.19" cy="0.00" rx="319.06" ry="217.12" stroke="#086821" stroke-width="1.25" stroke-opacity="0.016"/>
     <ellipse cx="91.56" cy="0.00" rx="297.37" ry="202.36" stroke="#086821" stroke-width="1.29" stroke-opacity="0.032"/>
