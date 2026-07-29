@@ -108,7 +108,8 @@
   }
 
   // ---- Atmospheric drones + per-rotor Doppler rings (hero background) ----
-  // Flight L→R: right rotors spin faster → denser acoustic contours.
+  // Alternating waves (2–6 drones): L→R always finish; R→L always destroyed mid-path.
+  // Leading-side rotors spin faster → denser acoustic contours.
   const canvas = document.getElementById("atmosCanvas");
   if (!canvas || !canvas.getContext) return;
 
@@ -118,8 +119,10 @@
   let dpr = 1;
   let raf = 0;
   let lastNow = performance.now();
-  let spawnIn = 0.6;
-  /** Local rotor offsets (nose +X). Right side spins faster when flying L→R. */
+  let spawnIn = 0.35;
+  /** Wave direction: 1 = L→R, -1 = R→L. Flip after each wave. */
+  let waveDir = 1;
+  /** Local rotor offsets (nose +X). Leading side gets denser contours. */
   const ROTOR_DEFS = [
     { ox: -28, oy: -14, side: "left" },
     { ox: 28, oy: -14, side: "right" },
@@ -151,8 +154,9 @@
   }
 
   function droneAngle(d, now) {
-    // Nose points +X (right); slight bank / bob.
-    return Math.sin(now / 1000 + d.phase) * 0.06 + d.vy * 0.002;
+    // Local nose is +X; R→L drones add π so nose points left.
+    const facing = d.dir < 0 ? Math.PI : 0;
+    return facing + Math.sin(now / 1000 + d.phase) * 0.06 + d.vy * 0.002;
   }
 
   function rotorWorldPositions(d, angle) {
@@ -162,10 +166,18 @@
     return ROTOR_DEFS.map((r) => {
       const lx = r.ox * s;
       const ly = r.oy * s;
+      // Map local left/right into screen leading/trailing based on flight dir.
+      const screenSide =
+        d.dir > 0
+          ? r.side
+          : r.side === "left"
+            ? "right"
+            : "left";
       return {
         x: d.x + lx * cos - ly * sin,
         y: d.y + lx * sin + ly * cos,
         side: r.side,
+        screenSide,
       };
     });
   }
@@ -185,28 +197,42 @@
     });
   }
 
-  function spawnDrone(stagger = 0) {
+  function spawnDrone(dir, stagger = 0) {
     const span = Math.max(w, 320);
-    const speed = span / (7.5 + Math.random() * 4.5); // full crossing ~7.5–12 s
-    // Right motors faster → shorter emit period → denser contour spacing.
-    const leftPeriod = 0.2 + Math.random() * 0.04;
-    const rightPeriod = 0.075 + Math.random() * 0.025;
+    const speed = span / (7.5 + Math.random() * 4.5);
+    // Leading motors faster → denser contours (right when L→R, left when R→L in local after flip).
+    // Emit period keyed by local side relative to nose (+X): "front" = local right when L→R.
+    // When flying R→L, drone is rotated 180°, so local +X points left (flight direction).
+    // Leading rotors in local frame are always +ox (local "right" in ROTOR_DEFS).
+    const trailPeriod = 0.2 + Math.random() * 0.04;
+    const leadPeriod = 0.075 + Math.random() * 0.025;
+    const fromLeft = dir > 0;
     drones.push({
-      x: -50 - stagger * (40 + Math.random() * 80),
-      y: h * (0.22 + Math.random() * 0.5),
-      vx: speed * (0.92 + Math.random() * 0.2),
+      dir,
+      x: fromLeft
+        ? -50 - stagger * (36 + Math.random() * 70)
+        : w + 50 + stagger * (36 + Math.random() * 70),
+      y: h * (0.2 + Math.random() * 0.52),
+      vx: (fromLeft ? 1 : -1) * speed * (0.92 + Math.random() * 0.2),
       vy: (Math.random() - 0.5) * (h * 0.04),
       s: Math.max(0.7, Math.min(w, h) / 560) * (0.85 + Math.random() * 0.35),
       progress: 0,
-      willBlast: Math.random() < 0.42,
-      blastAt: 0.28 + Math.random() * 0.5,
+      // L→R always finish; R→L always destroyed before left edge.
+      willBlast: !fromLeft,
+      blastAt: fromLeft ? 2 : 0.35 + Math.random() * 0.45,
       phase: Math.random() * Math.PI * 2,
       alive: true,
-      rotors: ROTOR_DEFS.map((r) => ({
-        side: r.side,
-        emit: Math.random() * (r.side === "right" ? rightPeriod : leftPeriod),
-        period: r.side === "right" ? rightPeriod : leftPeriod,
-      })),
+      rotors: ROTOR_DEFS.map((r) => {
+        // Local +X is flight direction after facing rotation → local "right" leads.
+        const leading = r.side === "right";
+        const period = leading ? leadPeriod : trailPeriod;
+        return {
+          side: r.side,
+          leading,
+          emit: Math.random() * period,
+          period,
+        };
+      }),
     });
   }
 
@@ -228,7 +254,7 @@
     blasts.push({ x: d.x, y: d.y, born: 0, life: 1.35 });
     const rotors = rotorWorldPositions(d, droneAngle(d, now));
     rotors.forEach((r, ri) => {
-      const dense = r.side === "right";
+      const dense = r.side === "right"; // local leading after facing
       const n = dense ? 5 : 3;
       for (let i = 0; i < n; i++) {
         emitPulse(
@@ -242,7 +268,6 @@
           r.side
         );
       }
-      // asymmetric shock from each rotor hub
       const ang = (ri / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
       emitPulse(
         r.x + Math.cos(ang) * 4,
@@ -261,10 +286,16 @@
   function scheduleSpawn(dt) {
     spawnIn -= dt;
     if (spawnIn > 0) return;
-    const count = Math.random() < 0.38 ? 2 + (Math.random() < 0.45 ? 1 : 0) : 1;
-    for (let i = 0; i < count; i++) spawnDrone(i);
-    spawnIn = count > 1 ? 3.2 + Math.random() * 2.8 : 1.8 + Math.random() * 2.4;
-    if (drones.filter((d) => d.alive).length > 5) spawnIn += 1.5;
+    // Wait until previous wave cleared before flipping direction.
+    if (drones.some((d) => d.alive)) {
+      spawnIn = 0.45;
+      return;
+    }
+    const count = 2 + Math.floor(Math.random() * 5); // 2–6
+    for (let i = 0; i < count; i++) spawnDrone(waveDir, i);
+    waveDir *= -1;
+    // Pause long enough for the wave to cross / get destroyed, then next wave.
+    spawnIn = 2.4 + count * 0.55 + Math.random() * 1.2;
   }
 
   function drawFog(light) {
@@ -284,8 +315,8 @@
   }
 
   /**
-   * Wavefront from a rotor hub. Flying L→R → compress on the right;
-   * right-side rotors use denser emission (handled at emit time).
+   * Wavefront from a rotor hub. Compress on the leading flight side;
+   * leading rotors use denser emission (handled at emit time).
    */
   function drawDopplerPulse(p, light, age) {
     const u = age / p.life;
@@ -301,7 +332,7 @@
     const bias = dir * r * ((stretch - compress) * 0.5);
     const cx = p.x + bias;
     const cy = p.y;
-    const denseBoost = p.side === "right" ? 1.15 : 1;
+    const denseBoost = p.side === "right" || p.side === "lead" ? 1.15 : 1;
     const base =
       p.kind === "blast"
         ? light
@@ -327,7 +358,9 @@
       ctx.lineWidth = 1.05;
     } else {
       ctx.strokeStyle = `rgba(31, 191, 160, ${alpha})`;
-      ctx.lineWidth = (light ? 0.95 : 1.15) * (p.side === "right" ? 1.05 : 0.95);
+      ctx.lineWidth =
+        (light ? 0.95 : 1.15) *
+        (p.side === "right" || p.side === "lead" ? 1.05 : 0.95);
     }
     ctx.stroke();
 
@@ -403,7 +436,11 @@
       }
       d.x += d.vx * dt;
       d.y += d.vy * dt + Math.sin(now / 1000 + d.phase) * 0.15;
-      d.progress = Math.max(0, Math.min(1, (d.x + 60) / (w + 120)));
+      if (d.dir > 0) {
+        d.progress = Math.max(0, Math.min(1, (d.x + 60) / (w + 120)));
+      } else {
+        d.progress = Math.max(0, Math.min(1, (w + 60 - d.x) / (w + 120)));
+      }
 
       const angle = droneAngle(d, now);
       const hubs = rotorWorldPositions(d, angle);
@@ -413,7 +450,7 @@
         rotor.emit += dt;
         if (rotor.emit < rotor.period) continue;
         rotor.emit = 0;
-        const dense = rotor.side === "right";
+        const dense = !!rotor.leading;
         emitPulse(
           hub.x,
           hub.y,
@@ -422,7 +459,7 @@
           dense ? 2.4 : 2.7,
           dense ? 78 + Math.random() * 28 : 90 + Math.random() * 34,
           d.vx,
-          rotor.side
+          dense ? "lead" : "trail"
         );
       }
 
@@ -431,7 +468,11 @@
         drones.splice(i, 1);
         continue;
       }
-      if (d.x > w + 70) {
+      // L→R always reach the far edge; R→L never should (blast earlier).
+      if (d.dir > 0 && d.x > w + 70) {
+        drones.splice(i, 1);
+      } else if (d.dir < 0 && d.x < -70) {
+        // safety net — should not happen
         drones.splice(i, 1);
       }
     }
@@ -456,7 +497,7 @@
       drawBlastFlash(b, light, b.born);
     }
 
-    // drones (barely visible, nose to the right)
+    // drones (barely visible)
     for (const d of drones) {
       if (!d.alive) continue;
       ctx.save();
@@ -476,7 +517,13 @@
   }
 
   resize();
-  spawnDrone(0);
+  // Seed first wave L→R (2–6), then alternate with R→L.
+  {
+    const n = 2 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < n; i++) spawnDrone(1, i);
+    waveDir = -1;
+    spawnIn = 2.8 + n * 0.5;
+  }
   window.addEventListener("resize", resize);
   document.addEventListener("het68-theme", () => {
     /* redraw uses isLight() each frame */
