@@ -107,7 +107,8 @@
       .catch(() => {});
   }
 
-  // ---- Atmospheric drones + Doppler acoustic rings (hero background) -----
+  // ---- Atmospheric drones + per-rotor Doppler rings (hero background) ----
+  // Flight L→R: right rotors spin faster → denser acoustic contours.
   const canvas = document.getElementById("atmosCanvas");
   if (!canvas || !canvas.getContext) return;
 
@@ -118,11 +119,18 @@
   let raf = 0;
   let lastNow = performance.now();
   let spawnIn = 0.6;
-  /** @type {{x:number,y:number,vx:number,vy:number,s:number,emit:number,progress:number,willBlast:boolean,blastAt:number,phase:number,alive:boolean}[]} */
+  /** Local rotor offsets (nose +X). Right side spins faster when flying L→R. */
+  const ROTOR_DEFS = [
+    { ox: -28, oy: -14, side: "left" },
+    { ox: 28, oy: -14, side: "right" },
+    { ox: -28, oy: 14, side: "left" },
+    { ox: 28, oy: 14, side: "right" },
+  ];
+  /** @type {any[]} */
   const drones = [];
-  /** @type {{x:number,y:number,born:number,life:number,speed:number,strength:number,kind:string,vx:number}[]} */
+  /** @type {any[]} */
   const pulses = [];
-  /** @type {{x:number,y:number,born:number,life:number}[]} */
+  /** @type {any[]} */
   const blasts = [];
 
   function isLight() {
@@ -142,6 +150,26 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  function droneAngle(d, now) {
+    // Nose points +X (right); slight bank / bob.
+    return Math.sin(now / 1000 + d.phase) * 0.06 + d.vy * 0.002;
+  }
+
+  function rotorWorldPositions(d, angle) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const s = d.s;
+    return ROTOR_DEFS.map((r) => {
+      const lx = r.ox * s;
+      const ly = r.oy * s;
+      return {
+        x: d.x + lx * cos - ly * sin,
+        y: d.y + lx * sin + ly * cos,
+        side: r.side,
+      };
+    });
+  }
+
   function dronePath(g, x, y, s) {
     g.beginPath();
     g.ellipse(x, y, 18 * s, 8 * s, 0, 0, Math.PI * 2);
@@ -149,12 +177,9 @@
     g.lineTo(x + 28 * s, y + 14 * s);
     g.moveTo(x + 28 * s, y - 14 * s);
     g.lineTo(x - 28 * s, y + 14 * s);
-    [
-      [x - 28 * s, y - 14 * s],
-      [x + 28 * s, y - 14 * s],
-      [x - 28 * s, y + 14 * s],
-      [x + 28 * s, y + 14 * s],
-    ].forEach(([rx, ry]) => {
+    ROTOR_DEFS.forEach((r) => {
+      const rx = x + r.ox * s;
+      const ry = y + r.oy * s;
       g.moveTo(rx + 10 * s, ry);
       g.arc(rx, ry, 10 * s, 0, Math.PI * 2);
     });
@@ -163,22 +188,29 @@
   function spawnDrone(stagger = 0) {
     const span = Math.max(w, 320);
     const speed = span / (7.5 + Math.random() * 4.5); // full crossing ~7.5–12 s
+    // Right motors faster → shorter emit period → denser contour spacing.
+    const leftPeriod = 0.2 + Math.random() * 0.04;
+    const rightPeriod = 0.075 + Math.random() * 0.025;
     drones.push({
-      x: w + 50 + stagger * (40 + Math.random() * 80),
+      x: -50 - stagger * (40 + Math.random() * 80),
       y: h * (0.22 + Math.random() * 0.5),
-      vx: -(speed * (0.92 + Math.random() * 0.2)),
+      vx: speed * (0.92 + Math.random() * 0.2),
       vy: (Math.random() - 0.5) * (h * 0.04),
       s: Math.max(0.7, Math.min(w, h) / 560) * (0.85 + Math.random() * 0.35),
-      emit: Math.random() * 0.12,
       progress: 0,
       willBlast: Math.random() < 0.42,
       blastAt: 0.28 + Math.random() * 0.5,
       phase: Math.random() * Math.PI * 2,
       alive: true,
+      rotors: ROTOR_DEFS.map((r) => ({
+        side: r.side,
+        emit: Math.random() * (r.side === "right" ? rightPeriod : leftPeriod),
+        period: r.side === "right" ? rightPeriod : leftPeriod,
+      })),
     });
   }
 
-  function emitPulse(x, y, strength, kind, life, speed, vx) {
+  function emitPulse(x, y, strength, kind, life, speed, vx, side) {
     pulses.push({
       x,
       y,
@@ -188,27 +220,41 @@
       strength: strength || 1,
       kind: kind || "cruise",
       vx: vx || 0,
+      side: side || "left",
     });
   }
 
-  function triggerBlast(d) {
+  function triggerBlast(d, now) {
     blasts.push({ x: d.x, y: d.y, born: 0, life: 1.35 });
-    for (let i = 0; i < 7; i++) {
-      emitPulse(d.x, d.y, 1.4 - i * 0.12, "blast", 1.5 + i * 0.08, 140 + i * 28, d.vx);
-    }
-    // asymmetric shock lobes (visual acoustic crack)
-    for (let i = 0; i < 4; i++) {
-      const ang = -Math.PI * 0.15 + i * 0.22 + (Math.random() - 0.5) * 0.08;
+    const rotors = rotorWorldPositions(d, droneAngle(d, now));
+    rotors.forEach((r, ri) => {
+      const dense = r.side === "right";
+      const n = dense ? 5 : 3;
+      for (let i = 0; i < n; i++) {
+        emitPulse(
+          r.x,
+          r.y,
+          (dense ? 1.35 : 1.1) - i * 0.12,
+          "blast",
+          1.35 + i * 0.08,
+          (dense ? 155 : 130) + i * 26,
+          d.vx,
+          r.side
+        );
+      }
+      // asymmetric shock from each rotor hub
+      const ang = (ri / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
       emitPulse(
-        d.x + Math.cos(ang) * 6,
-        d.y + Math.sin(ang) * 4,
-        1.1,
+        r.x + Math.cos(ang) * 4,
+        r.y + Math.sin(ang) * 3,
+        dense ? 1.15 : 0.95,
         "shock",
-        1.1,
-        180 + Math.random() * 60,
-        d.vx
+        1.05,
+        170 + Math.random() * 50,
+        d.vx,
+        r.side
       );
-    }
+    });
     d.alive = false;
   }
 
@@ -217,7 +263,6 @@
     if (spawnIn > 0) return;
     const count = Math.random() < 0.38 ? 2 + (Math.random() < 0.45 ? 1 : 0) : 1;
     for (let i = 0; i < count; i++) spawnDrone(i);
-    // keep the sky from overcrowding
     spawnIn = count > 1 ? 3.2 + Math.random() * 2.8 : 1.8 + Math.random() * 2.4;
     if (drones.filter((d) => d.alive).length > 5) spawnIn += 1.5;
   }
@@ -239,62 +284,68 @@
   }
 
   /**
-   * Wavefront expands from the emission point (successive pulses → natural
-   * Doppler bunching ahead of a leftward source). Extra elliptical squash
-   * exaggerates compression on the leading side / stretch on the trailing side.
+   * Wavefront from a rotor hub. Flying L→R → compress on the right;
+   * right-side rotors use denser emission (handled at emit time).
    */
   function drawDopplerPulse(p, light, age) {
     const u = age / p.life;
     if (u >= 1) return;
     const r = p.speed * age;
-    // Mach-ish factor from source speed vs wave speed (visual, not physical units)
     const mach = Math.min(0.55, Math.abs(p.vx) / Math.max(p.speed, 1));
-    const dir = p.vx <= 0 ? 1 : -1; // 1 = flying left → compress further left
+    // Bias: shift ellipse center toward trailing side so leading crest bunches.
+    const dir = p.vx >= 0 ? -1 : 1; // L→R → compress further right
     const compress = 1 - mach * (p.kind === "cruise" ? 0.45 : 0.65);
     const stretch = 1 + mach * (p.kind === "cruise" ? 0.55 : 0.85);
     const rx = r * ((compress + stretch) * 0.5);
-    const ry = r * (p.kind === "shock" ? 0.52 + u * 0.22 : 0.82 - mach * 0.08);
-    // Shift center toward the trailing side so the leading crest bunches up.
+    const ry = r * (p.kind === "shock" ? 0.52 + u * 0.22 : 0.78 - mach * 0.08);
     const bias = dir * r * ((stretch - compress) * 0.5);
     const cx = p.x + bias;
     const cy = p.y;
+    const denseBoost = p.side === "right" ? 1.15 : 1;
     const base =
       p.kind === "blast"
         ? light
-          ? 0.34
-          : 0.42
+          ? 0.3
+          : 0.38
         : p.kind === "shock"
           ? light
-            ? 0.28
-            : 0.36
+            ? 0.24
+            : 0.32
           : light
-            ? 0.2
-            : 0.26;
-    const alpha = (1 - u) * (1 - u) * base * p.strength;
+            ? 0.16
+            : 0.22;
+    const alpha = (1 - u) * (1 - u) * base * p.strength * denseBoost;
     if (alpha < 0.01) return;
 
     ctx.beginPath();
     ctx.ellipse(cx, cy, Math.max(0.5, rx), Math.max(0.5, ry), 0, 0, Math.PI * 2);
     if (p.kind === "blast") {
       ctx.strokeStyle = `rgba(45, 212, 168, ${alpha})`;
-      ctx.lineWidth = light ? 1.4 : 1.7;
+      ctx.lineWidth = light ? 1.3 : 1.55;
     } else if (p.kind === "shock") {
       ctx.strokeStyle = `rgba(160, 220, 200, ${alpha * 0.9})`;
-      ctx.lineWidth = 1.1;
+      ctx.lineWidth = 1.05;
     } else {
       ctx.strokeStyle = `rgba(31, 191, 160, ${alpha})`;
-      ctx.lineWidth = light ? 1.05 : 1.3;
+      ctx.lineWidth = (light ? 0.95 : 1.15) * (p.side === "right" ? 1.05 : 0.95);
     }
     ctx.stroke();
 
-    // Leading-edge crest highlight (compressed front)
     if (p.kind !== "shock" && u < 0.85) {
       const leadX = cx - dir * rx;
       const crest = alpha * (0.45 + mach * 0.35);
       ctx.beginPath();
-      ctx.ellipse(leadX + dir * rx * 0.08, cy, rx * (0.1 + mach * 0.06), ry * 0.5, 0, -Math.PI * 0.55, Math.PI * 0.55);
+      ctx.ellipse(
+        leadX + dir * rx * 0.08,
+        cy,
+        rx * (0.1 + mach * 0.06),
+        ry * 0.5,
+        0,
+        -Math.PI * 0.55,
+        Math.PI * 0.55
+      );
       ctx.strokeStyle = `rgba(80, 230, 190, ${crest})`;
-      ctx.lineWidth = 1.25;
+      ctx.lineWidth = 1.2;
       ctx.stroke();
     }
   }
@@ -319,7 +370,6 @@
     ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // crack spokes
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.globalAlpha = flash * (light ? 0.35 : 0.45);
@@ -345,7 +395,6 @@
 
     scheduleSpawn(dt);
 
-    // update drones
     for (let i = drones.length - 1; i >= 0; i--) {
       const d = drones[i];
       if (!d.alive) {
@@ -354,34 +403,39 @@
       }
       d.x += d.vx * dt;
       d.y += d.vy * dt + Math.sin(now / 1000 + d.phase) * 0.15;
-      const travel = w + 80 - d.x;
-      d.progress = Math.max(0, Math.min(1, travel / (w + 100)));
+      d.progress = Math.max(0, Math.min(1, (d.x + 60) / (w + 120)));
 
-      d.emit += dt;
-      if (d.emit >= 0.14) {
-        d.emit = 0;
+      const angle = droneAngle(d, now);
+      const hubs = rotorWorldPositions(d, angle);
+      for (let ri = 0; ri < 4; ri++) {
+        const rotor = d.rotors[ri];
+        const hub = hubs[ri];
+        rotor.emit += dt;
+        if (rotor.emit < rotor.period) continue;
+        rotor.emit = 0;
+        const dense = rotor.side === "right";
         emitPulse(
-          d.x,
-          d.y,
-          0.85 + Math.random() * 0.25,
+          hub.x,
+          hub.y,
+          dense ? 0.95 + Math.random() * 0.2 : 0.7 + Math.random() * 0.2,
           "cruise",
-          2.8,
-          88 + Math.random() * 36,
-          d.vx
+          dense ? 2.4 : 2.7,
+          dense ? 78 + Math.random() * 28 : 90 + Math.random() * 34,
+          d.vx,
+          rotor.side
         );
       }
 
       if (d.willBlast && d.progress >= d.blastAt) {
-        triggerBlast(d);
+        triggerBlast(d, now);
         drones.splice(i, 1);
         continue;
       }
-      if (d.x < -60) {
+      if (d.x > w + 70) {
         drones.splice(i, 1);
       }
     }
 
-    // update / draw pulses (oldest first so newer crest sits on top)
     for (let i = pulses.length - 1; i >= 0; i--) {
       const p = pulses[i];
       p.born += dt;
@@ -402,13 +456,12 @@
       drawBlastFlash(b, light, b.born);
     }
 
-    // drones (barely visible, heading left)
+    // drones (barely visible, nose to the right)
     for (const d of drones) {
       if (!d.alive) continue;
       ctx.save();
       ctx.translate(d.x, d.y);
-      // nose points left (flight direction)
-      ctx.rotate(Math.PI + Math.sin(now / 1000 + d.phase) * 0.06 + d.vy * 0.002);
+      ctx.rotate(droneAngle(d, now));
       ctx.globalAlpha = light ? 0.08 : 0.12;
       ctx.strokeStyle = light ? "rgba(40, 55, 65, 0.9)" : "rgba(180, 195, 205, 0.85)";
       ctx.fillStyle = light ? "rgba(50, 65, 75, 0.35)" : "rgba(120, 135, 145, 0.25)";
@@ -423,7 +476,6 @@
   }
 
   resize();
-  // seed one flyby so the hero is never empty on first paint
   spawnDrone(0);
   window.addEventListener("resize", resize);
   document.addEventListener("het68-theme", () => {

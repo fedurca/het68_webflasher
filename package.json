@@ -1,6 +1,6 @@
 {
   "name": "het68-webflasher",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "private": true,
   "type": "module",
   "description": "HET68 web firmware flasher for Cloudflare (het68.cz)",
