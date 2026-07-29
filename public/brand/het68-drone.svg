@@ -1,35 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" fill="none" role="img" aria-label="HET68 drone logo">
-  <title>HET68 — drone flying right to left with one acoustic wave</title>
-  <g transform="translate(500 500) scale(1,-1)">
-    <ellipse cx="64.81" cy="0.00" rx="340.76" ry="231.89" stroke="#086821" stroke-width="1.20" stroke-opacity="0.005"/>
-    <ellipse cx="78.19" cy="0.00" rx="319.06" ry="217.12" stroke="#086821" stroke-width="1.25" stroke-opacity="0.016"/>
-    <ellipse cx="91.56" cy="0.00" rx="297.37" ry="202.36" stroke="#086821" stroke-width="1.29" stroke-opacity="0.032"/>
-    <ellipse cx="104.94" cy="0.00" rx="275.67" ry="187.60" stroke="#086821" stroke-width="1.34" stroke-opacity="0.054"/>
-    <ellipse cx="118.31" cy="0.00" rx="253.97" ry="172.83" stroke="#086821" stroke-width="1.39" stroke-opacity="0.083"/>
-    <ellipse cx="131.69" cy="0.00" rx="232.28" ry="158.07" stroke="#086821" stroke-width="1.43" stroke-opacity="0.117"/>
-    <ellipse cx="145.06" cy="0.00" rx="210.58" ry="143.30" stroke="#086821" stroke-width="1.48" stroke-opacity="0.157"/>
-    <ellipse cx="158.44" cy="0.00" rx="188.88" ry="128.54" stroke="#086821" stroke-width="1.53" stroke-opacity="0.202"/>
-    <ellipse cx="171.81" cy="0.00" rx="167.19" ry="113.77" stroke="#086821" stroke-width="1.57" stroke-opacity="0.254"/>
-    <ellipse cx="185.19" cy="0.00" rx="145.49" ry="99.01" stroke="#086821" stroke-width="1.62" stroke-opacity="0.312"/>
-    <ellipse cx="198.56" cy="0.00" rx="123.80" ry="84.24" stroke="#086821" stroke-width="1.67" stroke-opacity="0.375"/>
-    <ellipse cx="211.94" cy="0.00" rx="102.10" ry="69.48" stroke="#086821" stroke-width="1.71" stroke-opacity="0.444"/>
-    <ellipse cx="225.32" cy="0.00" rx="80.40" ry="54.72" stroke="#086821" stroke-width="1.76" stroke-opacity="0.519"/>
-    <ellipse cx="238.69" cy="0.00" rx="58.71" ry="39.95" stroke="#086821" stroke-width="1.81" stroke-opacity="0.600"/>
-    <ellipse cx="252.07" cy="0.00" rx="37.01" ry="25.19" stroke="#086821" stroke-width="1.85" stroke-opacity="0.687"/>
-    <ellipse cx="265.44" cy="0.00" rx="15.31" ry="10.42" stroke="#086821" stroke-width="1.90" stroke-opacity="0.780"/>
-    <g transform="translate(265.00 0.00) rotate(180)" stroke="#086821" stroke-width="3.3" stroke-linejoin="round" stroke-linecap="round" fill="#086821" fill-opacity="0.3">
-      <ellipse cx="0" cy="0" rx="45.00" ry="20.00"/>
-      <path d="M -70.00 -35.00 L 70.00 35.00 M 70.00 -35.00 L -70.00 35.00" fill="none"/>
-      <circle cx="-70.00" cy="-35.00" r="25.00" fill="none"/>
-      <circle cx="-70.00" cy="-35.00" r="8.25" fill="#086821" fill-opacity="0.92" stroke="none"/>
-      <circle cx="70.00" cy="-35.00" r="25.00" fill="none"/>
-      <circle cx="70.00" cy="-35.00" r="8.25" fill="#086821" fill-opacity="0.92" stroke="none"/>
-      <circle cx="-70.00" cy="35.00" r="25.00" fill="none"/>
-      <circle cx="-70.00" cy="35.00" r="8.25" fill="#086821" fill-opacity="0.92" stroke="none"/>
-      <circle cx="70.00" cy="35.00" r="25.00" fill="none"/>
-      <circle cx="70.00" cy="35.00" r="8.25" fill="#086821" fill-opacity="0.92" stroke="none"/>
-      <ellipse cx="0" cy="0" rx="27.50" ry="11.25" fill="#086821" fill-opacity="0.62" stroke="none"/>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" fill="none" role="img" aria-label="HET68 logo">
+  <title>HET68 acoustic drone mark</title>
+  <circle cx="500.00" cy="500.00" r="11.25" stroke="#086821" stroke-width="1.80" stroke-opacity="0.900"/>
+  <circle cx="500.00" cy="500.00" r="22.50" stroke="#086821" stroke-width="1.78" stroke-opacity="0.884"/>
+  <circle cx="500.00" cy="500.00" r="33.75" stroke="#086821" stroke-width="1.77" stroke-opacity="0.868"/>
+  <circle cx="500.00" cy="500.00" r="45.00" stroke="#086821" stroke-width="1.75" stroke-opacity="0.852"/>
+  <circle cx="500.00" cy="500.00" r="56.25" stroke="#086821" stroke-width="1.73" stroke-opacity="0.836"/>
+  <circle cx="500.00" cy="500.00" r="67.50" stroke="#086821" stroke-width="1.72" stroke-opacity="0.821"/>
+  <circle cx="500.00" cy="500.00" r="78.75" stroke="#086821" stroke-width="1.70" stroke-opacity="0.805"/>
+  <circle cx="500.00" cy="500.00" r="90.00" stroke="#086821" stroke-width="1.68" stroke-opacity="0.789"/>
+  <circle cx="500.00" cy="500.00" r="101.25" stroke="#086821" stroke-width="1.67" stroke-opacity="0.773"/>
+  <circle cx="500.00" cy="500.00" r="112.50" stroke="#086821" stroke-width="1.65" stroke-opacity="0.757"/>
+  <circle cx="500.00" cy="500.00" r="123.75" stroke="#086821" stroke-width="1.63" stroke-opacity="0.741"/>
+  <circle cx="500.00" cy="500.00" r="135.00" stroke="#086821" stroke-width="1.62" stroke-opacity="0.725"/>
+  <circle cx="500.00" cy="500.00" r="146.25" stroke="#086821" stroke-width="1.60" stroke-opacity="0.709"/>
+  <circle cx="500.00" cy="500.00" r="157.50" stroke="#086821" stroke-width="1.58" stroke-opacity="0.693"/>
+  <circle cx="500.00" cy="500.00" r="168.75" stroke="#086821" stroke-width="1.57" stroke-opacity="0.677"/>
+  <circle cx="500.00" cy="500.00" r="180.00" stroke="#086821" stroke-width="1.55" stroke-opacity="0.662"/>
+  <circle cx="500.00" cy="500.00" r="191.25" stroke="#086821" stroke-width="1.53" stroke-opacity="0.646"/>
+  <circle cx="500.00" cy="500.00" r="202.50" stroke="#086821" stroke-width="1.52" stroke-opacity="0.630"/>
+  <circle cx="500.00" cy="500.00" r="213.75" stroke="#086821" stroke-width="1.50" stroke-opacity="0.614"/>
+  <circle cx="500.00" cy="500.00" r="225.00" stroke="#086821" stroke-width="1.48" stroke-opacity="0.598"/>
+  <circle cx="500.00" cy="500.00" r="236.25" stroke="#086821" stroke-width="1.47" stroke-opacity="0.582"/>
+  <circle cx="500.00" cy="500.00" r="247.50" stroke="#086821" stroke-width="1.45" stroke-opacity="0.566"/>
+  <circle cx="500.00" cy="500.00" r="258.75" stroke="#086821" stroke-width="1.43" stroke-opacity="0.550"/>
+  <circle cx="500.00" cy="500.00" r="270.00" stroke="#086821" stroke-width="1.42" stroke-opacity="0.534"/>
+  <circle cx="500.00" cy="500.00" r="281.25" stroke="#086821" stroke-width="1.40" stroke-opacity="0.518"/>
+  <circle cx="500.00" cy="500.00" r="292.50" stroke="#086821" stroke-width="1.38" stroke-opacity="0.503"/>
+  <circle cx="500.00" cy="500.00" r="303.75" stroke="#086821" stroke-width="1.37" stroke-opacity="0.487"/>
+  <circle cx="500.00" cy="500.00" r="315.00" stroke="#086821" stroke-width="1.35" stroke-opacity="0.471"/>
+  <circle cx="500.00" cy="500.00" r="326.25" stroke="#086821" stroke-width="1.33" stroke-opacity="0.455"/>
+  <circle cx="500.00" cy="500.00" r="337.50" stroke="#086821" stroke-width="1.32" stroke-opacity="0.439"/>
+  <circle cx="500.00" cy="500.00" r="348.75" stroke="#086821" stroke-width="1.30" stroke-opacity="0.423"/>
+  <circle cx="500.00" cy="500.00" r="360.00" stroke="#086821" stroke-width="1.28" stroke-opacity="0.407"/>
+  <circle cx="500.00" cy="500.00" r="371.25" stroke="#086821" stroke-width="1.27" stroke-opacity="0.391"/>
+  <circle cx="500.00" cy="500.00" r="382.50" stroke="#086821" stroke-width="1.25" stroke-opacity="0.375"/>
+  <circle cx="500.00" cy="500.00" r="393.75" stroke="#086821" stroke-width="1.23" stroke-opacity="0.359"/>
+  <circle cx="500.00" cy="500.00" r="405.00" stroke="#086821" stroke-width="1.22" stroke-opacity="0.344"/>
+  <circle cx="500.00" cy="500.00" r="416.25" stroke="#086821" stroke-width="1.20" stroke-opacity="0.328"/>
+  <circle cx="500.00" cy="500.00" r="427.50" stroke="#086821" stroke-width="1.18" stroke-opacity="0.312"/>
+  <circle cx="500.00" cy="500.00" r="438.75" stroke="#086821" stroke-width="1.17" stroke-opacity="0.296"/>
+  <circle cx="500.00" cy="500.00" r="450.00" stroke="#086821" stroke-width="1.15" stroke-opacity="0.280"/>
+  <g transform="translate(300.06 667.77) rotate(-18) scale(0.38)" stroke="#086821" stroke-width="11.052631578947368" stroke-linejoin="round" stroke-linecap="round" fill="#086821" fill-opacity="0.18">
+    <ellipse cx="0" cy="0" rx="45" ry="20"/>
+    <path d="M -70 -35 L 70 35 M 70 -35 L -70 35" fill="none"/>
+    <circle cx="-70" cy="-35" r="25" fill="none"/>
+    <circle cx="-70" cy="-35" r="8" fill="#086821" fill-opacity="0.95" stroke="none"/>
+    <circle cx="70" cy="-35" r="25" fill="none"/>
+    <circle cx="70" cy="-35" r="8" fill="#086821" fill-opacity="0.95" stroke="none"/>
+    <circle cx="-70" cy="35" r="25" fill="none"/>
+    <circle cx="-70" cy="35" r="8" fill="#086821" fill-opacity="0.95" stroke="none"/>
+    <circle cx="70" cy="35" r="25" fill="none"/>
+    <circle cx="70" cy="35" r="8" fill="#086821" fill-opacity="0.95" stroke="none"/>
+    <ellipse cx="0" cy="0" rx="28" ry="11" fill="#086821" fill-opacity="0.8" stroke="none"/>
   </g>
 </svg>
