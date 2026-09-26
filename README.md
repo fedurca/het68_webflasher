@@ -47,12 +47,29 @@ Custom Domains v `wrangler.toml`: `het68.cz`, `www.het68.cz`, `flasher.het68.cz`
 
 CI (`.github/workflows/deploy.yml`) běží na push do `main`, ručně, každých 12 h (kvůli čerstvému QR) a na `repository_dispatch` typu `qr_scrambler_updated`.
 
+## Spektrogram 6ch (localhost, mimo prohlížeč)
+
+Prohlížeč typicky otevře jen 1–2 kanály. Pro plných **6 kanálů** HET68 UAC2
+spusť host tool:
+
+```bash
+cd spectro6
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+sudo apt install -y portaudio19-dev   # jednou
+python app.py --list-devices
+python app.py --device het68          # http://127.0.0.1:8765/
+```
+
+Detaily: [`spectro6/README.md`](spectro6/README.md).
+
 ## Struktura
 
 ```
 public/                 # landing (het68.cz)
 public/flasher/         # flasher UI
 public/qr/              # generováno z fedurca/qr_scrambler (fetch:qr)
+spectro6/               # 6ch spektrogram + 2 kHz VU (Python, localhost)
 scripts/fetch-qr.mjs    # stažení nejnovějšího QR z GitHubu
 src/worker.js           # auth + host routing + GitHub proxy
 wrangler.toml

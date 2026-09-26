@@ -7,3 +7,8 @@ dist/
 
 # Generated at build/deploy time
 public/build-info.json
+
+# spectro6 local venv / caches
+spectro6/.venv/
+spectro6/**/__pycache__/
+spectro6/*.pyc

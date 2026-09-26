@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HET68 spectro6 — 6ch · 2 kHz VU</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">HET68</span>
+      <span class="sub">spectro6 · localhost</span>
+    </div>
+    <div class="controls">
+      <label class="field">
+        <span>Zařízení</span>
+        <select id="device"></select>
+      </label>
+      <button type="button" id="btnStart" class="btn primary">Start</button>
+      <button type="button" id="btnStop" class="btn" disabled>Stop</button>
+      <span id="status" class="status">…</span>
+    </div>
+  </header>
+
+  <main id="channels" class="channels" aria-live="polite"></main>
+
+  <footer class="foot">
+    <span>VU = pásmo <strong>2 kHz ± 100 Hz</strong> · spektrogram log 100 Hz–Nyquist · PortAudio/ALSA</span>
+    <span id="stats"></span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
