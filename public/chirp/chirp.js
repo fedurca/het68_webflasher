@@ -2116,6 +2116,79 @@
     canvas.addEventListener("pointercancel", endDrag);
   }
 
+  /**
+   * Ask the browser for a 6-channel mic (HET68 UAC2). Most browsers still
+   * clamp to 1–2 channels; we request exact:6 first, then fall back so phones
+   * keep working. Logs track.getSettings().channelCount for diagnostics.
+   */
+  async function requestMicStream() {
+    var baseAudio = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+    var tryExact = {
+      audio: Object.assign({}, baseAudio, { channelCount: { exact: 6 } }),
+      video: false,
+    };
+    var tryIdeal = {
+      audio: Object.assign({}, baseAudio, { channelCount: { ideal: 6 } }),
+      video: false,
+    };
+    var tryAny = { audio: baseAudio, video: false };
+
+    function logTrack(stream, label) {
+      var track = stream.getAudioTracks()[0];
+      if (!track) {
+        console.warn("[chirp] mic stream has no audio track (" + label + ")");
+        return;
+      }
+      var settings = track.getSettings ? track.getSettings() : {};
+      var caps = track.getCapabilities ? track.getCapabilities() : null;
+      console.log("Úspěšně připojeno! Počet kanálů:", settings.channelCount, "(" + label + ")");
+      console.log("Kompletní nastavení stopy:", settings);
+      if (caps) console.log("Schopnosti stopy (capabilities):", caps);
+      log(
+        "mic channels=" +
+          (settings.channelCount != null ? settings.channelCount : "?") +
+          " · " +
+          label +
+          (settings.sampleRate ? " · " + settings.sampleRate + " Hz" : "")
+      );
+    }
+
+    try {
+      var stream6 = await navigator.mediaDevices.getUserMedia(tryExact);
+      logTrack(stream6, "channelCount exact:6");
+      return stream6;
+    } catch (error) {
+      console.error(
+        "Chyba při přístupu k mikrofonu (exact:6):",
+        error && error.name,
+        error && error.message
+      );
+      log(
+        "mic exact:6 selhalo (" +
+          (error && error.name ? error.name : "error") +
+          ") — zkouším ideal:6"
+      );
+    }
+    try {
+      var streamIdeal = await navigator.mediaDevices.getUserMedia(tryIdeal);
+      logTrack(streamIdeal, "channelCount ideal:6");
+      return streamIdeal;
+    } catch (error2) {
+      console.error(
+        "Chyba při přístupu k mikrofonu (ideal:6):",
+        error2 && error2.name,
+        error2 && error2.message
+      );
+    }
+    var streamAny = await navigator.mediaDevices.getUserMedia(tryAny);
+    logTrack(streamAny, "fallback (no channelCount)");
+    return streamAny;
+  }
+
   async function startMic() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showPermWarn(t.noGetUserMedia);
@@ -2127,13 +2200,7 @@
     }
     try {
       setStatus("", t.askingMic);
-      state.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      state.stream = await requestMicStream();
       // Prefer a 48 kHz context (spec sample rate). If the device forces a
       // different rate (often 44.1 kHz), the ALINK demod still runs at 48 kHz
       // and the mic block is resampled — the modem's 250 µs chips are unreliable
@@ -2164,7 +2231,14 @@
       log("RX sample rate " + micRate + " Hz" + (micRate === 48000 ? "" : " → 48000 (resampled)"));
       // PCM tap: feeds the WAV recorder and the ALINK demodulator.
       try {
-        var proc = state.ctx.createScriptProcessor(2048, 1, 1);
+        // Prefer multi-channel input graph when the browser actually granted >1 ch.
+        var micCh = 1;
+        try {
+          var tr = state.stream && state.stream.getAudioTracks()[0];
+          var st = tr && tr.getSettings ? tr.getSettings() : null;
+          if (st && st.channelCount) micCh = Math.max(1, Math.min(6, st.channelCount | 0));
+        } catch (eCh) { /* ignore */ }
+        var proc = state.ctx.createScriptProcessor(2048, micCh, 1);
         var mute = state.ctx.createGain();
         mute.gain.value = 0;
         src.connect(proc);

@@ -820,6 +820,13 @@
     mute.gain.value = 0;
     state.mute = mute;
 
+    var micCh = 1;
+    try {
+      var tr = state.stream && state.stream.getAudioTracks()[0];
+      var st = tr && tr.getSettings ? tr.getSettings() : null;
+      if (st && st.channelCount) micCh = Math.max(1, Math.min(6, st.channelCount | 0));
+    } catch (eCh) { /* ignore */ }
+
     if (state.ctx.audioWorklet && typeof AudioWorkletNode === "function") {
       if (!state.workletReady) {
         await state.ctx.audioWorklet.addModule("/pcm-tap-worklet.js");
@@ -829,7 +836,8 @@
         numberOfInputs: 1,
         numberOfOutputs: 1,
         outputChannelCount: [1],
-        channelCount: 1,
+        channelCount: micCh,
+        channelCountMode: "explicit",
       });
       node.port.onmessage = function (ev) {
         if (ev.data && ev.data.samples) onPcmSamples(ev.data.samples);
@@ -839,12 +847,12 @@
       mute.connect(state.ctx.destination);
       state.wavProc = node;
       state.pcmTapKind = "worklet";
-      log("PCM tap: AudioWorklet");
+      log("PCM tap: AudioWorklet · inCh=" + micCh);
       return;
     }
 
     // Legacy fallback (may log a deprecation warning in Chromium).
-    var proc = state.ctx.createScriptProcessor(2048, 1, 1);
+    var proc = state.ctx.createScriptProcessor(2048, micCh, 1);
     src.connect(proc);
     proc.connect(mute);
     mute.connect(state.ctx.destination);
@@ -853,7 +861,79 @@
     };
     state.wavProc = proc;
     state.pcmTapKind = "script";
-    log("PCM tap: ScriptProcessor (fallback)");
+    log("PCM tap: ScriptProcessor (fallback) · inCh=" + micCh);
+  }
+
+  /**
+   * Explicit 6-channel mic request (HET68 UAC2). Browsers often still clamp
+   * to 1–2 channels — we try exact:6, then ideal:6, then unconstrained.
+   */
+  async function requestMicStream() {
+    var baseAudio = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+    var tryExact = {
+      audio: Object.assign({}, baseAudio, { channelCount: { exact: 6 } }),
+      video: false,
+    };
+    var tryIdeal = {
+      audio: Object.assign({}, baseAudio, { channelCount: { ideal: 6 } }),
+      video: false,
+    };
+    var tryAny = { audio: baseAudio, video: false };
+
+    function logTrack(stream, label) {
+      var track = stream.getAudioTracks()[0];
+      if (!track) {
+        console.warn("[chirpdev] mic stream has no audio track (" + label + ")");
+        return;
+      }
+      var settings = track.getSettings ? track.getSettings() : {};
+      var caps = track.getCapabilities ? track.getCapabilities() : null;
+      console.log("Úspěšně připojeno! Počet kanálů:", settings.channelCount, "(" + label + ")");
+      console.log("Kompletní nastavení stopy:", settings);
+      if (caps) console.log("Schopnosti stopy (capabilities):", caps);
+      log(
+        "mic channels=" +
+          (settings.channelCount != null ? settings.channelCount : "?") +
+          " · " +
+          label +
+          (settings.sampleRate ? " · " + settings.sampleRate + " Hz" : "")
+      );
+    }
+
+    try {
+      var stream6 = await navigator.mediaDevices.getUserMedia(tryExact);
+      logTrack(stream6, "channelCount exact:6");
+      return stream6;
+    } catch (error) {
+      console.error(
+        "Chyba při přístupu k mikrofonu (exact:6):",
+        error && error.name,
+        error && error.message
+      );
+      log(
+        "mic exact:6 selhalo (" +
+          (error && error.name ? error.name : "error") +
+          ") — zkouším ideal:6"
+      );
+    }
+    try {
+      var streamIdeal = await navigator.mediaDevices.getUserMedia(tryIdeal);
+      logTrack(streamIdeal, "channelCount ideal:6");
+      return streamIdeal;
+    } catch (error2) {
+      console.error(
+        "Chyba při přístupu k mikrofonu (ideal:6):",
+        error2 && error2.name,
+        error2 && error2.message
+      );
+    }
+    var streamAny = await navigator.mediaDevices.getUserMedia(tryAny);
+    logTrack(streamAny, "fallback (no channelCount)");
+    return streamAny;
   }
 
   // ---- Mic RX (wired early; async + guarded like chirp.js) ----
@@ -869,13 +949,7 @@
     }
     try {
       setStatus("", "žádám mikrofon…");
-      state.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      state.stream = await requestMicStream();
       try {
         state.ctx = new (window.AudioContext || window.webkitAudioContext)({
           sampleRate: 48000,
