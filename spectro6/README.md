@@ -29,34 +29,55 @@ pip install -r requirements.txt
 
 ## Spuštění
 
+**Důležité:** vždy používej `python3` (nebo aktivovaný `.venv`). Na Debian/Ubuntu
+`python` často chybí.
+
 ```bash
-# seznam vstupů (hledej HET68 / 6ch)
-python app.py --list-devices
+# seznam vstupů — hledej řádek s CH=6 a „← use this“ (ALSA hw)
+python3 app.py --list-devices
 
-# výchozí vstup
-python app.py
+# auto: vybere nejlepší ALSA 6ch (ne Pulse surround-21)
+python3 app.py
 
-# konkrétní zařízení (id nebo část jména)
-python app.py --device 3
-python app.py --device het68
+# číselné id z --list-devices (doporučeno)
+python3 app.py --device 4
 
-# jiný port
-python app.py --port 8765
+# jméno / alias — preferuje ALSA 6ch před Pulse 3ch stubem
+python3 app.py --device "Pico 6ch"
+python3 app.py --device het68
+
+# verbose + jiný port
+python3 app.py --device 4 -v --port 8765
 ```
 
 Otevři **http://127.0.0.1:8765/**
 
+### Proč `--device het68` dřív selhalo
+
+PulseAudio často nabízí
+`…analog-surround-21` jako **3kanálový** stub. Skutečný 6ch stream je ALSA
+`Pico 6ch Microphone … USB Audio (hw:X,0)`. Appka teď při shodě jména skóruje
+zařízení a při &lt;6 ch automaticky přepne na ALSA 6ch, pokud existuje.
+
+### Stdout VU
+
+Za běhu capture vypisuje ~4×/s:
+
+```text
+[VU 2kHz] mic1= -42.1dB  mic2= …  mic6= …  frames=… blocks=… ovf=…
+```
+
 ## UI
 
-- 6 řádků = CH0…CH5
+- 6 řádků = **mic1…mic6**
 - vlevo **VU** = výkon v pásmu **2 kHz ± 100 Hz** (dBFS)
 - vpravo **spektrogram** (log 100 Hz → Nyquist, scrolling)
-- Start / Stop přes WebSocket
+- Start pošle vybrané device id přes WebSocket (bez restartu procesu)
+- panel **debug** dole: device id/name, last_error, frames/blocks
 
 ## Poznámky
 
-- Změna zařízení v UI vyžaduje restart procesu s `--device …`
-  (PortAudio stream se váže při startu).
-- Pokud device hlásí &lt; 6 kanálů, appka odmítne start — zkontroluj
-  `arecord -l` / `pw-cli list-objects` že PipeWire/ALSA vidí 6ch UAC2.
-- Prohlížečové chirp/chirpdev zůstávají mono; toto je nativní cesta k array.
+- Pokud device hlásí &lt; 6 kanálů, start selže s jasnou hláškou — z `--list-devices`
+  vezmi řádek označený `← use this`.
+- Ověření ALSA: `arecord -l` / `pw-cli list-objects`.
+- Prohlížečové chirp/chirpdev zůstávají omezené; toto je nativní cesta k array.

@@ -192,6 +192,24 @@ html, body {
   height: 7.5rem;
 }
 
+.debug {
+  margin: 0 1.25rem 0.75rem;
+  padding: 0.65rem 0.85rem;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--muted);
+  background: rgba(13, 21, 16, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 3.2rem;
+}
+
 .foot {
   display: flex;
   flex-wrap: wrap;
@@ -203,6 +221,11 @@ html, body {
   border-top: 1px solid var(--line);
 }
 .foot strong { color: var(--green-hi); font-weight: 700; }
+.foot code {
+  font-family: var(--mono);
+  font-size: 0.78em;
+  color: var(--green-hi);
+}
 
 @media (max-width: 720px) {
   .ch { grid-template-columns: 3.5rem 1fr; }
