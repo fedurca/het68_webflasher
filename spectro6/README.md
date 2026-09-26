@@ -1,75 +1,67 @@
 # spectro6 — 6kanálový spektrogram + VU @ 2 kHz
 
-Lokální Python nástroj pro Ubuntu host. Na rozdíl od prohlížeče (`getUserMedia`
-typicky 1–2 kanály) otevírá **celých 6 kanálů** HET68 UAC2 mikrofonu přes
-PortAudio/ALSA a streamuje spektrogram + pásmové VU (2 kHz) do web UI na
-`localhost`.
+Lokální Python nástroj pro Ubuntu host. Otevírá **6 kanálů** HET68 UAC2 přes
+PortAudio/ALSA a streamuje spektrogram + VU (2 kHz) na `localhost`.
 
-## Požadavky
-
-- Ubuntu (PipeWire / Pulse / ALSA)
-- Python 3.11+ (testováno s 3.12)
-- HET68 připojený jako USB audio (UAC2, 6 ch · 48 kHz)
-
-Systémové balíčky (PortAudio):
-
-```bash
-sudo apt update
-sudo apt install -y python3-venv python3-pip portaudio19-dev libportaudio2
-```
-
-## Instalace
-
-```bash
-cd spectro6
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-## Spuštění (důležité: větev s opravami)
-
-Na `main` můžeš mít starší spectro6 bez VU stdout. Opravy jsou ve větvi:
+## Spuštění
 
 ```bash
 cd ~/het68_webflasher
-git fetch origin
-git checkout cursor/spectro6-debug-device-180e
+git fetch && git checkout cursor/spectro6-debug-device-180e
 cd spectro6 && source .venv/bin/activate
+
+python3 app.py --list-devices   # ← DEFAULT = ALSA Pico 6ch hw
+python3 app.py                  # auto + pasuspender (doporučeno)
 ```
+
+`app.py` se defaultně znovu spustí pod **`pasuspender`**, aby Pulse/PipeWire
+nekradly USB mic (častá příčina digitálních mezer).
 
 ```bash
-# seznam — DEFAULT = ALSA Pico 6ch hw (ne Pulse surround / pipewire)
-python3 app.py --list-devices
+# bez pasuspenderu
+python3 app.py --no-pasuspender
 
-# auto default = ta správná zvukovka
-python3 app.py
+# větší buffery, když mezery zůstanou
+python3 app.py --blocksize 4096 --latency 0.3
 
-# nebo pevné id
-python3 app.py --device 4
+# kosmeticky držet poslední sloupec spektrogramu v mezerách
+python3 app.py --gap-hold
 ```
 
-Otevři **http://127.0.0.1:8765/** (hard refresh Ctrl+Shift+R).
+Otevři **http://127.0.0.1:8765/** (Ctrl+Shift+R).
 
-### Stdout
+## Mezery ve spektrogramu = digitální nuly z USB
 
-Za běhu ~4×/s:
+Když ve logu vidíš střídání:
+
+- `peak=[+0.0 …]` / `CLIP` / vysoké VU
+- hned `mic*=-200dB` / `peak=[-240 …]`
+- a zároveň `ovf=0 drop=0`
+
+…PortAudio **dostává callbacky se samými nulami**. To není chyba UI ani
+ring-bufferu. Typické příčiny:
+
+1. **Pulse/PipeWire** souběžně sahá na stejný USB mic → `pasuspender` (default)
+2. **USB hub / kabel / port** — zkus přímý USB2 port na notebooku
+3. **Firmware Pico UAC2** nestíhá SOF → nuly mezi platnými packety
+4. Přebuzení (`CLIP`) a hned ticho — firmware/USB restart period
+
+Appka teď:
+
+- loguje `[GAP] digital silence START/END`
+- počítá `zeros_*` / `gap_hops` / `zero_ratio`
+- ve webu barví mezery **magenta** (ne tiché ambient)
+
+## Stdout
 
 ```text
-[VU 2kHz] mic1= -42.1dB  …  mic6= …  peak=[…]  live frames=… ovf=… drop=…
+[VU 2kHz] mic1=…  peak=[…]  live|GAP  zeros=… zero_ratio=…
+[GAP] digital silence START …
+[GAP] digital silence END  lasted=120ms
 ```
 
-`CLIP` / `⚠ OVERLOAD` = špička u full-scale (±1.0) — hardwarové přebuzení, ne jen jas spektrogramu.
+## UI
 
-### UI
-
-- mic1…mic6, multi-column spektrogram (bez „dírek“ z dropnutých hopů)
-- VU @ 2 kHz + peak/CLIP
-- debug panel: device, last_error, ovf/drop
-- Start posílá device id přes WS
-
-## Poznámky
-
-- Pulse `…analog-surround-21` = 3ch stub — appka ho přeskočí.
-- Virtual `sysdefault` / `pipewire` / `default` mají nižší score než ALSA `hw:`.
-- Spektro mapování −85…−15 dBFS (jas ≠ clipping).
+- mic1…mic6, multi-column spektrogram
+- magenta = digitální gap; zelená = reálný signál
+- debug: zeros / gap_hops / ovf / drop

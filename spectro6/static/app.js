@@ -13,7 +13,7 @@
     debug: document.getElementById("debug"),
   };
 
-  /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, peak: HTMLElement, hist: Uint8Array }[]} */
+  /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, peak: HTMLElement, hist: Uint8Array, gaps: Uint8Array }[]} */
   const rows = [];
 
   const LUT = (() => {
@@ -61,32 +61,44 @@
         db: card.querySelector("[data-db]"),
         peak: card.querySelector("[data-peak]"),
         hist: new Uint8Array(HISTORY * BINS),
+        gaps: new Uint8Array(HISTORY),
       });
     }
   }
 
-  function paintColumn(row, colU8) {
+  function paintColumn(row, colU8, isGap) {
     const hist = row.hist;
     hist.copyWithin(0, BINS);
     hist.set(colU8, (HISTORY - 1) * BINS);
+    row.gaps.copyWithin(0, 1);
+    row.gaps[HISTORY - 1] = isGap ? 1 : 0;
   }
 
   function flushPaint(row) {
-    const { canvas, ctx, hist } = row;
+    const { canvas, ctx, hist, gaps } = row;
     const w = canvas.width;
     const h = canvas.height;
     const img = ctx.createImageData(w, h);
     const data = img.data;
     for (let x = 0; x < w; x++) {
       const srcX = Math.floor((x / w) * HISTORY);
+      const gap = gaps[srcX];
       for (let y = 0; y < h; y++) {
         const bin = BINS - 1 - Math.floor((y / h) * BINS);
         const v = hist[srcX * BINS + bin];
         const o = (y * w + x) * 4;
-        const l = v * 4;
-        data[o] = LUT[l];
-        data[o + 1] = LUT[l + 1];
-        data[o + 2] = LUT[l + 2];
+        if (gap) {
+          // Magenta stripe = digital-zero USB gap (not quiet ambient)
+          const stripe = (y >> 2) & 1;
+          data[o] = stripe ? 90 : 40;
+          data[o + 1] = 8;
+          data[o + 2] = stripe ? 70 : 30;
+        } else {
+          const l = v * 4;
+          data[o] = LUT[l];
+          data[o + 1] = LUT[l + 1];
+          data[o + 2] = LUT[l + 2];
+        }
         data[o + 3] = 255;
       }
     }
@@ -140,6 +152,7 @@
       `want_ch=${m.channels ?? CHANNELS}  sr=${m.sample_rate ?? "?"}  running=${!!m.running}`,
       m.last_error ? `last_error=${m.last_error}` : null,
       `frames=${m.frames ?? 0}  blocks=${m.blocks ?? 0}  ovf=${m.overflows ?? 0}  drop=${m.ring_drops ?? 0}`,
+      `zeros=${m.zero_blocks ?? 0}  gap_hops=${m.gap_hops ?? 0}  block=${m.blocksize ?? "?"}  lat=${m.latency ?? "?"}`,
       m.peak_db ? `peak_db=[${m.peak_db.map((x) => Number(x).toFixed(1)).join(", ")}]` : null,
       m.clips_total ? `clips_total=[${m.clips_total.join(", ")}]` : null,
       extra || null,
@@ -243,12 +256,14 @@
     }
     const raw = b64ToU8(msg.spectro);
     const colStride = chN * bins;
+    const gapFlags = msg.gaps || [];
 
     for (let n = 0; n < ncols; n++) {
       const base = n * colStride;
+      const isGap = !!gapFlags[n];
       for (let ch = 0; ch < Math.min(chN, rows.length); ch++) {
         const col = raw.subarray(base + ch * bins, base + (ch + 1) * bins);
-        if (col.length === BINS) paintColumn(rows[ch], col);
+        if (col.length === BINS) paintColumn(rows[ch], col, isGap);
       }
       colCount += 1;
     }
@@ -266,9 +281,12 @@
       .map((db, i) => `mic${i + 1}=${Number(db).toFixed(1)}`)
       .join(" ");
     const ovAny = (msg.overloaded || []).some(Boolean);
+    const gapN = gapFlags.filter(Boolean).length;
     el.stats.textContent =
       `cols ${colCount}` +
       ` · +${ncols}/tick` +
+      (gapN ? ` · GAP ${gapN}/${ncols}` : "") +
+      (msg.zero_ratio ? ` · zero ${(msg.zero_ratio * 100).toFixed(0)}%` : "") +
       ` · capture ${msg.frames || 0}` +
       (msg.overflows ? ` · ovf ${msg.overflows}` : "") +
       (msg.ring_drops ? ` · drop ${msg.ring_drops}` : "") +
@@ -284,6 +302,8 @@
           blocks: msg.blocks,
           overflows: msg.overflows,
           ring_drops: msg.ring_drops,
+          zero_blocks: msg.zero_blocks,
+          gap_hops: msg.gap_hops,
           peak_db: msg.peak_db,
         },
         vuLine ? `[VU 2kHz] ${vuLine}` : null

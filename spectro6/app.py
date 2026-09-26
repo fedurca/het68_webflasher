@@ -41,7 +41,8 @@ from fastapi.staticfiles import StaticFiles
 # ---- DSP defaults (HET68 UAC2) --------------------------------------------
 SAMPLE_RATE = 48_000
 CHANNELS = 6
-BLOCK = 512
+# Larger period = fewer USB SOF edge-cases stuffing digital zeros into the stream
+BLOCK = 2048
 FFT_SIZE = 2048
 HOP = 512
 VU_HZ = 2_000.0
@@ -52,10 +53,14 @@ STDOUT_VU_HZ = 4
 # Spectro display window (dBFS) — ambient ~-60..-30 should not look "clipped"
 SPEC_DB_LO = -85.0
 SPEC_DB_HI = -15.0
-MAX_COLS_PER_TICK = 16
-RING_MAX = 256
+MAX_COLS_PER_TICK = 64
+RING_MAX = 512
 CLIP_THRESH = 0.98
-ASSET_VER = "20260926b"
+# Digital-silence: PortAudio still delivers blocks, but samples are ~0 (USB gap)
+ZERO_PEAK_THRESH = 1e-7
+GAP_DB_THRESH = -140.0  # spectro/VU below this ⇒ treat hop as gap
+DEFAULT_LATENCY = 0.20  # seconds — USB-friendly
+ASSET_VER = "20260926c"
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -63,11 +68,31 @@ log = logging.getLogger("spectro6")
 
 
 def _vout(msg: str) -> None:
-    """Always-visible console line (survives uvicorn log noise)."""
+    """Always-visible console line (do not also log.info — that doubles every line)."""
     sys.stdout.write(msg + "\n")
     sys.stdout.flush()
-    # Also mirror to stderr logger so journald / redirected runs keep a copy
-    log.info("%s", msg)
+
+
+def maybe_reexec_pasuspender(enabled: bool) -> None:
+    """Re-exec under pasuspender so Pulse/PipeWire release the USB mic."""
+    import os
+    import shutil
+
+    if not enabled:
+        return
+    if os.environ.get("SPECTRO6_UNDER_PASUSPENDER") == "1":
+        return
+    exe = shutil.which("pasuspender")
+    if not exe:
+        _vout(
+            "[spectro6] tip: install pulseaudio-utils (pasuspender) — "
+            "Pulse/PipeWire often steal USB and cause digital-zero gaps"
+        )
+        return
+    env = os.environ.copy()
+    env["SPECTRO6_UNDER_PASUSPENDER"] = "1"
+    _vout("[spectro6] re-exec under pasuspender (suspend Pulse/PipeWire)…")
+    os.execvpe(exe, ["pasuspender", "--", sys.executable, *sys.argv], env)
 
 
 def list_devices() -> list[dict[str, Any]]:
@@ -254,28 +279,43 @@ class SpectroEngine:
         channels: int = CHANNELS,
         sample_rate: int = SAMPLE_RATE,
         debug: bool = True,
+        latency: float = DEFAULT_LATENCY,
+        blocksize: int = BLOCK,
+        gap_hold: bool = False,
     ) -> None:
         self.device = device
         self.channels = channels
         self.sample_rate = sample_rate
         self.debug = debug
+        self.latency = float(latency)
+        self.blocksize = int(blocksize)
+        self.gap_hold = bool(gap_hold)
         self._lock = threading.Lock()
         self._ring: deque[np.ndarray] = deque(maxlen=RING_MAX)
         self._stream: sd.InputStream | None = None
         self._running = False
         self._last_error: str | None = None
         self._window = np.hanning(FFT_SIZE).astype(np.float32)
+        # Coherent gain ≈ sum(window)/N — normalize band power toward dBFS-ish
+        self._win_cg = float(np.sum(self._window) / FFT_SIZE) or 1.0
         self._vu = np.full(channels, -120.0, dtype=np.float32)
         self._peak = np.zeros(channels, dtype=np.float32)
         self._peak_db = np.full(channels, -120.0, dtype=np.float32)
         self._clips = np.zeros(channels, dtype=np.int64)
         self._clips_tick = np.zeros(channels, dtype=np.int64)
         self._cols = np.zeros((channels, SPECTRO_BINS), dtype=np.float32)
+        self._last_good_cols = np.zeros((channels, SPECTRO_BINS), dtype=np.float32)
         self._overflows = 0
         self._ring_drops = 0
+        self._zero_blocks = 0
+        self._zero_blocks_tick = 0
+        self._gap_hops = 0
+        self._gap_hops_tick = 0
         self._callback_blocks = 0
         self._frames = 0
         self._last_stdout_vu = 0.0
+        self._in_gap = False
+        self._gap_started_at = 0.0
         self._bin_map = self._build_bin_map()
         freqs = np.fft.rfftfreq(FFT_SIZE, 1.0 / sample_rate)
         lo, hi = VU_HZ - VU_BW_HZ / 2, VU_HZ + VU_BW_HZ / 2
@@ -323,13 +363,14 @@ class SpectroEngine:
         max_ch = int(info["max_input_channels"])
         name = str(info["name"])
         log.info(
-            "opening device id=%s name=%r max_ch=%s want_ch=%s sr=%s block=%s",
+            "opening device id=%s name=%r max_ch=%s want_ch=%s sr=%s block=%s latency=%.3f",
             self.device,
             name,
             max_ch,
             self.channels,
             self.sample_rate,
-            BLOCK,
+            self.blocksize,
+            self.latency,
         )
         if max_ch < self.channels:
             msg = (
@@ -343,21 +384,26 @@ class SpectroEngine:
         self._ring.clear()
         self._overflows = 0
         self._ring_drops = 0
+        self._zero_blocks = 0
+        self._zero_blocks_tick = 0
+        self._gap_hops = 0
+        self._gap_hops_tick = 0
         self._callback_blocks = 0
         self._frames = 0
         self._clips[:] = 0
         self._clips_tick[:] = 0
         self._peak[:] = 0
+        self._in_gap = False
         self._tail = np.zeros((0, self.channels), dtype=np.float32)
         try:
             self._stream = sd.InputStream(
                 device=self.device,
                 channels=self.channels,
                 samplerate=self.sample_rate,
-                blocksize=BLOCK,
+                blocksize=self.blocksize,
                 dtype="float32",
                 callback=self._callback,
-                latency=0.05,
+                latency=self.latency,
             )
             self._stream.start()
         except Exception as exc:
@@ -365,7 +411,11 @@ class SpectroEngine:
             self._stream = None
             raise
         self._running = True
-        _vout(f"[spectro6] capture ON device={self.device} {name!r} ch={self.channels} sr={self.sample_rate}")
+        _vout(
+            f"[spectro6] capture ON device={self.device} {name!r} "
+            f"ch={self.channels} sr={self.sample_rate} "
+            f"block={self.blocksize} latency={self.latency:.3f}s gap_hold={self.gap_hold}"
+        )
 
     def stop(self) -> None:
         self._running = False
@@ -383,13 +433,32 @@ class SpectroEngine:
             self._overflows += 1
             if self._overflows <= 8:
                 log.warning("portaudio status: %s", status)
-        # Peak / clip per channel (float32 full-scale ±1.0)
         absx = np.abs(indata)
         block_peak = absx.max(axis=0)
-        np.maximum(self._peak, block_peak, out=self._peak)
-        clips = (absx >= CLIP_THRESH).sum(axis=0)
-        self._clips += clips
-        self._clips_tick += clips
+        peak_all = float(block_peak.max()) if block_peak.size else 0.0
+        # Digital-zero block: USB/firmware gap (PortAudio still fires callbacks)
+        if peak_all < ZERO_PEAK_THRESH:
+            self._zero_blocks += 1
+            self._zero_blocks_tick += 1
+            if not self._in_gap:
+                self._in_gap = True
+                self._gap_started_at = time.time()
+                _vout(
+                    f"[GAP] digital silence START  "
+                    f"(peak<{ZERO_PEAK_THRESH:g}) frames={self._frames}"
+                )
+        else:
+            if self._in_gap:
+                dt = time.time() - self._gap_started_at
+                _vout(
+                    f"[GAP] digital silence END  lasted={dt*1000:.0f}ms  "
+                    f"zero_blocks={self._zero_blocks}"
+                )
+                self._in_gap = False
+            np.maximum(self._peak, block_peak, out=self._peak)
+            clips = (absx >= CLIP_THRESH).sum(axis=0)
+            self._clips += clips
+            self._clips_tick += clips
         if len(self._ring) >= RING_MAX:
             self._ring_drops += 1
         self._ring.append(indata.copy())
@@ -415,16 +484,33 @@ class SpectroEngine:
         buf = np.concatenate([self._tail, block], axis=0) if self._tail.size else block
         cols_acc: list[np.ndarray] = []
         vu_acc: list[np.ndarray] = []
+        gap_flags: list[bool] = []
         pos = 0
+        # Normalize rFFT power toward ~dBFS for a full-scale sine
+        pnorm = 1.0 / max((FFT_SIZE * self._win_cg) ** 2, 1e-20)
         while pos + FFT_SIZE <= buf.shape[0]:
             frame = buf[pos : pos + FFT_SIZE, :]
+            # Time-domain peak for this hop — true digital gap?
+            hop_peak = float(np.max(np.abs(frame)))
+            is_gap = hop_peak < ZERO_PEAK_THRESH
             windowed = frame * self._window[:, None]
             spec = np.fft.rfft(windowed, axis=0)
-            power = (spec.real * spec.real + spec.imag * spec.imag).T
+            power = (spec.real * spec.real + spec.imag * spec.imag).T * pnorm
             col = 10.0 * np.log10(power[:, self._bin_map] + 1e-20)
-            cols_acc.append(col)
             band = power[:, self._vu_bins].mean(axis=1)
-            vu_acc.append(10.0 * np.log10(band + 1e-20))
+            vu = 10.0 * np.log10(band + 1e-20)
+            if is_gap or float(np.max(vu)) < GAP_DB_THRESH:
+                is_gap = True
+                self._gap_hops += 1
+                self._gap_hops_tick += 1
+                if self.gap_hold:
+                    col = self._last_good_cols.copy()
+                # else leave near-floor col (will be painted as gap stripe in UI)
+            else:
+                self._last_good_cols = col.astype(np.float32)
+            cols_acc.append(col)
+            vu_acc.append(vu)
+            gap_flags.append(is_gap)
             pos += HOP
         keep = FFT_SIZE - HOP
         self._tail = buf[-keep:] if buf.shape[0] >= keep else buf.copy()
@@ -432,14 +518,18 @@ class SpectroEngine:
             self._maybe_stdout_vu(idle=True)
             return None
 
-        # Keep latest VU; send ALL hop columns (capped) so UI does not "skip"
         if len(cols_acc) > MAX_COLS_PER_TICK:
             cols_acc = cols_acc[-MAX_COLS_PER_TICK:]
             vu_acc = vu_acc[-MAX_COLS_PER_TICK:]
+            gap_flags = gap_flags[-MAX_COLS_PER_TICK:]
         self._cols = cols_acc[-1].astype(np.float32)
-        self._vu = np.mean(np.stack(vu_acc, axis=0), axis=0).astype(np.float32)
+        # VU from non-gap hops when possible
+        live_vu = [v for v, g in zip(vu_acc, gap_flags) if not g]
+        if live_vu:
+            self._vu = np.mean(np.stack(live_vu, axis=0), axis=0).astype(np.float32)
+        else:
+            self._vu = np.full(self.channels, -200.0, dtype=np.float32)
 
-        # Multi-column payload: (ncols, channels, bins) row-major
         stack = np.stack(cols_acc, axis=0).astype(np.float32)  # (N, ch, bins)
         col_u8 = _db_to_u8(stack)
         vu_norm = np.clip((self._vu - SPEC_DB_LO) / (SPEC_DB_HI - SPEC_DB_LO), 0.0, 1.0)
@@ -449,12 +539,25 @@ class SpectroEngine:
             self._peak[:] = 0
             clips_tick = self._clips_tick.copy()
             self._clips_tick[:] = 0
+            zero_tick = self._zero_blocks_tick
+            self._zero_blocks_tick = 0
+            gap_tick = self._gap_hops_tick
+            self._gap_hops_tick = 0
         peak_db = 20.0 * np.log10(np.maximum(peak, 1e-12))
         self._peak_db = peak_db.astype(np.float32)
         overloaded = [bool(peak[i] >= CLIP_THRESH or clips_tick[i] > 0) for i in range(self.channels)]
+        zero_ratio = zero_tick / max(1, len(chunks))
 
         now = time.time()
-        self._maybe_stdout_vu(idle=False, peak_db=peak_db, clips=clips_tick, overloaded=overloaded)
+        self._maybe_stdout_vu(
+            idle=False,
+            peak_db=peak_db,
+            clips=clips_tick,
+            overloaded=overloaded,
+            zero_tick=zero_tick,
+            gap_tick=gap_tick,
+            zero_ratio=zero_ratio,
+        )
 
         return {
             "t": now,
@@ -468,9 +571,16 @@ class SpectroEngine:
             "spectro": base64.b64encode(col_u8.tobytes()).decode("ascii"),
             "shape": [int(col_u8.shape[0]), int(self.channels), int(SPECTRO_BINS)],
             "ncols": int(col_u8.shape[0]),
+            "gaps": gap_flags,  # per spectro column
+            "gap_hold": self.gap_hold,
             "spec_db": [SPEC_DB_LO, SPEC_DB_HI],
             "overflows": self._overflows,
             "ring_drops": self._ring_drops,
+            "zero_blocks": self._zero_blocks,
+            "zero_blocks_tick": int(zero_tick),
+            "gap_hops": self._gap_hops,
+            "gap_hops_tick": int(gap_tick),
+            "zero_ratio": float(zero_ratio),
             "frames": self._frames,
             "blocks": self._callback_blocks,
             "ring": len(self._ring),
@@ -483,6 +593,9 @@ class SpectroEngine:
         peak_db: np.ndarray | None = None,
         clips: np.ndarray | None = None,
         overloaded: list[bool] | None = None,
+        zero_tick: int = 0,
+        gap_tick: int = 0,
+        zero_ratio: float = 0.0,
     ) -> None:
         now = time.time()
         if now - self._last_stdout_vu < 1.0 / STDOUT_VU_HZ:
@@ -493,15 +606,18 @@ class SpectroEngine:
         if peak_db is not None:
             pk = " ".join(f"{peak_db[i]:+5.1f}" for i in range(self.channels))
             extra += f"  peak=[{pk}]"
-        if clips is not None and int(clips.sum()) > 0:
+        if clips is not None and int(np.sum(clips)) > 0:
             extra += f"  CLIP={list(map(int, clips))}"
         if overloaded and any(overloaded):
             extra += "  ⚠ OVERLOAD"
-        flag = "idle" if idle else "live"
+        if zero_tick or gap_tick:
+            extra += f"  zeros={zero_tick} gap_hops={gap_tick} zero_ratio={zero_ratio:.0%}"
+        flag = "idle" if idle else ("GAP" if self._in_gap or zero_ratio > 0.4 else "live")
         _vout(
             f"[VU 2kHz] {'  '.join(parts)}{extra}  "
             f"{flag} frames={self._frames} blocks={self._callback_blocks} "
-            f"ovf={self._overflows} drop={self._ring_drops}"
+            f"ovf={self._overflows} drop={self._ring_drops} "
+            f"zeros_total={self._zero_blocks}"
         )
 
     def snapshot_meta(self) -> dict[str, Any]:
@@ -536,6 +652,11 @@ class SpectroEngine:
             "blocks": self._callback_blocks,
             "overflows": self._overflows,
             "ring_drops": self._ring_drops,
+            "zero_blocks": self._zero_blocks,
+            "gap_hops": self._gap_hops,
+            "gap_hold": self.gap_hold,
+            "latency": self.latency,
+            "blocksize": self.blocksize,
             "peak_db": [float(x) for x in self._peak_db],
             "clips_total": [int(x) for x in self._clips],
             "asset_ver": ASSET_VER,
@@ -724,6 +845,28 @@ def main() -> None:
     parser.add_argument("--rate", type=int, default=SAMPLE_RATE, help="Sample rate Hz (default 48000)")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host (default 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8765, help="HTTP port (default 8765)")
+    parser.add_argument(
+        "--latency",
+        type=float,
+        default=DEFAULT_LATENCY,
+        help=f"PortAudio input latency seconds (default {DEFAULT_LATENCY})",
+    )
+    parser.add_argument(
+        "--blocksize",
+        type=int,
+        default=BLOCK,
+        help=f"PortAudio blocksize (default {BLOCK}; try 4096 if gaps persist)",
+    )
+    parser.add_argument(
+        "--gap-hold",
+        action="store_true",
+        help="Cosmetically hold last good spectro column during digital-zero gaps",
+    )
+    parser.add_argument(
+        "--no-pasuspender",
+        action="store_true",
+        help="Do not re-exec under pasuspender (Pulse/PipeWire stay active)",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
     args = parser.parse_args()
 
@@ -756,10 +899,14 @@ def main() -> None:
                 flush=True,
             )
         print(
-            "Tip: python3 app.py --device auto   # or numeric ALSA 6ch id",
+            "Tip: python3 app.py --device auto   # or numeric ALSA 6ch id\n"
+            "Gaps tip: pasuspender -- python3 app.py   # or omit --no-pasuspender",
             flush=True,
         )
         return
+
+    # Suspend Pulse/PipeWire so they don't steal/zero-fill the USB mic
+    maybe_reexec_pasuspender(enabled=not args.no_pasuspender)
 
     try:
         device = resolve_device(args.device, need_ch=args.channels)
@@ -770,13 +917,20 @@ def main() -> None:
         channels=args.channels,
         sample_rate=args.rate,
         debug=True,
+        latency=args.latency,
+        blocksize=args.blocksize,
+        gap_hold=args.gap_hold,
     )
     app = create_app(engine)
     _vout(
         f"[spectro6] http://{args.host}:{args.port}/  "
-        f"device={device} ch={args.channels} sr={args.rate} vu={VU_HZ:.0f}Hz ver={ASSET_VER}"
+        f"device={device} ch={args.channels} sr={args.rate} vu={VU_HZ:.0f}Hz "
+        f"block={args.blocksize} lat={args.latency:.3f}s ver={ASSET_VER}"
     )
-    _vout("[spectro6] console: [VU 2kHz] mic1..mic6 + peak/CLIP while capturing")
+    _vout(
+        "[spectro6] console: [VU 2kHz] + [GAP] digital-silence markers; "
+        "ovf/drop=0 with zeros_* > 0 ⇒ USB/firmware/Pulse gap, not UI"
+    )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
