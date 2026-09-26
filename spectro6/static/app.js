@@ -2,15 +2,25 @@
   const CHANNELS = 6;
   const BINS = 256;
   const HISTORY = 480;
+  const TRAIL_MAX = 180;
+  const TRAIL_FADE_MS = 14000;
+  // mic1 at top (−90°), then clockwise mic2…mic6 every 60°
+  const MIC_ANGLES = Array.from({ length: CHANNELS }, (_, i) => -Math.PI / 2 + i * (Math.PI / 3));
 
   const el = {
     device: document.getElementById("device"),
     start: document.getElementById("btnStart"),
     stop: document.getElementById("btnStop"),
+    clearTrail: document.getElementById("btnClearTrail"),
     status: document.getElementById("status"),
     channels: document.getElementById("channels"),
     stats: document.getElementById("stats"),
     debug: document.getElementById("debug"),
+    doaCanvas: document.getElementById("doaCanvas"),
+    doaAz: document.querySelector("#doaReadout [data-az]"),
+    doaFocus: document.querySelector("#doaReadout [data-focus]"),
+    doaDom: document.querySelector("#doaReadout [data-dom]"),
+    doaTrail: document.querySelector("#doaReadout [data-trail]"),
   };
 
   /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, peak: HTMLElement, hist: Uint8Array, gaps: Uint8Array }[]} */
@@ -32,6 +42,240 @@
     return t;
   })();
 
+  /* ---------- Hexagon DOA map ----------------------------------------- */
+  const doa = {
+    trail: /** @type {{ x: number, y: number, t: number, s: number }[]} */ ([]),
+    lastLevels: new Array(CHANNELS).fill(0),
+    lastDoa: /** @type {null | { x: number, y: number, r: number, deg: number, dom: number, strength: number }} */ (
+      null
+    ),
+    raf: 0,
+  };
+
+  function estimateDoa(vuDb) {
+    if (!vuDb || vuDb.length < CHANNELS) return null;
+    // Soft-floor; convert to linear power in 2 kHz band
+    const powers = [];
+    let sum = 0;
+    let dom = 0;
+    for (let i = 0; i < CHANNELS; i++) {
+      const db = Number(vuDb[i]);
+      const p = Math.pow(10, Math.max(db, -90) / 10);
+      powers.push(p);
+      sum += p;
+      if (p > powers[dom]) dom = i;
+    }
+    if (sum < 1e-14) return null;
+
+    let cx = 0;
+    let cy = 0;
+    for (let i = 0; i < CHANNELS; i++) {
+      const w = powers[i] / sum;
+      cx += w * Math.cos(MIC_ANGLES[i]);
+      cy += w * Math.sin(MIC_ANGLES[i]);
+    }
+    const r = Math.hypot(cx, cy); // 0 = ambient/center, ~1 = on one vertex
+    const ang = Math.atan2(cy, cx);
+    // Strength: how far above quiet floor (for trail visibility)
+    const meanDb = vuDb.reduce((a, b) => a + Number(b), 0) / CHANNELS;
+    const strength = Math.max(0, Math.min(1, (meanDb + 70) / 55));
+    if (strength < 0.08 && r < 0.12) return null; // too quiet / isotropic
+    return {
+      x: cx,
+      y: cy,
+      r,
+      deg: ((ang * 180) / Math.PI + 360) % 360,
+      dom,
+      strength,
+      powers,
+    };
+  }
+
+  function pushTrail(est) {
+    if (!est) return;
+    const now = performance.now();
+    const last = doa.trail[doa.trail.length - 1];
+    // Skip near-duplicates to keep trail readable
+    if (last && Math.hypot(est.x - last.x, est.y - last.y) < 0.02 && now - last.t < 40) {
+      last.t = now;
+      last.s = Math.max(last.s, est.strength);
+      return;
+    }
+    doa.trail.push({ x: est.x, y: est.y, t: now, s: est.strength });
+    while (doa.trail.length > TRAIL_MAX) doa.trail.shift();
+  }
+
+  function clearTrail() {
+    doa.trail.length = 0;
+    if (el.doaTrail) el.doaTrail.textContent = "0";
+    drawDoa(performance.now());
+  }
+
+  function drawDoa(now) {
+    const canvas = el.doaCanvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+    const R = Math.min(w, h) * 0.38;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // soft vignette
+    const g = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.35);
+    g.addColorStop(0, "rgba(8,104,33,0.18)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // hexagon ring
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + i * (Math.PI / 3);
+      const x = cx + Math.cos(a) * R;
+      const y = cy + Math.sin(a) * R;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = "rgba(26,154,60,0.55)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(8,104,33,0.06)";
+    ctx.fill();
+
+    // radial spokes
+    ctx.strokeStyle = "rgba(148,163,184,0.12)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(MIC_ANGLES[i]) * R, cy + Math.sin(MIC_ANGLES[i]) * R);
+      ctx.stroke();
+    }
+
+    // fading trail (oldest → newest)
+    const alive = [];
+    for (const p of doa.trail) {
+      const age = now - p.t;
+      if (age > TRAIL_FADE_MS) continue;
+      alive.push(p);
+      const u = 1 - age / TRAIL_FADE_MS;
+      const px = cx + p.x * R;
+      const py = cy + p.y * R;
+      const rad = 2.5 + 5 * u * p.s;
+      ctx.beginPath();
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(26, 154, 60, ${0.08 + 0.55 * u * u})`;
+      ctx.fill();
+    }
+    doa.trail = alive;
+
+    // trail polyline
+    if (alive.length > 1) {
+      ctx.beginPath();
+      for (let i = 0; i < alive.length; i++) {
+        const p = alive[i];
+        const u = 1 - (now - p.t) / TRAIL_FADE_MS;
+        const px = cx + p.x * R;
+        const py = cy + p.y * R;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+        ctx.strokeStyle = `rgba(232, 240, 234, ${0.05 + 0.35 * u})`;
+      }
+      // redraw as segments with per-segment alpha
+      for (let i = 1; i < alive.length; i++) {
+        const a = alive[i - 1];
+        const b = alive[i];
+        const u = 1 - (now - b.t) / TRAIL_FADE_MS;
+        ctx.beginPath();
+        ctx.moveTo(cx + a.x * R, cy + a.y * R);
+        ctx.lineTo(cx + b.x * R, cy + b.y * R);
+        ctx.strokeStyle = `rgba(26, 154, 60, ${0.1 + 0.55 * u})`;
+        ctx.lineWidth = 1.5 + 2.5 * u;
+        ctx.stroke();
+      }
+    }
+
+    // microphone nodes
+    const levels = doa.lastLevels;
+    for (let i = 0; i < CHANNELS; i++) {
+      const a = MIC_ANGLES[i];
+      const mx = cx + Math.cos(a) * R;
+      const my = cy + Math.sin(a) * R;
+      const lvl = levels[i] || 0;
+      const hot = doa.lastDoa && doa.lastDoa.dom === i;
+      ctx.beginPath();
+      ctx.arc(mx, my, 11 + lvl * 10, 0, Math.PI * 2);
+      ctx.fillStyle = hot ? "#1a9a3c" : `rgba(8,104,33,${0.35 + lvl * 0.55})`;
+      ctx.fill();
+      ctx.strokeStyle = hot ? "#e8f0ea" : "rgba(232,240,234,0.45)";
+      ctx.lineWidth = hot ? 2 : 1;
+      ctx.stroke();
+      ctx.fillStyle = "#e8f0ea";
+      ctx.font = "700 11px Manrope, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), mx, my);
+    }
+
+    // current source marker
+    if (doa.lastDoa) {
+      const d = doa.lastDoa;
+      const sx = cx + d.x * R;
+      const sy = cy + d.y * R;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 7 + 4 * d.strength, 0, Math.PI * 2);
+      ctx.fillStyle = "#e8f0ea";
+      ctx.fill();
+      ctx.strokeStyle = "#086821";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // direction tick from center
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(sx, sy);
+      ctx.strokeStyle = "rgba(232,240,234,0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // center hub
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(232,240,234,0.35)";
+    ctx.fill();
+
+    if (el.doaTrail) el.doaTrail.textContent = String(alive.length);
+  }
+
+  function tickDoa() {
+    drawDoa(performance.now());
+    doa.raf = requestAnimationFrame(tickDoa);
+  }
+
+  function updateDoaFromVu(vuDb, vuNorm) {
+    for (let i = 0; i < CHANNELS; i++) {
+      doa.lastLevels[i] = Math.max(0, Math.min(1, (vuNorm && vuNorm[i]) || 0));
+    }
+    const est = estimateDoa(vuDb);
+    doa.lastDoa = est;
+    if (est) pushTrail(est);
+
+    if (el.doaAz) {
+      el.doaAz.textContent = est ? `${est.deg.toFixed(0)}°` : "—";
+    }
+    if (el.doaFocus) {
+      el.doaFocus.textContent = est ? `${(est.r * 100).toFixed(0)}%` : "—";
+    }
+    if (el.doaDom) {
+      el.doaDom.textContent = est ? `mic${est.dom + 1}` : "—";
+    }
+  }
+
+  /* ---------- Spectrogram rows ---------------------------------------- */
   function buildRows() {
     el.channels.innerHTML = "";
     rows.length = 0;
@@ -88,7 +332,6 @@
         const v = hist[srcX * BINS + bin];
         const o = (y * w + x) * 4;
         if (gap) {
-          // Magenta stripe = digital-zero USB gap (not quiet ambient)
           const stripe = (y >> 2) & 1;
           data[o] = stripe ? 90 : 40;
           data[o + 1] = 8;
@@ -153,8 +396,10 @@
       m.last_error ? `last_error=${m.last_error}` : null,
       `frames=${m.frames ?? 0}  blocks=${m.blocks ?? 0}  ovf=${m.overflows ?? 0}  drop=${m.ring_drops ?? 0}`,
       `zeros=${m.zero_blocks ?? 0}  gap_hops=${m.gap_hops ?? 0}  block=${m.blocksize ?? "?"}  lat=${m.latency ?? "?"}`,
+      doa.lastDoa
+        ? `doa=${doa.lastDoa.deg.toFixed(0)}° focus=${(doa.lastDoa.r * 100).toFixed(0)}% mic${doa.lastDoa.dom + 1}`
+        : null,
       m.peak_db ? `peak_db=[${m.peak_db.map((x) => Number(x).toFixed(1)).join(", ")}]` : null,
-      m.clips_total ? `clips_total=[${m.clips_total.join(", ")}]` : null,
       extra || null,
     ].filter(Boolean);
     setDebug(parts);
@@ -276,20 +521,27 @@
       setVu(rows[ch], n, db, peak, ov);
     }
 
+    // Hexagon DOA from 2 kHz band levels (skip pure digital-zero gaps)
+    const gapHeavy = gapFlags.length && gapFlags.filter(Boolean).length > gapFlags.length * 0.6;
+    if (!gapHeavy && msg.vu_db) {
+      updateDoaFromVu(msg.vu_db, msg.vu);
+    }
+
     const vuLine = (msg.vu_db || [])
       .slice(0, CHANNELS)
       .map((db, i) => `mic${i + 1}=${Number(db).toFixed(1)}`)
       .join(" ");
     const ovAny = (msg.overloaded || []).some(Boolean);
     const gapN = gapFlags.filter(Boolean).length;
+    const doaTxt = doa.lastDoa
+      ? ` · DOA ${doa.lastDoa.deg.toFixed(0)}° mic${doa.lastDoa.dom + 1}`
+      : "";
     el.stats.textContent =
       `cols ${colCount}` +
       ` · +${ncols}/tick` +
       (gapN ? ` · GAP ${gapN}/${ncols}` : "") +
-      (msg.zero_ratio ? ` · zero ${(msg.zero_ratio * 100).toFixed(0)}%` : "") +
+      doaTxt +
       ` · capture ${msg.frames || 0}` +
-      (msg.overflows ? ` · ovf ${msg.overflows}` : "") +
-      (msg.ring_drops ? ` · drop ${msg.ring_drops}` : "") +
       (ovAny ? " · CLIP" : "") +
       ` · VU @ ${msg.vu_hz || 2000} Hz`;
 
@@ -367,6 +619,8 @@
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "stop" }));
   });
 
+  if (el.clearTrail) el.clearTrail.addEventListener("click", clearTrail);
+
   el.device.addEventListener("change", () => {
     const opt = el.device.selectedOptions[0];
     const ch = opt && opt.dataset.channels ? Number(opt.dataset.channels) : null;
@@ -384,6 +638,8 @@
   }, 1000);
 
   buildRows();
+  drawDoa(performance.now());
+  doa.raf = requestAnimationFrame(tickDoa);
   loadDevices().catch((e) => {
     setStatus(String(e));
     setDebug(String(e));

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Cache-Control" content="no-store" />
-  <title>HET68 spectro6 — 6ch · 2 kHz VU</title>
+  <title>HET68 spectro6 — 6ch · DOA · 2 kHz VU</title>
   <link rel="stylesheet" href="/static/styles.css?v=@@ASSET_VER@@" />
 </head>
 <body>
@@ -20,16 +20,37 @@
       </label>
       <button type="button" id="btnStart" class="btn primary">Start</button>
       <button type="button" id="btnStop" class="btn" disabled>Stop</button>
+      <button type="button" id="btnClearTrail" class="btn" title="Vymazat trajektorii">Trail ✕</button>
       <span id="status" class="status">…</span>
     </div>
   </header>
+
+  <section class="doa-panel" aria-label="Hexagon mikrofonů a DOA">
+    <div class="doa-map-wrap">
+      <canvas id="doaCanvas" width="420" height="420"></canvas>
+    </div>
+    <div class="doa-meta">
+      <h2>Pole · DOA @ 2&nbsp;kHz</h2>
+      <p class="doa-blurb">
+        Šest MEMS na šestiúhelníku. Bod = odhad směru zdroje ze sil jednotlivých
+        kanálů; stopa postupně slábne.
+      </p>
+      <dl class="doa-readout" id="doaReadout">
+        <div><dt>azimut</dt><dd data-az>—</dd></div>
+        <div><dt>fokus</dt><dd data-focus>—</dd></div>
+        <div><dt>dominantní</dt><dd data-dom>—</dd></div>
+        <div><dt>trail</dt><dd data-trail>0</dd></div>
+      </dl>
+      <p class="doa-hint">mic1 nahoře · po směru hodin mic2…mic6</p>
+    </div>
+  </section>
 
   <main id="channels" class="channels" aria-live="polite"></main>
 
   <pre id="debug" class="debug" aria-live="polite"></pre>
 
   <footer class="foot">
-    <span>VU = pásmo <strong>2 kHz ± 100 Hz</strong> · mic1–6 · peak/CLIP v debug · stdout: <code>[VU 2kHz]</code></span>
+    <span>VU / DOA = pásmo <strong>2 kHz ± 100 Hz</strong> · mic1–6 · magenta = digitální gap</span>
     <span id="stats"></span>
   </footer>
 
