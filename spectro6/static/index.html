@@ -11,37 +11,34 @@
   <header class="top">
     <div class="brand">
       <span class="mark">HET68</span>
-      <span class="sub">spectro6 · localhost</span>
+      <span class="sub">spectro6</span>
     </div>
     <div class="controls">
       <label class="field">
-        <span>Zařízení</span>
+        <span>Dev</span>
         <select id="device"></select>
       </label>
       <button type="button" id="btnStart" class="btn primary">Start</button>
       <button type="button" id="btnStop" class="btn" disabled>Stop</button>
-      <button type="button" id="btnClearTrail" class="btn" title="Vymazat trajektorii">Trail ✕</button>
+      <button type="button" id="btnClearTrail" class="btn" title="Vymazat DOA + VU trail">Trail ✕</button>
       <span id="status" class="status">…</span>
     </div>
   </header>
 
   <section class="doa-panel" aria-label="Hexagon mikrofonů a DOA">
     <div class="doa-map-wrap">
-      <canvas id="doaCanvas" width="420" height="420"></canvas>
+      <canvas id="doaCanvas" width="280" height="280"></canvas>
     </div>
     <div class="doa-meta">
-      <h2>Pole · DOA @ 2&nbsp;kHz</h2>
-      <p class="doa-blurb">
-        Šest MEMS na šestiúhelníku. Bod = odhad směru zdroje ze sil jednotlivých
-        kanálů; stopa postupně slábne.
-      </p>
+      <h2>DOA @ 2&nbsp;kHz</h2>
+      <p class="doa-blurb">Šest MEMS · stopa slábne</p>
       <dl class="doa-readout" id="doaReadout">
         <div><dt>azimut</dt><dd data-az>—</dd></div>
         <div><dt>fokus</dt><dd data-focus>—</dd></div>
-        <div><dt>dominantní</dt><dd data-dom>—</dd></div>
+        <div><dt>dom</dt><dd data-dom>—</dd></div>
         <div><dt>trail</dt><dd data-trail>0</dd></div>
       </dl>
-      <p class="doa-hint">mic1 nahoře · po směru hodin mic2…mic6</p>
+      <p class="doa-hint">mic1 nahoře · hodinově mic2…mic6 · VU hist = trail na každém mic</p>
     </div>
   </section>
 
@@ -50,7 +47,7 @@
   <pre id="debug" class="debug" aria-live="polite"></pre>
 
   <footer class="foot">
-    <span>VU / DOA = pásmo <strong>2 kHz ± 100 Hz</strong> · mic1–6 · magenta = digitální gap</span>
+    <span>VU/DOA <strong>2 kHz</strong> · magenta=gap · VU hist=trail</span>
     <span id="stats"></span>
   </footer>
 

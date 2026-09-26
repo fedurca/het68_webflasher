@@ -1,7 +1,8 @@
 (() => {
   const CHANNELS = 6;
   const BINS = 256;
-  const HISTORY = 480;
+  const HISTORY = 360;
+  const VU_HIST = 120; // scrolling VU trajectory samples per mic
   const TRAIL_MAX = 180;
   const TRAIL_FADE_MS = 14000;
   // mic1 at top (−90°), then clockwise mic2…mic6 every 60°
@@ -23,7 +24,7 @@
     doaTrail: document.querySelector("#doaReadout [data-trail]"),
   };
 
-  /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, peak: HTMLElement, hist: Uint8Array, gaps: Uint8Array }[]} */
+  /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, vuCanvas: HTMLCanvasElement, vuCtx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, peak: HTMLElement, hist: Uint8Array, gaps: Uint8Array, vuTrail: Float32Array }[]} */
   const rows = [];
 
   const LUT = (() => {
@@ -108,6 +109,10 @@
   function clearTrail() {
     doa.trail.length = 0;
     if (el.doaTrail) el.doaTrail.textContent = "0";
+    for (const row of rows) {
+      row.vuTrail.fill(0);
+      paintVuHist(row);
+    }
     drawDoa(performance.now());
   }
 
@@ -287,27 +292,95 @@
           <div class="ch-id">mic${ch + 1}</div>
           <div class="vu-wrap">
             <div class="vu" title="2 kHz VU"><div class="vu-fill" data-vu></div></div>
-            <div class="vu-db" data-db>−∞ dB</div>
+            <div class="vu-db" data-db>−∞</div>
             <div class="vu-peak" data-peak></div>
           </div>
         </div>
-        <div class="spectro-wrap"><canvas data-spectro width="720" height="120"></canvas></div>
+        <div class="vu-hist-wrap" title="VU historie (trail)"><canvas data-vuhist width="160" height="64"></canvas></div>
+        <div class="spectro-wrap"><canvas data-spectro width="640" height="64"></canvas></div>
       `;
       el.channels.appendChild(card);
-      const canvas = card.querySelector("canvas");
+      const canvas = card.querySelector("[data-spectro]");
       const ctx = canvas.getContext("2d", { alpha: false });
       ctx.fillStyle = "#020403";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const vuCanvas = card.querySelector("[data-vuhist]");
+      const vuCtx = vuCanvas.getContext("2d", { alpha: false });
+      vuCtx.fillStyle = "#020403";
+      vuCtx.fillRect(0, 0, vuCanvas.width, vuCanvas.height);
       rows.push({
         canvas,
         ctx,
+        vuCanvas,
+        vuCtx,
         fill: card.querySelector("[data-vu]"),
         db: card.querySelector("[data-db]"),
         peak: card.querySelector("[data-peak]"),
         hist: new Uint8Array(HISTORY * BINS),
         gaps: new Uint8Array(HISTORY),
+        vuTrail: new Float32Array(VU_HIST),
       });
     }
+  }
+
+  function paintVuHist(row) {
+    const { vuCanvas, vuCtx, vuTrail } = row;
+    const w = vuCanvas.width;
+    const h = vuCanvas.height;
+    vuCtx.fillStyle = "#020403";
+    vuCtx.fillRect(0, 0, w, h);
+    // baseline
+    vuCtx.strokeStyle = "rgba(148,163,184,0.12)";
+    vuCtx.beginPath();
+    vuCtx.moveTo(0, h - 1);
+    vuCtx.lineTo(w, h - 1);
+    vuCtx.stroke();
+
+    const n = vuTrail.length;
+    // filled area under curve (fading toward the left = older)
+    vuCtx.beginPath();
+    vuCtx.moveTo(0, h);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * (w - 1);
+      const v = vuTrail[i];
+      const y = h - 1 - v * (h - 2);
+      if (i === 0) vuCtx.lineTo(x, y);
+      else vuCtx.lineTo(x, y);
+    }
+    vuCtx.lineTo(w - 1, h);
+    vuCtx.closePath();
+    const grad = vuCtx.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, "rgba(8,104,33,0.05)");
+    grad.addColorStop(0.55, "rgba(8,104,33,0.25)");
+    grad.addColorStop(1, "rgba(26,154,60,0.55)");
+    vuCtx.fillStyle = grad;
+    vuCtx.fill();
+
+    // bright trailing stroke (newest on the right)
+    vuCtx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * (w - 1);
+      const y = h - 1 - vuTrail[i] * (h - 2);
+      if (i === 0) vuCtx.moveTo(x, y);
+      else vuCtx.lineTo(x, y);
+    }
+    vuCtx.strokeStyle = "rgba(232,240,234,0.65)";
+    vuCtx.lineWidth = 1.25;
+    vuCtx.stroke();
+
+    // head dot
+    const last = vuTrail[n - 1];
+    vuCtx.beginPath();
+    vuCtx.arc(w - 1, h - 1 - last * (h - 2), 2.2, 0, Math.PI * 2);
+    vuCtx.fillStyle = last > 0.88 ? "#c45b4a" : last > 0.72 ? "#d4a017" : "#1a9a3c";
+    vuCtx.fill();
+  }
+
+  function pushVuHist(row, norm) {
+    const t = row.vuTrail;
+    t.copyWithin(0, 1);
+    t[t.length - 1] = Math.max(0, Math.min(1, norm));
+    paintVuHist(row);
   }
 
   function paintColumn(row, colU8, isGap) {
@@ -353,7 +426,7 @@
     row.fill.style.height = pct.toFixed(1) + "%";
     row.fill.classList.toggle("warn", norm > 0.72 || (peakDb != null && peakDb > -6));
     row.fill.classList.toggle("hot", overloaded || (peakDb != null && peakDb > -1));
-    row.db.textContent = Number.isFinite(db) ? db.toFixed(1) + " dB" : "−∞ dB";
+    row.db.textContent = Number.isFinite(db) ? db.toFixed(1) : "−∞";
     if (row.peak) {
       if (overloaded) row.peak.textContent = "CLIP";
       else if (peakDb != null && Number.isFinite(peakDb))
@@ -361,6 +434,7 @@
       else row.peak.textContent = "";
       row.peak.classList.toggle("hot", !!overloaded);
     }
+    pushVuHist(row, norm);
   }
 
   function b64ToU8(b64) {
@@ -382,7 +456,8 @@
 
   function setDebug(lines) {
     if (!el.debug) return;
-    el.debug.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    const text = Array.isArray(lines) ? lines.join(" · ") : String(lines || "");
+    el.debug.textContent = text.replace(/\n+/g, " · ");
   }
 
   function renderMetaDebug(m, extra) {
