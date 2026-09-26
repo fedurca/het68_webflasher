@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Cache-Control" content="no-store" />
-  <title>HET68 spectro6 — 6ch · DOA · 2 kHz VU</title>
+  <title>HET68 spectro6 — 6ch · DOA · serial</title>
   <link rel="stylesheet" href="/static/styles.css?v=@@ASSET_VER@@" />
 </head>
 <body>
@@ -25,29 +25,53 @@
     </div>
   </header>
 
-  <section class="doa-panel" aria-label="Hexagon mikrofonů a DOA">
-    <div class="doa-map-wrap">
-      <canvas id="doaCanvas" width="280" height="280"></canvas>
-    </div>
-    <div class="doa-meta">
-      <h2>DOA @ 2&nbsp;kHz</h2>
-      <p class="doa-blurb">Šest MEMS · stopa slábne</p>
-      <dl class="doa-readout" id="doaReadout">
-        <div><dt>azimut</dt><dd data-az>—</dd></div>
-        <div><dt>fokus</dt><dd data-focus>—</dd></div>
-        <div><dt>dom</dt><dd data-dom>—</dd></div>
-        <div><dt>trail</dt><dd data-trail>0</dd></div>
-      </dl>
-      <p class="doa-hint">mic1 nahoře · hodinově mic2…mic6 · VU hist = trail na každém mic</p>
-    </div>
-  </section>
+  <div class="mid">
+    <section class="doa-panel" aria-label="Hexagon mikrofonů a DOA">
+      <div class="doa-map-wrap">
+        <canvas id="doaCanvas" width="280" height="280"></canvas>
+      </div>
+      <div class="doa-meta">
+        <h2>DOA @ 2&nbsp;kHz</h2>
+        <dl class="doa-readout" id="doaReadout">
+          <div><dt>azimut</dt><dd data-az>—</dd></div>
+          <div><dt>fokus</dt><dd data-focus>—</dd></div>
+          <div><dt>dom</dt><dd data-dom>—</dd></div>
+          <div><dt>trail</dt><dd data-trail>0</dd></div>
+        </dl>
+        <p class="doa-hint">mic1 nahoře · hodinově mic2…mic6</p>
+      </div>
+    </section>
+
+    <section class="serial-panel" aria-label="Serial debug a detekce">
+      <div class="serial-head">
+        <h2>Serial · detekce</h2>
+        <span id="serialStatus" class="serial-pill">off</span>
+      </div>
+      <div class="serial-controls">
+        <select id="serialPort" title="CDC port"></select>
+        <button type="button" id="btnSerialOpen" class="btn">Open</button>
+        <button type="button" id="btnSerialClose" class="btn" disabled>Close</button>
+        <button type="button" id="btnSyncTime" class="btn primary" title="Pošle TIME &lt;epoch_ms&gt; na zařízení">Sync čas</button>
+      </div>
+      <div class="serial-split">
+        <div class="det-box">
+          <div class="box-label">Detekce</div>
+          <ol id="detList" class="det-list"></ol>
+        </div>
+        <div class="ser-box">
+          <div class="box-label">Konzole</div>
+          <pre id="serialLog" class="serial-log"></pre>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <main id="channels" class="channels" aria-live="polite"></main>
 
   <pre id="debug" class="debug" aria-live="polite"></pre>
 
   <footer class="foot">
-    <span>VU/DOA <strong>2 kHz</strong> · magenta=gap · VU hist=trail</span>
+    <span>VU/DOA <strong>2 kHz</strong> · serial DET · Sync čas = browser UTC</span>
     <span id="stats"></span>
   </footer>
 

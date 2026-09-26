@@ -22,6 +22,13 @@
     doaFocus: document.querySelector("#doaReadout [data-focus]"),
     doaDom: document.querySelector("#doaReadout [data-dom]"),
     doaTrail: document.querySelector("#doaReadout [data-trail]"),
+    serialPort: document.getElementById("serialPort"),
+    serialOpen: document.getElementById("btnSerialOpen"),
+    serialClose: document.getElementById("btnSerialClose"),
+    syncTime: document.getElementById("btnSyncTime"),
+    serialStatus: document.getElementById("serialStatus"),
+    detList: document.getElementById("detList"),
+    serialLog: document.getElementById("serialLog"),
   };
 
   /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, vuCanvas: HTMLCanvasElement, vuCtx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, peak: HTMLElement, hist: Uint8Array, gaps: Uint8Array, vuTrail: Float32Array }[]} */
@@ -449,6 +456,93 @@
   let frameCount = 0;
   let colCount = 0;
   let lastFrameAt = 0;
+  const detItems = [];
+  const MAX_DETS_UI = 40;
+  const MAX_LOG_UI = 80;
+
+  function setSerialStatus(st) {
+    if (!el.serialStatus) return;
+    const on = !!(st && st.connected);
+    el.serialStatus.textContent = on
+      ? `on ${st.port || ""}`
+      : st && st.last_error
+        ? "err"
+        : "off";
+    el.serialStatus.classList.toggle("on", on);
+    if (el.serialOpen) el.serialOpen.disabled = on;
+    if (el.serialClose) el.serialClose.disabled = !on;
+    if (el.syncTime) el.syncTime.disabled = !on;
+  }
+
+  function appendSerialLog(text, kind) {
+    if (!el.serialLog) return;
+    const line = document.createElement("div");
+    if (kind === "tx") line.className = "tx";
+    if (kind === "err") line.className = "err";
+    line.textContent = text;
+    el.serialLog.appendChild(line);
+    while (el.serialLog.childNodes.length > MAX_LOG_UI) {
+      el.serialLog.removeChild(el.serialLog.firstChild);
+    }
+    el.serialLog.scrollTop = el.serialLog.scrollHeight;
+  }
+
+  function prependDetection(det) {
+    if (!el.detList || !det) return;
+    detItems.unshift(det);
+    while (detItems.length > MAX_DETS_UI) detItems.pop();
+    const az =
+      det.azimuthDeg != null && Number.isFinite(Number(det.azimuthDeg))
+        ? Number(det.azimuthDeg).toFixed(1) + "°"
+        : "—";
+    const conf =
+      det.confidence != null && Number.isFinite(Number(det.confidence))
+        ? (Number(det.confidence) * 100).toFixed(0) + "%"
+        : "";
+    const li = document.createElement("li");
+    li.innerHTML =
+      `<span class="az">${az}</span> ` +
+      `<span class="cls">${det.class || "?"}</span> ` +
+      `<span class="meta">${conf}</span> ` +
+      `<span class="meta">${(det.observedAtHost || "").split("T")[1] || ""}</span>`;
+    el.detList.insertBefore(li, el.detList.firstChild);
+    while (el.detList.children.length > MAX_DETS_UI) {
+      el.detList.removeChild(el.detList.lastChild);
+    }
+  }
+
+  async function loadSerialPorts() {
+    if (!el.serialPort) return;
+    try {
+      const r = await fetch("/api/serial/ports", { cache: "no-store" });
+      const data = await r.json();
+      el.serialPort.innerHTML = "";
+      const ports = data.ports || [];
+      if (!ports.length) {
+        const o = document.createElement("option");
+        o.value = "";
+        o.textContent = data.status && !data.status.pyserial
+          ? "pip install pyserial"
+          : "žádný port";
+        el.serialPort.appendChild(o);
+      } else {
+        for (const p of ports) {
+          const o = document.createElement("option");
+          o.value = p.device;
+          o.textContent =
+            (p.recommended ? "★ " : "") +
+            p.device +
+            (p.description ? " · " + p.description : "");
+          el.serialPort.appendChild(o);
+        }
+        const rec = ports.find((p) => p.recommended);
+        if (rec) el.serialPort.value = rec.device;
+      }
+      setSerialStatus(data.status || {});
+    } catch (e) {
+      appendSerialLog(String(e), "err");
+    }
+  }
 
   function setStatus(text) {
     el.status.textContent = text;
@@ -660,6 +754,7 @@
       if (msg.type === "meta" || msg.type === "pong") {
         meta = msg;
         setRunning(!!msg.running);
+        if (msg.serial) setSerialStatus(msg.serial);
         if (msg.device != null) {
           const match = [...el.device.options].find((o) => o.value === String(msg.device));
           if (match) el.device.value = String(msg.device);
@@ -667,9 +762,40 @@
         renderMetaDebug(meta);
         return;
       }
+      if (msg.type === "serial_status" || msg.type === "serial_sync_ok") {
+        setSerialStatus(msg);
+        if (msg.type === "serial_sync_ok") {
+          appendSerialLog(`sync OK → ${msg.command}`, "tx");
+          setStatus("čas sync " + (msg.epochMs || ""));
+        }
+        return;
+      }
+      if (msg.type === "serial_snapshot") {
+        if (msg.status) setSerialStatus(msg.status);
+        if (el.detList) el.detList.innerHTML = "";
+        detItems.length = 0;
+        (msg.detections || []).slice().reverse().forEach(prependDetection);
+        if (el.serialLog) el.serialLog.innerHTML = "";
+        (msg.lines || []).forEach((ln) => appendSerialLog(ln.text, ln.kind));
+        return;
+      }
+      if (msg.type === "serial_line") {
+        appendSerialLog(msg.text, msg.kind || "rx");
+        return;
+      }
+      if (msg.type === "detection") {
+        prependDetection(msg.detection);
+        return;
+      }
+      if (msg.type === "serial_ports") {
+        // refresh dropdown if server pushed
+        loadSerialPorts();
+        return;
+      }
       if (msg.type === "error") {
         setStatus("chyba: " + msg.message);
         setDebug([`error: ${msg.message}`, "Zvol ALSA ★ / ← DEFAULT a Start."]);
+        appendSerialLog(msg.message, "err");
         return;
       }
       if (msg.type !== "frame") return;
@@ -696,6 +822,34 @@
 
   if (el.clearTrail) el.clearTrail.addEventListener("click", clearTrail);
 
+  if (el.serialOpen) {
+    el.serialOpen.addEventListener("click", () => {
+      if (!ws || ws.readyState !== 1) return;
+      const port = el.serialPort && el.serialPort.value;
+      if (!port) {
+        setStatus("vyber serial port");
+        return;
+      }
+      ws.send(JSON.stringify({ cmd: "serial_open", port, baud: 115200 }));
+      setStatus("serial open " + port);
+    });
+  }
+  if (el.serialClose) {
+    el.serialClose.addEventListener("click", () => {
+      if (!ws || ws.readyState !== 1) return;
+      ws.send(JSON.stringify({ cmd: "serial_close" }));
+    });
+  }
+  if (el.syncTime) {
+    el.syncTime.addEventListener("click", () => {
+      if (!ws || ws.readyState !== 1) return;
+      const epochMs = Date.now();
+      ws.send(JSON.stringify({ cmd: "serial_sync_time", epochMs }));
+      appendSerialLog(`TIME ${epochMs}`, "tx");
+      setStatus("sync čas → device");
+    });
+  }
+
   el.device.addEventListener("change", () => {
     const opt = el.device.selectedOptions[0];
     const ch = opt && opt.dataset.channels ? Number(opt.dataset.channels) : null;
@@ -719,5 +873,6 @@
     setStatus(String(e));
     setDebug(String(e));
   });
+  loadSerialPorts();
   connectWs();
 })();

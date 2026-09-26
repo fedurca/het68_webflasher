@@ -35,8 +35,10 @@ import numpy as np
 import sounddevice as sd
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
+
+from serial_bridge import SerialBridge, list_serial_ports
 
 # ---- DSP defaults (HET68 UAC2) --------------------------------------------
 SAMPLE_RATE = 48_000
@@ -60,7 +62,7 @@ CLIP_THRESH = 0.98
 ZERO_PEAK_THRESH = 1e-7
 GAP_DB_THRESH = -140.0  # spectro/VU below this ⇒ treat hop as gap
 DEFAULT_LATENCY = 0.20  # seconds — USB-friendly
-ASSET_VER = "20260926e"
+ASSET_VER = "20260926f"
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -676,9 +678,23 @@ class SpectroEngine:
         }
 
 
-def create_app(engine: SpectroEngine) -> FastAPI:
+def create_app(engine: SpectroEngine, serial: SerialBridge | None = None) -> FastAPI:
     clients: set[WebSocket] = set()
     state: dict[str, Any] = {"push_task": None}
+    serial = serial or SerialBridge()
+
+    async def broadcast_raw(msg: dict[str, Any]) -> None:
+        if not clients:
+            return
+        raw = json.dumps(msg, separators=(",", ":"))
+        dead: list[WebSocket] = []
+        for ws in list(clients):
+            try:
+                await ws.send_text(raw)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            clients.discard(ws)
 
     async def broadcaster() -> None:
         interval = 1.0 / STREAM_HZ
@@ -705,24 +721,21 @@ def create_app(engine: SpectroEngine) -> FastAPI:
                             )
                     else:
                         idle_ticks = 0
-                else:
-                    # Still tick stdout heartbeat while stopped? no — keep quiet
-                    pass
             except Exception:
                 log.exception("process_once failed")
                 payload = {"type": "error", "message": "process_once failed — see server log"}
 
-            if payload and clients:
-                dead: list[WebSocket] = []
+            if payload:
                 msg = {"type": "frame", **payload} if "type" not in payload else payload
-                raw = json.dumps(msg, separators=(",", ":"))
-                for ws in list(clients):
-                    try:
-                        await ws.send_text(raw)
-                    except Exception:
-                        dead.append(ws)
-                for ws in dead:
-                    clients.discard(ws)
+                await broadcast_raw(msg)
+
+            # Serial CDC events (detections / lines)
+            try:
+                for ev in serial.drain_events():
+                    await broadcast_raw(ev)
+            except Exception:
+                log.exception("serial drain failed")
+
             dt = time.perf_counter() - t0
             await asyncio.sleep(max(0.0, interval - dt))
 
@@ -741,6 +754,7 @@ def create_app(engine: SpectroEngine) -> FastAPI:
             )
         yield
         engine.stop()
+        serial.close()
         task = state.get("push_task")
         if task:
             task.cancel()
@@ -757,12 +771,10 @@ def create_app(engine: SpectroEngine) -> FastAPI:
         return resp
 
     @app.get("/")
-    async def index() -> FileResponse:
+    async def index() -> Response:
         html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         html = html.replace("@@ASSET_VER@@", ASSET_VER)
-        return _no_cache(
-            Response(content=html, media_type="text/html; charset=utf-8")
-        )
+        return _no_cache(Response(content=html, media_type="text/html; charset=utf-8"))
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -770,7 +782,6 @@ def create_app(engine: SpectroEngine) -> FastAPI:
     async def api_devices() -> dict[str, Any]:
         devices = list_devices()
         pref = preferred_device(engine.channels)
-        # Annotate scores for UI sorting / debug
         for d in devices:
             d["score"] = int(_score_device(d, engine.channels)[0])
             d["recommended"] = bool(pref and d["id"] == pref["id"])
@@ -778,11 +789,20 @@ def create_app(engine: SpectroEngine) -> FastAPI:
             "devices": devices,
             "recommended_device": pref["id"] if pref else None,
             "meta": engine.snapshot_meta(),
+            "serial": serial.status(),
         }
 
     @app.get("/api/meta")
     async def api_meta() -> dict[str, Any]:
-        return engine.snapshot_meta()
+        return {**engine.snapshot_meta(), "serial": serial.status()}
+
+    @app.get("/api/serial/ports")
+    async def api_serial_ports() -> dict[str, Any]:
+        return {"ports": list_serial_ports(), "status": serial.status()}
+
+    @app.get("/api/serial/detections")
+    async def api_serial_detections() -> dict[str, Any]:
+        return {"detections": serial.recent_detections(), "status": serial.status()}
 
     @app.websocket("/ws")
     async def ws_stream(ws: WebSocket) -> None:
@@ -790,7 +810,15 @@ def create_app(engine: SpectroEngine) -> FastAPI:
         clients.add(ws)
         log.info("ws client +1 (n=%s)", len(clients))
         try:
-            await ws.send_json({"type": "meta", **engine.snapshot_meta()})
+            await ws.send_json({"type": "meta", **engine.snapshot_meta(), "serial": serial.status()})
+            await ws.send_json(
+                {
+                    "type": "serial_snapshot",
+                    "status": serial.status(),
+                    "detections": serial.recent_detections(),
+                    "lines": serial.recent_lines(40),
+                }
+            )
             while True:
                 try:
                     msg = await asyncio.wait_for(ws.receive_text(), timeout=0.25)
@@ -821,7 +849,7 @@ def create_app(engine: SpectroEngine) -> FastAPI:
                                 engine.configure(device=new_id)
                         if not engine._running:
                             engine.start()
-                        await ws.send_json({"type": "meta", **engine.snapshot_meta()})
+                        await ws.send_json({"type": "meta", **engine.snapshot_meta(), "serial": serial.status()})
                         log.info(
                             "ws start OK device=%s name=%r",
                             engine.device,
@@ -831,12 +859,60 @@ def create_app(engine: SpectroEngine) -> FastAPI:
                         log.error("ws start failed: %s", exc)
                         _vout(f"[spectro6] start failed: {exc}")
                         await ws.send_json({"type": "error", "message": str(exc)})
-                        await ws.send_json({"type": "meta", **engine.snapshot_meta()})
+                        await ws.send_json({"type": "meta", **engine.snapshot_meta(), "serial": serial.status()})
                 elif cmd == "stop":
                     engine.stop()
-                    await ws.send_json({"type": "meta", **engine.snapshot_meta()})
+                    await ws.send_json({"type": "meta", **engine.snapshot_meta(), "serial": serial.status()})
                 elif cmd == "ping":
-                    await ws.send_json({"type": "pong", "t": time.time(), **engine.snapshot_meta()})
+                    await ws.send_json(
+                        {"type": "pong", "t": time.time(), **engine.snapshot_meta(), "serial": serial.status()}
+                    )
+                elif cmd == "serial_open":
+                    try:
+                        port = str(data.get("port") or "")
+                        baud = int(data.get("baud") or 115200)
+                        if not port:
+                            raise ValueError("missing serial port")
+                        serial.open(port, baud=baud)
+                        await ws.send_json({"type": "serial_status", **serial.status()})
+                        _vout(f"[spectro6] serial open {port} @ {baud}")
+                    except Exception as exc:
+                        await ws.send_json({"type": "error", "message": f"serial open: {exc}"})
+                        await ws.send_json({"type": "serial_status", **serial.status()})
+                elif cmd == "serial_close":
+                    serial.close()
+                    await ws.send_json({"type": "serial_status", **serial.status()})
+                    _vout("[spectro6] serial closed")
+                elif cmd == "serial_sync_time":
+                    try:
+                        epoch_ms = int(data.get("epochMs") or data.get("epoch_ms") or 0)
+                        if epoch_ms <= 0:
+                            epoch_ms = int(time.time() * 1000)
+                        sent = serial.sync_time(epoch_ms)
+                        await ws.send_json(
+                            {
+                                "type": "serial_sync_ok",
+                                "command": sent,
+                                "epochMs": epoch_ms,
+                                **serial.status(),
+                            }
+                        )
+                        _vout(f"[spectro6] time sync → device: {sent}")
+                    except Exception as exc:
+                        await ws.send_json({"type": "error", "message": f"time sync: {exc}"})
+                elif cmd == "serial_send":
+                    try:
+                        text = str(data.get("text") or "")
+                        if not text:
+                            raise ValueError("empty serial text")
+                        serial.write_line(text)
+                        await ws.send_json({"type": "serial_status", **serial.status()})
+                    except Exception as exc:
+                        await ws.send_json({"type": "error", "message": f"serial send: {exc}"})
+                elif cmd == "serial_ports":
+                    await ws.send_json(
+                        {"type": "serial_ports", "ports": list_serial_ports(), "status": serial.status()}
+                    )
         except WebSocketDisconnect:
             pass
         finally:
@@ -880,6 +956,13 @@ def main() -> None:
         action="store_true",
         help="Do not re-exec under pasuspender (Pulse/PipeWire stay active)",
     )
+    parser.add_argument(
+        "--serial",
+        default="",
+        help="Auto-open serial CDC port (e.g. /dev/ttyACM0) for detection debug",
+    )
+    parser.add_argument("--serial-baud", type=int, default=115200, help="Serial baud (default 115200)")
+    parser.add_argument("--list-serial", action="store_true", help="List serial ports and exit")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
     args = parser.parse_args()
 
@@ -888,6 +971,17 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+
+    if args.list_serial:
+        ports = list_serial_ports()
+        if not ports:
+            print("No serial ports (install pyserial? pip install pyserial)", flush=True)
+            return
+        print(f"{'Device':<18}  {'Rec':>3}  Description")
+        for p in ports:
+            mark = "★" if p.get("recommended") else ""
+            print(f"{p['device']:<18}  {mark:>3}  {p.get('description') or ''}", flush=True)
+        return
 
     if args.list_devices:
         print(f"{'ID':>4}  {'CH':>3}  {'SR':>8}  {'HostAPI':<16}  {'Score':>5}  Name")
@@ -934,15 +1028,22 @@ def main() -> None:
         blocksize=args.blocksize,
         gap_hold=args.gap_hold,
     )
-    app = create_app(engine)
+    serial = SerialBridge()
+    if args.serial:
+        try:
+            serial.open(args.serial, baud=args.serial_baud)
+            _vout(f"[spectro6] serial auto-open {args.serial} @ {args.serial_baud}")
+        except Exception as exc:
+            _vout(f"[spectro6] serial open failed: {exc}")
+    app = create_app(engine, serial=serial)
     _vout(
         f"[spectro6] http://{args.host}:{args.port}/  "
         f"device={device} ch={args.channels} sr={args.rate} vu={VU_HZ:.0f}Hz "
         f"block={args.blocksize} lat={args.latency:.3f}s ver={ASSET_VER}"
     )
     _vout(
-        "[spectro6] console: [VU 2kHz] + [GAP] digital-silence markers; "
-        "ovf/drop=0 with zeros_* > 0 ⇒ USB/firmware/Pulse gap, not UI"
+        "[spectro6] console: [VU 2kHz] + [GAP]; serial DET lines → UI detections; "
+        "browser Sync čas → TIME <epoch_ms>"
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

@@ -78,3 +78,27 @@ python3 app.py --blocksize 4096 --latency 0.3
 ```
 
 Magenta pruhy ve spektrogramu = digitální nuly. `--gap-hold` jen kosmetika.
+
+## Serial debug (CDC) + detekce + sync času
+
+HET68 často má vedle UAC2 ještě USB CDC konzoli (`/dev/ttyACM*`). Appka umí
+číst detekce a poslat čas z prohlížeče:
+
+```bash
+pip install -r requirements.txt
+python3 app.py --list-serial
+python3 app.py --serial /dev/ttyACM0
+```
+
+Ve UI (panel **Serial · detekce**):
+
+- Open/Close CDC portu
+- **Sync čas** → pošle na zařízení řádek `TIME <epoch_ms>` (UTC z browseru)
+- seznam detekcí + raw konzole
+
+Rozpoznávané řádky (příklady):
+
+```text
+DET az=123.4 el=5.0 conf=0.87 class=drone id=a1b2
+{"type":"detection","azimuthDeg":123.4,"confidence":0.87,"class":"drone"}
+```
