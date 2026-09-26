@@ -303,8 +303,8 @@
             <div class="vu-peak" data-peak></div>
           </div>
         </div>
-        <div class="vu-hist-wrap" title="VU historie (trail)"><canvas data-vuhist width="160" height="64"></canvas></div>
-        <div class="spectro-wrap"><canvas data-spectro width="640" height="64"></canvas></div>
+        <div class="vu-hist-wrap" title="VU historie (trail)"><canvas data-vuhist width="320" height="72"></canvas></div>
+        <div class="spectro-wrap"><canvas data-spectro width="960" height="72"></canvas></div>
       `;
       el.channels.appendChild(card);
       const canvas = card.querySelector("[data-spectro]");

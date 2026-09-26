@@ -219,7 +219,8 @@ body {
 
 .ch {
   display: grid;
-  grid-template-columns: 2.6rem 5.2rem minmax(4.5rem, 7.5rem) 1fr;
+  /* mic+VU | VU history trail | spectrogram — fill the row */
+  grid-template-columns: 3rem minmax(9rem, 0.32fr) minmax(0, 1fr);
   gap: 0.4rem;
   align-items: stretch;
   padding: 0.25rem 0.4rem;
@@ -227,6 +228,7 @@ body {
   border-radius: 8px;
   background: rgba(13, 21, 16, 0.7);
   min-height: 0;
+  width: 100%;
 }
 
 .ch-meta {
@@ -300,7 +302,9 @@ body {
 /* VU history trail (per mic) */
 .vu-hist-wrap {
   position: relative;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
   border-radius: 5px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -314,7 +318,9 @@ body {
 
 .spectro-wrap {
   position: relative;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
   border-radius: 5px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -492,13 +498,13 @@ body {
   .doa-panel { grid-template-columns: 9.5rem 1fr; }
   :root { --doa-h: 9.5rem; }
   .doa-readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ch { grid-template-columns: 2.2rem 4rem minmax(3.5rem, 5.5rem) 1fr; }
+  .ch { grid-template-columns: 2.6rem minmax(6rem, 0.34fr) minmax(0, 1fr); }
 }
 
 @media (max-width: 640px) {
   body { overflow: auto; max-height: none; height: auto; }
   .channels { grid-template-rows: none; overflow: visible; }
-  .ch { grid-template-columns: 2.2rem 3.5rem 1fr; min-height: 3.6rem; }
+  .ch { grid-template-columns: 2.4rem minmax(0, 1fr); min-height: 3.6rem; }
   .vu-hist-wrap { display: none; }
   .doa-panel { grid-template-columns: 1fr; justify-items: center; }
   .serial-split { grid-template-columns: 1fr; }

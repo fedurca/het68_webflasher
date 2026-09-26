@@ -62,7 +62,7 @@ CLIP_THRESH = 0.98
 ZERO_PEAK_THRESH = 1e-7
 GAP_DB_THRESH = -140.0  # spectro/VU below this ⇒ treat hop as gap
 DEFAULT_LATENCY = 0.20  # seconds — USB-friendly
-ASSET_VER = "20260926f"
+ASSET_VER = "20260926g"
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
