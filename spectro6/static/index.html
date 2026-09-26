@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store" />
   <title>HET68 spectro6 — 6ch · 2 kHz VU</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=@@ASSET_VER@@" />
 </head>
 <body>
   <header class="top">
@@ -28,10 +29,10 @@
   <pre id="debug" class="debug" aria-live="polite"></pre>
 
   <footer class="foot">
-    <span>VU = pásmo <strong>2 kHz ± 100 Hz</strong> · mic1–6 · PortAudio/ALSA · stdout: <code>[VU 2kHz]</code></span>
+    <span>VU = pásmo <strong>2 kHz ± 100 Hz</strong> · mic1–6 · peak/CLIP v debug · stdout: <code>[VU 2kHz]</code></span>
     <span id="stats"></span>
   </footer>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=@@ASSET_VER@@"></script>
 </body>
 </html>

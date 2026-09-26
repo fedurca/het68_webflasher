@@ -27,57 +27,49 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Spuštění
+## Spuštění (důležité: větev s opravami)
 
-**Důležité:** vždy používej `python3` (nebo aktivovaný `.venv`). Na Debian/Ubuntu
-`python` často chybí.
+Na `main` můžeš mít starší spectro6 bez VU stdout. Opravy jsou ve větvi:
 
 ```bash
-# seznam vstupů — hledej řádek s CH=6 a „← use this“ (ALSA hw)
+cd ~/het68_webflasher
+git fetch origin
+git checkout cursor/spectro6-debug-device-180e
+cd spectro6 && source .venv/bin/activate
+```
+
+```bash
+# seznam — DEFAULT = ALSA Pico 6ch hw (ne Pulse surround / pipewire)
 python3 app.py --list-devices
 
-# auto: vybere nejlepší ALSA 6ch (ne Pulse surround-21)
+# auto default = ta správná zvukovka
 python3 app.py
 
-# číselné id z --list-devices (doporučeno)
+# nebo pevné id
 python3 app.py --device 4
-
-# jméno / alias — preferuje ALSA 6ch před Pulse 3ch stubem
-python3 app.py --device "Pico 6ch"
-python3 app.py --device het68
-
-# verbose + jiný port
-python3 app.py --device 4 -v --port 8765
 ```
 
-Otevři **http://127.0.0.1:8765/**
+Otevři **http://127.0.0.1:8765/** (hard refresh Ctrl+Shift+R).
 
-### Proč `--device het68` dřív selhalo
+### Stdout
 
-PulseAudio často nabízí
-`…analog-surround-21` jako **3kanálový** stub. Skutečný 6ch stream je ALSA
-`Pico 6ch Microphone … USB Audio (hw:X,0)`. Appka teď při shodě jména skóruje
-zařízení a při &lt;6 ch automaticky přepne na ALSA 6ch, pokud existuje.
-
-### Stdout VU
-
-Za běhu capture vypisuje ~4×/s:
+Za běhu ~4×/s:
 
 ```text
-[VU 2kHz] mic1= -42.1dB  mic2= …  mic6= …  frames=… blocks=… ovf=…
+[VU 2kHz] mic1= -42.1dB  …  mic6= …  peak=[…]  live frames=… ovf=… drop=…
 ```
 
-## UI
+`CLIP` / `⚠ OVERLOAD` = špička u full-scale (±1.0) — hardwarové přebuzení, ne jen jas spektrogramu.
 
-- 6 řádků = **mic1…mic6**
-- vlevo **VU** = výkon v pásmu **2 kHz ± 100 Hz** (dBFS)
-- vpravo **spektrogram** (log 100 Hz → Nyquist, scrolling)
-- Start pošle vybrané device id přes WebSocket (bez restartu procesu)
-- panel **debug** dole: device id/name, last_error, frames/blocks
+### UI
+
+- mic1…mic6, multi-column spektrogram (bez „dírek“ z dropnutých hopů)
+- VU @ 2 kHz + peak/CLIP
+- debug panel: device, last_error, ovf/drop
+- Start posílá device id přes WS
 
 ## Poznámky
 
-- Pokud device hlásí &lt; 6 kanálů, start selže s jasnou hláškou — z `--list-devices`
-  vezmi řádek označený `← use this`.
-- Ověření ALSA: `arecord -l` / `pw-cli list-objects`.
-- Prohlížečové chirp/chirpdev zůstávají omezené; toto je nativní cesta k array.
+- Pulse `…analog-surround-21` = 3ch stub — appka ho přeskočí.
+- Virtual `sysdefault` / `pipewire` / `default` mají nižší score než ALSA `hw:`.
+- Spektro mapování −85…−15 dBFS (jas ≠ clipping).

@@ -11,8 +11,8 @@ Usage (Ubuntu):
   python3 -m venv .venv && source .venv/bin/activate
   pip install -r requirements.txt
   python3 app.py --list-devices
-  python3 app.py --device 4              # prefer numeric ALSA id with 6ch
-  python3 app.py --device "Pico 6ch"     # or name substring
+  python3 app.py                          # auto → ALSA Pico 6ch hw
+  python3 app.py --device 4
   # open http://127.0.0.1:8765/
 """
 
@@ -35,24 +35,39 @@ import numpy as np
 import sounddevice as sd
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 # ---- DSP defaults (HET68 UAC2) --------------------------------------------
 SAMPLE_RATE = 48_000
 CHANNELS = 6
-BLOCK = 1024
+BLOCK = 512
 FFT_SIZE = 2048
 HOP = 512
 VU_HZ = 2_000.0
 VU_BW_HZ = 200.0  # ±100 Hz around 2 kHz
 SPECTRO_BINS = 256
-STREAM_HZ = 20
-STDOUT_VU_HZ = 4  # print mic1..mic6 2 kHz levels this often
+STREAM_HZ = 30
+STDOUT_VU_HZ = 4
+# Spectro display window (dBFS) — ambient ~-60..-30 should not look "clipped"
+SPEC_DB_LO = -85.0
+SPEC_DB_HI = -15.0
+MAX_COLS_PER_TICK = 16
+RING_MAX = 256
+CLIP_THRESH = 0.98
+ASSET_VER = "20260926b"
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 log = logging.getLogger("spectro6")
+
+
+def _vout(msg: str) -> None:
+    """Always-visible console line (survives uvicorn log noise)."""
+    sys.stdout.write(msg + "\n")
+    sys.stdout.flush()
+    # Also mirror to stderr logger so journald / redirected runs keep a copy
+    log.info("%s", msg)
 
 
 def list_devices() -> list[dict[str, Any]]:
@@ -61,49 +76,70 @@ def list_devices() -> list[dict[str, Any]]:
         if int(d.get("max_input_channels") or 0) < 1:
             continue
         host = sd.query_hostapis(int(d["hostapi"]))["name"]
+        name = str(d["name"])
         out.append(
             {
                 "id": i,
-                "name": d["name"],
+                "name": name,
                 "channels": int(d["max_input_channels"]),
                 "default_sr": float(d.get("default_samplerate") or SAMPLE_RATE),
                 "hostapi": host,
                 "is_alsa": "ALSA" in host,
                 "is_pulse": "Pulse" in host,
+                "is_virtual": name.lower()
+                in ("sysdefault", "default", "pipewire", "pulse", "lavrate", "samplerate", "speexrate"),
             }
         )
     return out
 
 
 def _score_device(d: dict[str, Any], need_ch: int) -> tuple[int, int, int]:
-    """Higher is better: enough channels, ALSA USB/hw, not Pulse surround stub."""
+    """Higher is better: real ALSA Pico/HET68 6ch hw beats Pulse/pipewire stubs."""
     ch = d["channels"]
     name = d["name"].lower()
     score = 0
-    if ch >= need_ch:
-        score += 100
-    elif ch >= 2:
-        score += 10
-    if d.get("is_alsa"):
-        score += 30
-    if d.get("is_pulse"):
-        score -= 20
-    if "hw:" in name or "usb audio" in name:
-        score += 20
-    if "6ch" in name or "pico" in name:
-        score += 15
-    if "surround" in name or "monitor" in name:
-        score -= 40
-    if "het68" in name:
-        score += 5
-    # Prefer exact channel match slightly
     if ch == need_ch:
+        score += 120
+    elif ch >= need_ch:
+        score += 40  # e.g. sysdefault 128 — usable but not preferred
+    elif ch >= 2:
         score += 5
-    return (score, ch, -d["id"])
+
+    if d.get("is_alsa"):
+        score += 40
+    if d.get("is_pulse"):
+        score -= 50
+    if d.get("is_virtual"):
+        score -= 80
+
+    if "hw:" in name:
+        score += 35
+    if "usb audio" in name or "usb" in name:
+        score += 15
+    if "pico" in name and "6ch" in name:
+        score += 50
+    elif "6ch" in name or "pico" in name:
+        score += 20
+    if "het68" in name:
+        score += 25
+    if "surround" in name or "monitor" in name:
+        score -= 60
+    if "analog-surround" in name:
+        score -= 40
+
+    return (score, ch if ch == need_ch else -abs(ch - need_ch), -d["id"])
+
+
+def preferred_device(need_ch: int = CHANNELS) -> dict[str, Any] | None:
+    devices = list_devices()
+    if not devices:
+        return None
+    ranked = sorted(devices, key=lambda d: _score_device(d, need_ch), reverse=True)
+    return ranked[0]
 
 
 def resolve_device(spec: str | None, need_ch: int = CHANNELS) -> int:
-    """Resolve device id. Prefers ALSA 6ch over Pulse 'surround-21' stubs.
+    """Resolve device id. Prefers ALSA Pico 6ch hw over Pulse surround stubs.
 
     Raises ValueError on failure (safe to call from WebSocket handlers).
     """
@@ -127,8 +163,16 @@ def resolve_device(spec: str | None, need_ch: int = CHANNELS) -> int:
         return idx
 
     if spec is None or spec == "" or str(spec).lower() in ("default", "auto"):
-        ranked = sorted(devices, key=lambda d: _score_device(d, need_ch), reverse=True)
-        best = ranked[0]
+        best = preferred_device(need_ch)
+        assert best is not None
+        log.info(
+            "auto device id=%s %r (%d ch, %s) score=%s",
+            best["id"],
+            best["name"],
+            best["channels"],
+            best["hostapi"],
+            _score_device(best, need_ch),
+        )
         if best["channels"] < need_ch:
             log.warning(
                 "No device with ≥%d channels; best is id=%s %r (%d ch)",
@@ -137,27 +181,14 @@ def resolve_device(spec: str | None, need_ch: int = CHANNELS) -> int:
                 best["name"],
                 best["channels"],
             )
-        else:
-            log.info(
-                "auto device id=%s %r (%d ch, %s)",
-                best["id"],
-                best["name"],
-                best["channels"],
-                best["hostapi"],
-            )
         return int(best["id"])
 
     needle = str(spec).lower()
-    # Expand common aliases for HET68 — but score prefers real 6ch ALSA hw
     aliases = {needle}
     if "het68" in needle or needle in ("pico", "6ch", "usb", "pico 6ch"):
         aliases.update({"het68", "pico 6ch", "6ch microphone", "pico"})
 
-    hits: list[dict[str, Any]] = []
-    for d in devices:
-        name_l = d["name"].lower()
-        if any(a in name_l for a in aliases if a):
-            hits.append(d)
+    hits = [d for d in devices if any(a in d["name"].lower() for a in aliases if a)]
     if not hits:
         raise ValueError(
             f"No input device matching {spec!r}. Try --list-devices "
@@ -168,8 +199,7 @@ def resolve_device(spec: str | None, need_ch: int = CHANNELS) -> int:
     best = ranked[0]
     if len(ranked) > 1:
         log.info(
-            "name %r matched %d devices; picking id=%s %r (%d ch, %s) "
-            "[others: %s]",
+            "name %r matched %d devices; picking id=%s %r (%d ch, %s) [others: %s]",
             spec,
             len(ranked),
             best["id"],
@@ -179,12 +209,12 @@ def resolve_device(spec: str | None, need_ch: int = CHANNELS) -> int:
             ", ".join(f'{d["id"]}:{d["channels"]}ch/{d["hostapi"]}' for d in ranked[1:4]),
         )
     if best["channels"] < need_ch:
-        # Fallback: any 6ch ALSA USB/Pico regardless of name match
         alsa6 = [
             d
             for d in devices
             if d["channels"] >= need_ch
             and d.get("is_alsa")
+            and not d.get("is_virtual")
             and (
                 "usb" in d["name"].lower()
                 or "6ch" in d["name"].lower()
@@ -210,6 +240,11 @@ def resolve_device(spec: str | None, need_ch: int = CHANNELS) -> int:
     return int(best["id"])
 
 
+def _db_to_u8(db: np.ndarray, lo: float = SPEC_DB_LO, hi: float = SPEC_DB_HI) -> np.ndarray:
+    span = max(hi - lo, 1.0)
+    return np.clip((db - lo) * (255.0 / span), 0, 255).astype(np.uint8)
+
+
 class SpectroEngine:
     """Background PortAudio capture → per-channel spectrogram columns + 2 kHz VU."""
 
@@ -225,14 +260,19 @@ class SpectroEngine:
         self.sample_rate = sample_rate
         self.debug = debug
         self._lock = threading.Lock()
-        self._ring: deque[np.ndarray] = deque(maxlen=32)
+        self._ring: deque[np.ndarray] = deque(maxlen=RING_MAX)
         self._stream: sd.InputStream | None = None
         self._running = False
         self._last_error: str | None = None
         self._window = np.hanning(FFT_SIZE).astype(np.float32)
         self._vu = np.full(channels, -120.0, dtype=np.float32)
+        self._peak = np.zeros(channels, dtype=np.float32)
+        self._peak_db = np.full(channels, -120.0, dtype=np.float32)
+        self._clips = np.zeros(channels, dtype=np.int64)
+        self._clips_tick = np.zeros(channels, dtype=np.int64)
         self._cols = np.zeros((channels, SPECTRO_BINS), dtype=np.float32)
         self._overflows = 0
+        self._ring_drops = 0
         self._callback_blocks = 0
         self._frames = 0
         self._last_stdout_vu = 0.0
@@ -262,6 +302,10 @@ class SpectroEngine:
         if channels is not None and channels != self.channels:
             self.channels = channels
             self._vu = np.full(channels, -120.0, dtype=np.float32)
+            self._peak = np.zeros(channels, dtype=np.float32)
+            self._peak_db = np.full(channels, -120.0, dtype=np.float32)
+            self._clips = np.zeros(channels, dtype=np.int64)
+            self._clips_tick = np.zeros(channels, dtype=np.int64)
             self._cols = np.zeros((channels, SPECTRO_BINS), dtype=np.float32)
             self._tail = np.zeros((0, channels), dtype=np.float32)
         if was:
@@ -279,12 +323,13 @@ class SpectroEngine:
         max_ch = int(info["max_input_channels"])
         name = str(info["name"])
         log.info(
-            "opening device id=%s name=%r max_ch=%s want_ch=%s sr=%s",
+            "opening device id=%s name=%r max_ch=%s want_ch=%s sr=%s block=%s",
             self.device,
             name,
             max_ch,
             self.channels,
             self.sample_rate,
+            BLOCK,
         )
         if max_ch < self.channels:
             msg = (
@@ -297,8 +342,12 @@ class SpectroEngine:
 
         self._ring.clear()
         self._overflows = 0
+        self._ring_drops = 0
         self._callback_blocks = 0
         self._frames = 0
+        self._clips[:] = 0
+        self._clips_tick[:] = 0
+        self._peak[:] = 0
         self._tail = np.zeros((0, self.channels), dtype=np.float32)
         try:
             self._stream = sd.InputStream(
@@ -308,7 +357,7 @@ class SpectroEngine:
                 blocksize=BLOCK,
                 dtype="float32",
                 callback=self._callback,
-                latency="low",
+                latency=0.05,
             )
             self._stream.start()
         except Exception as exc:
@@ -316,7 +365,7 @@ class SpectroEngine:
             self._stream = None
             raise
         self._running = True
-        log.info("capture started")
+        _vout(f"[spectro6] capture ON device={self.device} {name!r} ch={self.channels} sr={self.sample_rate}")
 
     def stop(self) -> None:
         self._running = False
@@ -327,13 +376,22 @@ class SpectroEngine:
             except Exception as exc:
                 log.warning("stream close: %s", exc)
             self._stream = None
-        log.info("capture stopped")
+        _vout("[spectro6] capture OFF")
 
     def _callback(self, indata, frames, time_info, status) -> None:  # noqa: ANN001
         if status:
             self._overflows += 1
-            if self.debug and self._overflows <= 5:
+            if self._overflows <= 8:
                 log.warning("portaudio status: %s", status)
+        # Peak / clip per channel (float32 full-scale ±1.0)
+        absx = np.abs(indata)
+        block_peak = absx.max(axis=0)
+        np.maximum(self._peak, block_peak, out=self._peak)
+        clips = (absx >= CLIP_THRESH).sum(axis=0)
+        self._clips += clips
+        self._clips_tick += clips
+        if len(self._ring) >= RING_MAX:
+            self._ring_drops += 1
         self._ring.append(indata.copy())
         self._callback_blocks += 1
         self._frames += frames
@@ -348,14 +406,15 @@ class SpectroEngine:
             except IndexError:
                 break
         if not chunks:
+            self._maybe_stdout_vu(idle=True)
             return None
         block = np.concatenate(chunks, axis=0)  # (n, ch)
         if block.shape[1] != self.channels:
             log.error("channel mismatch: got %s want %s", block.shape, self.channels)
             return None
         buf = np.concatenate([self._tail, block], axis=0) if self._tail.size else block
-        cols_acc = []
-        vu_acc = []
+        cols_acc: list[np.ndarray] = []
+        vu_acc: list[np.ndarray] = []
         pos = 0
         while pos + FFT_SIZE <= buf.shape[0]:
             frame = buf[pos : pos + FFT_SIZE, :]
@@ -370,24 +429,32 @@ class SpectroEngine:
         keep = FFT_SIZE - HOP
         self._tail = buf[-keep:] if buf.shape[0] >= keep else buf.copy()
         if not cols_acc:
+            self._maybe_stdout_vu(idle=True)
             return None
+
+        # Keep latest VU; send ALL hop columns (capped) so UI does not "skip"
+        if len(cols_acc) > MAX_COLS_PER_TICK:
+            cols_acc = cols_acc[-MAX_COLS_PER_TICK:]
+            vu_acc = vu_acc[-MAX_COLS_PER_TICK:]
         self._cols = cols_acc[-1].astype(np.float32)
         self._vu = np.mean(np.stack(vu_acc, axis=0), axis=0).astype(np.float32)
-        col_u8 = np.clip((self._cols + 90.0) * (255.0 / 90.0), 0, 255).astype(np.uint8)
-        vu_norm = np.clip((self._vu + 90.0) / 90.0, 0.0, 1.0)
+
+        # Multi-column payload: (ncols, channels, bins) row-major
+        stack = np.stack(cols_acc, axis=0).astype(np.float32)  # (N, ch, bins)
+        col_u8 = _db_to_u8(stack)
+        vu_norm = np.clip((self._vu - SPEC_DB_LO) / (SPEC_DB_HI - SPEC_DB_LO), 0.0, 1.0)
+
+        with self._lock:
+            peak = self._peak.copy()
+            self._peak[:] = 0
+            clips_tick = self._clips_tick.copy()
+            self._clips_tick[:] = 0
+        peak_db = 20.0 * np.log10(np.maximum(peak, 1e-12))
+        self._peak_db = peak_db.astype(np.float32)
+        overloaded = [bool(peak[i] >= CLIP_THRESH or clips_tick[i] > 0) for i in range(self.channels)]
 
         now = time.time()
-        if now - self._last_stdout_vu >= 1.0 / STDOUT_VU_HZ:
-            self._last_stdout_vu = now
-            parts = [
-                f"mic{i + 1}={self._vu[i]:+6.1f}dB"
-                for i in range(self.channels)
-            ]
-            print(
-                f"[VU 2kHz] {'  '.join(parts)}  "
-                f"frames={self._frames} blocks={self._callback_blocks} ovf={self._overflows}",
-                flush=True,
-            )
+        self._maybe_stdout_vu(idle=False, peak_db=peak_db, clips=clips_tick, overloaded=overloaded)
 
         return {
             "t": now,
@@ -395,13 +462,47 @@ class SpectroEngine:
             "vu_hz": VU_HZ,
             "vu": vu_norm.tolist(),
             "vu_db": [float(x) for x in self._vu],
+            "peak_db": [float(x) for x in peak_db],
+            "clips": [int(x) for x in clips_tick],
+            "overloaded": overloaded,
             "spectro": base64.b64encode(col_u8.tobytes()).decode("ascii"),
-            "shape": [int(self.channels), int(SPECTRO_BINS)],
+            "shape": [int(col_u8.shape[0]), int(self.channels), int(SPECTRO_BINS)],
+            "ncols": int(col_u8.shape[0]),
+            "spec_db": [SPEC_DB_LO, SPEC_DB_HI],
             "overflows": self._overflows,
+            "ring_drops": self._ring_drops,
             "frames": self._frames,
             "blocks": self._callback_blocks,
             "ring": len(self._ring),
+            "running": True,
         }
+
+    def _maybe_stdout_vu(
+        self,
+        idle: bool,
+        peak_db: np.ndarray | None = None,
+        clips: np.ndarray | None = None,
+        overloaded: list[bool] | None = None,
+    ) -> None:
+        now = time.time()
+        if now - self._last_stdout_vu < 1.0 / STDOUT_VU_HZ:
+            return
+        self._last_stdout_vu = now
+        parts = [f"mic{i + 1}={self._vu[i]:+6.1f}dB" for i in range(self.channels)]
+        extra = ""
+        if peak_db is not None:
+            pk = " ".join(f"{peak_db[i]:+5.1f}" for i in range(self.channels))
+            extra += f"  peak=[{pk}]"
+        if clips is not None and int(clips.sum()) > 0:
+            extra += f"  CLIP={list(map(int, clips))}"
+        if overloaded and any(overloaded):
+            extra += "  ⚠ OVERLOAD"
+        flag = "idle" if idle else "live"
+        _vout(
+            f"[VU 2kHz] {'  '.join(parts)}{extra}  "
+            f"{flag} frames={self._frames} blocks={self._callback_blocks} "
+            f"ovf={self._overflows} drop={self._ring_drops}"
+        )
 
     def snapshot_meta(self) -> dict[str, Any]:
         dev_name = "default"
@@ -416,20 +517,28 @@ class SpectroEngine:
             max_ch = int(info["max_input_channels"])
         except Exception as exc:
             log.debug("meta device query: %s", exc)
+        pref = preferred_device(self.channels)
         return {
             "device": self.device,
             "device_name": dev_name,
             "device_max_channels": max_ch,
+            "recommended_device": pref["id"] if pref else None,
+            "recommended_name": pref["name"] if pref else None,
             "channels": self.channels,
             "sample_rate": self.sample_rate,
             "vu_hz": VU_HZ,
             "fft_size": FFT_SIZE,
             "spectro_bins": SPECTRO_BINS,
+            "spec_db": [SPEC_DB_LO, SPEC_DB_HI],
             "running": self._running,
             "last_error": self._last_error,
             "frames": self._frames,
             "blocks": self._callback_blocks,
             "overflows": self._overflows,
+            "ring_drops": self._ring_drops,
+            "peak_db": [float(x) for x in self._peak_db],
+            "clips_total": [int(x) for x in self._clips],
+            "asset_ver": ASSET_VER,
         }
 
 
@@ -448,18 +557,26 @@ def create_app(engine: SpectroEngine) -> FastAPI:
                     payload = await asyncio.to_thread(engine.process_once)
                     if payload is None:
                         idle_ticks += 1
-                        if idle_ticks == 40:  # ~2 s with no FFT columns
+                        if idle_ticks == 60:
                             log.warning(
                                 "running but no FFT frames yet "
-                                "(blocks=%s ring=%s) — waiting for audio…",
+                                "(blocks=%s ring=%s drops=%s)",
                                 engine._callback_blocks,
                                 len(engine._ring),
+                                engine._ring_drops,
+                            )
+                            _vout(
+                                f"[spectro6] waiting for audio… blocks={engine._callback_blocks} "
+                                f"ring={len(engine._ring)} drops={engine._ring_drops}"
                             )
                     else:
                         idle_ticks = 0
-            except Exception as exc:
+                else:
+                    # Still tick stdout heartbeat while stopped? no — keep quiet
+                    pass
+            except Exception:
                 log.exception("process_once failed")
-                payload = {"type": "error", "message": str(exc)}
+                payload = {"type": "error", "message": "process_once failed — see server log"}
 
             if payload and clients:
                 dead: list[WebSocket] = []
@@ -483,11 +600,10 @@ def create_app(engine: SpectroEngine) -> FastAPI:
             log.info("auto-start OK: %s", engine.snapshot_meta())
         except Exception as exc:
             log.error("auto-start failed: %s", exc)
-            print(f"[spectro6] auto-start failed: {exc}", flush=True)
-            print(
+            _vout(f"[spectro6] auto-start failed: {exc}")
+            _vout(
                 "[spectro6] Tip: python3 app.py --list-devices  "
-                "→ pick ALSA id with CH=6 (e.g. --device 4), not Pulse surround.",
-                flush=True,
+                "→ pick ALSA id with CH=6 (★), not Pulse surround."
             )
         yield
         engine.stop()
@@ -501,15 +617,34 @@ def create_app(engine: SpectroEngine) -> FastAPI:
 
     app = FastAPI(title="HET68 spectro6", docs_url=None, redoc_url=None, lifespan=lifespan)
 
+    def _no_cache(resp: Response) -> Response:
+        resp.headers["Cache-Control"] = "no-store, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        return resp
+
     @app.get("/")
     async def index() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
+        html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        html = html.replace("@@ASSET_VER@@", ASSET_VER)
+        return _no_cache(
+            Response(content=html, media_type="text/html; charset=utf-8")
+        )
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/api/devices")
     async def api_devices() -> dict[str, Any]:
-        return {"devices": list_devices(), "meta": engine.snapshot_meta()}
+        devices = list_devices()
+        pref = preferred_device(engine.channels)
+        # Annotate scores for UI sorting / debug
+        for d in devices:
+            d["score"] = int(_score_device(d, engine.channels)[0])
+            d["recommended"] = bool(pref and d["id"] == pref["id"])
+        return {
+            "devices": devices,
+            "recommended_device": pref["id"] if pref else None,
+            "meta": engine.snapshot_meta(),
+        }
 
     @app.get("/api/meta")
     async def api_meta() -> dict[str, Any]:
@@ -553,10 +688,14 @@ def create_app(engine: SpectroEngine) -> FastAPI:
                         if not engine._running:
                             engine.start()
                         await ws.send_json({"type": "meta", **engine.snapshot_meta()})
-                        log.info("ws start OK device=%s name=%r", engine.device, engine.snapshot_meta().get("device_name"))
+                        log.info(
+                            "ws start OK device=%s name=%r",
+                            engine.device,
+                            engine.snapshot_meta().get("device_name"),
+                        )
                     except Exception as exc:
                         log.error("ws start failed: %s", exc)
-                        print(f"[spectro6] start failed: {exc}", flush=True)
+                        _vout(f"[spectro6] start failed: {exc}")
                         await ws.send_json({"type": "error", "message": str(exc)})
                         await ws.send_json({"type": "meta", **engine.snapshot_meta()})
                 elif cmd == "stop":
@@ -579,7 +718,7 @@ def main() -> None:
     parser.add_argument(
         "--device",
         default="auto",
-        help="Device id, name substring, or auto (prefer ALSA 6ch)",
+        help="Device id, name substring, or auto (prefer ALSA Pico 6ch hw)",
     )
     parser.add_argument("--channels", type=int, default=CHANNELS, help="Input channel count (default 6)")
     parser.add_argument("--rate", type=int, default=SAMPLE_RATE, help="Sample rate Hz (default 48000)")
@@ -595,20 +734,29 @@ def main() -> None:
     )
 
     if args.list_devices:
-        print(f"{'ID':>4}  {'CH':>3}  {'SR':>8}  {'HostAPI':<16}  Name")
-        for d in list_devices():
+        print(f"{'ID':>4}  {'CH':>3}  {'SR':>8}  {'HostAPI':<16}  {'Score':>5}  Name")
+        devices = list_devices()
+        pref = preferred_device(CHANNELS)
+        for d in sorted(devices, key=lambda x: _score_device(x, CHANNELS), reverse=True):
             mark = ""
-            if d["channels"] >= CHANNELS and d.get("is_alsa"):
-                mark = "  ← use this"
+            score = _score_device(d, CHANNELS)[0]
+            if pref and d["id"] == pref["id"]:
+                mark = "  ← DEFAULT"
             elif d["channels"] < CHANNELS and "surround" in d["name"].lower():
                 mark = "  (Pulse stub — skip)"
+            elif d.get("is_virtual"):
+                mark = "  (virtual — skip)"
             print(
                 f"{d['id']:4d}  {d['channels']:3d}  {d['default_sr']:8.0f}  "
-                f"{d['hostapi']:<16}  {d['name']}{mark}"
+                f"{d['hostapi']:<16}  {score:5d}  {d['name']}{mark}"
+            )
+        if pref:
+            print(
+                f"\nDefault auto → id={pref['id']} {pref['name']!r}",
+                flush=True,
             )
         print(
-            "\nTip: python3 app.py --device <ID with CH=6 on ALSA>, "
-            "e.g. --device 4   (not Pulse surround-21)",
+            "Tip: python3 app.py --device auto   # or numeric ALSA 6ch id",
             flush=True,
         )
         return
@@ -621,18 +769,14 @@ def main() -> None:
         device=device,
         channels=args.channels,
         sample_rate=args.rate,
-        debug=args.verbose,
+        debug=True,
     )
     app = create_app(engine)
-    print(
+    _vout(
         f"[spectro6] http://{args.host}:{args.port}/  "
-        f"device={device} ch={args.channels} sr={args.rate} vu={VU_HZ:.0f}Hz",
-        flush=True,
+        f"device={device} ch={args.channels} sr={args.rate} vu={VU_HZ:.0f}Hz ver={ASSET_VER}"
     )
-    print(
-        "[spectro6] stdout: [VU 2kHz] mic1..mic6 dB four times/sec while capturing",
-        flush=True,
-    )
+    _vout("[spectro6] console: [VU 2kHz] mic1..mic6 + peak/CLIP while capturing")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 

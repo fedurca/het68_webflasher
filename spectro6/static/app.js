@@ -1,7 +1,7 @@
 (() => {
   const CHANNELS = 6;
   const BINS = 256;
-  const HISTORY = 320; // scrolling spectrogram columns
+  const HISTORY = 480;
 
   const el = {
     device: document.getElementById("device"),
@@ -13,17 +13,16 @@
     debug: document.getElementById("debug"),
   };
 
-  /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, hist: Uint8Array }[]} */
+  /** @type {{ canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, fill: HTMLElement, db: HTMLElement, peak: HTMLElement, hist: Uint8Array }[]} */
   const rows = [];
 
-  // Green heat map: dark → #086821 → bright crest
   const LUT = (() => {
     const t = new Uint8ClampedArray(256 * 4);
     for (let i = 0; i < 256; i++) {
       const u = i / 255;
-      const r = Math.round(2 + u * u * 40);
-      const g = Math.round(8 + u * 180);
-      const b = Math.round(4 + u * 50);
+      const r = Math.round(2 + u * u * 50);
+      const g = Math.round(6 + u * 200);
+      const b = Math.round(4 + u * 55);
       const o = i * 4;
       t[o] = r;
       t[o + 1] = g;
@@ -45,9 +44,10 @@
           <div class="vu-wrap">
             <div class="vu" title="2 kHz VU"><div class="vu-fill" data-vu></div></div>
             <div class="vu-db" data-db>−∞ dB</div>
+            <div class="vu-peak" data-peak></div>
           </div>
         </div>
-        <div class="spectro-wrap"><canvas data-spectro width="640" height="120"></canvas></div>
+        <div class="spectro-wrap"><canvas data-spectro width="720" height="120"></canvas></div>
       `;
       el.channels.appendChild(card);
       const canvas = card.querySelector("canvas");
@@ -59,6 +59,7 @@
         ctx,
         fill: card.querySelector("[data-vu]"),
         db: card.querySelector("[data-db]"),
+        peak: card.querySelector("[data-peak]"),
         hist: new Uint8Array(HISTORY * BINS),
       });
     }
@@ -68,8 +69,10 @@
     const hist = row.hist;
     hist.copyWithin(0, BINS);
     hist.set(colU8, (HISTORY - 1) * BINS);
+  }
 
-    const { canvas, ctx } = row;
+  function flushPaint(row) {
+    const { canvas, ctx, hist } = row;
     const w = canvas.width;
     const h = canvas.height;
     const img = ctx.createImageData(w, h);
@@ -90,12 +93,19 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  function setVu(row, norm, db) {
+  function setVu(row, norm, db, peakDb, overloaded) {
     const pct = Math.max(0, Math.min(100, norm * 100));
     row.fill.style.height = pct.toFixed(1) + "%";
-    row.fill.classList.toggle("warn", norm > 0.72);
-    row.fill.classList.toggle("hot", norm > 0.88);
+    row.fill.classList.toggle("warn", norm > 0.72 || (peakDb != null && peakDb > -6));
+    row.fill.classList.toggle("hot", overloaded || (peakDb != null && peakDb > -1));
     row.db.textContent = Number.isFinite(db) ? db.toFixed(1) + " dB" : "−∞ dB";
+    if (row.peak) {
+      if (overloaded) row.peak.textContent = "CLIP";
+      else if (peakDb != null && Number.isFinite(peakDb))
+        row.peak.textContent = "pk " + peakDb.toFixed(0);
+      else row.peak.textContent = "";
+      row.peak.classList.toggle("hot", !!overloaded);
+    }
   }
 
   function b64ToU8(b64) {
@@ -108,6 +118,7 @@
   let ws = null;
   let meta = { running: false };
   let frameCount = 0;
+  let colCount = 0;
   let lastFrameAt = 0;
 
   function setStatus(text) {
@@ -123,17 +134,22 @@
     const parts = [
       `device id=${m.device ?? "?"}  max_ch=${m.device_max_channels ?? "?"}`,
       m.device_name ? `name=${m.device_name}` : null,
+      m.recommended_device != null
+        ? `recommended=${m.recommended_device} ${m.recommended_name || ""}`
+        : null,
       `want_ch=${m.channels ?? CHANNELS}  sr=${m.sample_rate ?? "?"}  running=${!!m.running}`,
       m.last_error ? `last_error=${m.last_error}` : null,
-      `frames=${m.frames ?? 0}  blocks=${m.blocks ?? 0}  overflows=${m.overflows ?? 0}`,
+      `frames=${m.frames ?? 0}  blocks=${m.blocks ?? 0}  ovf=${m.overflows ?? 0}  drop=${m.ring_drops ?? 0}`,
+      m.peak_db ? `peak_db=[${m.peak_db.map((x) => Number(x).toFixed(1)).join(", ")}]` : null,
+      m.clips_total ? `clips_total=[${m.clips_total.join(", ")}]` : null,
       extra || null,
     ].filter(Boolean);
     setDebug(parts);
   }
 
   function setRunning(running) {
-    meta.running = running;
-    el.start.disabled = running;
+    meta.running = !!running;
+    el.start.disabled = !!running;
     el.stop.disabled = !running;
     if (running) setStatus("běží");
     else if (meta.last_error) setStatus("chyba — viz debug");
@@ -141,35 +157,39 @@
   }
 
   function scoreDevice(d) {
+    if (typeof d.score === "number") return d.score;
     let s = 0;
-    if (d.channels >= 6) s += 100;
-    if (d.is_alsa) s += 30;
-    if (d.is_pulse) s -= 20;
+    if (d.channels === 6) s += 120;
+    else if (d.channels >= 6) s += 40;
+    if (d.is_alsa) s += 40;
+    if (d.is_pulse) s -= 50;
+    if (d.is_virtual) s -= 80;
     const n = (d.name || "").toLowerCase();
-    if (n.includes("hw:") || n.includes("usb audio")) s += 20;
-    if (n.includes("6ch") || n.includes("pico")) s += 15;
-    if (n.includes("surround") || n.includes("monitor")) s -= 40;
+    if (n.includes("hw:")) s += 35;
+    if (n.includes("pico") && n.includes("6ch")) s += 50;
+    if (n.includes("surround") || n.includes("monitor")) s -= 60;
     return s;
   }
 
   function formatDevice(d) {
     const host = d.hostapi || "?";
-    let label = `[${d.id}] ${d.name} · ${d.channels}ch · ${host} · ${Math.round(d.default_sr)} Hz`;
-    if (d.channels >= 6 && d.is_alsa) label += " ★ ALSA 6ch";
+    let label = `[${d.id}] ${d.name} · ${d.channels}ch · ${host}`;
+    if (d.recommended) label += " ← DEFAULT";
+    else if (d.channels >= 6 && d.is_alsa && !d.is_virtual) label += " ★ ALSA 6ch";
     else if (d.channels < 6 && /surround/i.test(d.name || "")) label += " ✗ Pulse stub";
-    else if (d.channels >= 6) label += " ★";
+    else if (d.is_virtual) label += " (virtual)";
     return label;
   }
 
   async function loadDevices() {
-    const r = await fetch("/api/devices");
+    const r = await fetch("/api/devices", { cache: "no-store" });
     const data = await r.json();
     const devices = data.devices || [];
     el.device.innerHTML = "";
 
     const optAuto = document.createElement("option");
     optAuto.value = "auto";
-    optAuto.textContent = "auto (prefer ALSA 6ch)";
+    optAuto.textContent = "auto (ALSA Pico 6ch)";
     el.device.appendChild(optAuto);
 
     const ranked = devices.slice().sort((a, b) => scoreDevice(b) - scoreDevice(a));
@@ -178,22 +198,22 @@
       o.value = String(d.id);
       o.textContent = formatDevice(d);
       o.dataset.channels = String(d.channels);
-      if (d.channels < 6) o.classList.add("weak");
       el.device.appendChild(o);
     }
 
     if (data.meta) {
       meta = data.meta;
       setRunning(!!meta.running);
-      if (meta.device != null) {
-        const match = [...el.device.options].find((o) => o.value === String(meta.device));
-        if (match) el.device.value = String(meta.device);
-      } else {
-        // Preselect best ALSA 6ch when idle
-        const best = ranked.find((d) => d.channels >= 6 && d.is_alsa) || ranked.find((d) => d.channels >= 6);
-        if (best) el.device.value = String(best.id);
+      const pick =
+        meta.device != null
+          ? String(meta.device)
+          : data.recommended_device != null
+            ? String(data.recommended_device)
+            : null;
+      if (pick && [...el.device.options].some((o) => o.value === pick)) {
+        el.device.value = pick;
       }
-      renderMetaDebug(meta, meta.last_error ? "Tip: zvol ALSA id s CH=6 (★), ne Pulse surround." : null);
+      renderMetaDebug(meta, meta.last_error ? "Tip: zvol ★ ALSA 6ch / ← DEFAULT" : null);
     }
   }
 
@@ -203,12 +223,79 @@
     return { device: Number(v) };
   }
 
+  function applyFrame(msg) {
+    frameCount += 1;
+    lastFrameAt = Date.now();
+    if (!meta.running) setRunning(true);
+
+    const shape = msg.shape || [];
+    let ncols = 1;
+    let chN = CHANNELS;
+    let bins = BINS;
+    if (shape.length === 3) {
+      ncols = shape[0];
+      chN = shape[1];
+      bins = shape[2];
+    } else if (shape.length === 2) {
+      chN = shape[0];
+      bins = shape[1];
+      ncols = msg.ncols || 1;
+    }
+    const raw = b64ToU8(msg.spectro);
+    const colStride = chN * bins;
+
+    for (let n = 0; n < ncols; n++) {
+      const base = n * colStride;
+      for (let ch = 0; ch < Math.min(chN, rows.length); ch++) {
+        const col = raw.subarray(base + ch * bins, base + (ch + 1) * bins);
+        if (col.length === BINS) paintColumn(rows[ch], col);
+      }
+      colCount += 1;
+    }
+    for (let ch = 0; ch < rows.length; ch++) {
+      flushPaint(rows[ch]);
+      const n = (msg.vu && msg.vu[ch]) || 0;
+      const db = (msg.vu_db && msg.vu_db[ch]) || -90;
+      const peak = msg.peak_db ? msg.peak_db[ch] : null;
+      const ov = msg.overloaded ? msg.overloaded[ch] : false;
+      setVu(rows[ch], n, db, peak, ov);
+    }
+
+    const vuLine = (msg.vu_db || [])
+      .slice(0, CHANNELS)
+      .map((db, i) => `mic${i + 1}=${Number(db).toFixed(1)}`)
+      .join(" ");
+    const ovAny = (msg.overloaded || []).some(Boolean);
+    el.stats.textContent =
+      `cols ${colCount}` +
+      ` · +${ncols}/tick` +
+      ` · capture ${msg.frames || 0}` +
+      (msg.overflows ? ` · ovf ${msg.overflows}` : "") +
+      (msg.ring_drops ? ` · drop ${msg.ring_drops}` : "") +
+      (ovAny ? " · CLIP" : "") +
+      ` · VU @ ${msg.vu_hz || 2000} Hz`;
+
+    if (frameCount % 8 === 0) {
+      renderMetaDebug(
+        {
+          ...meta,
+          running: true,
+          frames: msg.frames,
+          blocks: msg.blocks,
+          overflows: msg.overflows,
+          ring_drops: msg.ring_drops,
+          peak_db: msg.peak_db,
+        },
+        vuLine ? `[VU 2kHz] ${vuLine}` : null
+      );
+    }
+  }
+
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/ws`);
     ws.onopen = () => {
       setStatus(meta.running ? "běží" : "připojeno");
-      // Ask backend for fresh meta
       if (ws.readyState === 1) ws.send(JSON.stringify({ cmd: "ping" }));
     };
     ws.onclose = () => {
@@ -235,42 +322,11 @@
       }
       if (msg.type === "error") {
         setStatus("chyba: " + msg.message);
-        setDebug([`error: ${msg.message}`, "Zvol ALSA zařízení s 6 kanály (★ ALSA 6ch) a Start znovu."]);
+        setDebug([`error: ${msg.message}`, "Zvol ALSA ★ / ← DEFAULT a Start."]);
         return;
       }
       if (msg.type !== "frame") return;
-      frameCount += 1;
-      lastFrameAt = Date.now();
-      const [chN, bins] = msg.shape || [CHANNELS, BINS];
-      const raw = b64ToU8(msg.spectro);
-      for (let ch = 0; ch < Math.min(chN, rows.length); ch++) {
-        const col = raw.subarray(ch * bins, (ch + 1) * bins);
-        if (col.length === BINS) paintColumn(rows[ch], col);
-        const n = (msg.vu && msg.vu[ch]) || 0;
-        const db = (msg.vu_db && msg.vu_db[ch]) || -90;
-        setVu(rows[ch], n, db);
-      }
-      const vuLine = (msg.vu_db || [])
-        .slice(0, CHANNELS)
-        .map((db, i) => `mic${i + 1}=${Number(db).toFixed(1)}`)
-        .join("  ");
-      el.stats.textContent =
-        `ui_frames ${frameCount}` +
-        ` · capture ${msg.frames || 0}` +
-        (msg.overflows ? ` · overflow ${msg.overflows}` : "") +
-        ` · VU @ ${msg.vu_hz || 2000} Hz`;
-      if (frameCount % 10 === 0) {
-        renderMetaDebug(
-          {
-            ...meta,
-            frames: msg.frames,
-            blocks: msg.blocks,
-            overflows: msg.overflows,
-            running: true,
-          },
-          vuLine ? `[VU 2kHz] ${vuLine}` : null
-        );
-      }
+      applyFrame(msg);
     };
   }
 
@@ -283,6 +339,7 @@
     setStatus(`start device=${payload.device}…`);
     setDebug([`sending ${JSON.stringify(payload)}`, "čekám na meta / frame…"]);
     frameCount = 0;
+    colCount = 0;
     ws.send(JSON.stringify(payload));
   });
 
@@ -300,10 +357,9 @@
     }
   });
 
-  // Stale-frame watchdog
   setInterval(() => {
     if (meta.running && lastFrameAt && Date.now() - lastFrameAt > 2500) {
-      setStatus("běží, ale žádné frame — zkontroluj zařízení / stdout");
+      setStatus("běží, ale žádné frame — zkontroluj stdout / zařízení");
     }
   }, 1000);
 

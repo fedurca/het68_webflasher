@@ -177,6 +177,17 @@ html, body {
   white-space: nowrap;
 }
 
+.vu-peak {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+  min-height: 0.85rem;
+}
+.vu-peak.hot {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .spectro-wrap {
   position: relative;
   min-height: 7.5rem;
