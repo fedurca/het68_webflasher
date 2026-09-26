@@ -3,65 +3,71 @@
 Lokální Python nástroj pro Ubuntu host. Otevírá **6 kanálů** HET68 UAC2 přes
 PortAudio/ALSA a streamuje spektrogram + VU (2 kHz) na `localhost`.
 
-## Spuštění
+## Spuštění (musíš být na větvi s opravami)
 
 ```bash
 cd ~/het68_webflasher
-git fetch && git checkout cursor/spectro6-debug-device-180e
+git fetch origin
+git checkout cursor/spectro6-debug-device-180e
+git pull origin cursor/spectro6-debug-device-180e
 cd spectro6 && source .venv/bin/activate
 
-python3 app.py --list-devices   # ← DEFAULT = ALSA Pico 6ch hw
-python3 app.py                  # auto + pasuspender (doporučeno)
+python3 app.py --help | grep blocksize   # musí existovat; jinak máš starý app.py
+python3 app.py --list-devices
+python3 app.py                           # auto + pasuspender
 ```
 
-`app.py` se defaultně znovu spustí pod **`pasuspender`**, aby Pulse/PipeWire
-nekradly USB mic (častá příčina digitálních mezer).
+Když `app.py: error: unrecognized arguments: --blocksize` → **nejsi na této větvi**.
+
+## Diagnostika mezer: firmware vs USB vs PC
+
+Z logů typu `ovf=0 drop=0` + střídání `CLIP` / `peak=+0` a `mic=-200` / `peak=-240`:
+
+| Vrstva | Znamení | Závěr |
+|--------|---------|--------|
+| spectro6 FFT / UI | `drop>0` nebo mezery jen ve webu, raw WAV čistý | PC zpracování |
+| PortAudio | sounddevice gappy, **arecord čistý** | PC userspace |
+| Pulse/PipeWire | gappy bez `pasuspender`, čisté s ním | host audio server |
+| ALSA USB / firmware | **arecord hw: také gappy**, všechny 6 ch naráz | USB nebo firmware Pico |
+
+Všechny 6 kanálů jdou na nulu současně → **sdílená cesta** (USB ISO packet / DMA / FW), ne jeden ICS-43434.
+
+### Raw test (obejde FFT i web)
 
 ```bash
-# bez pasuspenderu
-python3 app.py --no-pasuspender
+# 1) jen ALSA (bez PortAudio / bez spectro6)
+python3 diag_capture.py --arecord --seconds 5
 
-# větší buffery, když mezery zůstanou
+# 2) PortAudio (sounddevice) stejně jako app
+python3 diag_capture.py --device 4 --seconds 5
+
+# 3) obojí a porovnání
+python3 diag_capture.py --both --seconds 5
+
+# ruční arecord
+pasuspender -- arecord -D hw:1,0 -c 6 -r 48000 -f S32_LE -d 5 /tmp/het68.wav
+python3 diag_capture.py --wav /tmp/het68.wav
+```
+
+Výstup: `zero_sample_frac`, `sync_zero_hop_frac`, `gap_period_ms`, VERDICT.
+
+- **arecord i sounddevice gappy** → problém je *pod* Pythonem (FW/USB/ALSA).
+- **jen sounddevice gappy** → PortAudio/PC.
+- **jen bez pasuspender** → Pulse/PipeWire.
+
+Další USB stopy:
+
+```bash
+dmesg -w   # při mezerách: USB disconnect / bandwidth?
+lsusb -t
+cat /proc/asound/card1/stream0
+```
+
+## Buffery
+
+```bash
 python3 app.py --blocksize 4096 --latency 0.3
-
-# kosmeticky držet poslední sloupec spektrogramu v mezerách
-python3 app.py --gap-hold
+./run.sh --blocksize 4096 --latency 0.3
 ```
 
-Otevři **http://127.0.0.1:8765/** (Ctrl+Shift+R).
-
-## Mezery ve spektrogramu = digitální nuly z USB
-
-Když ve logu vidíš střídání:
-
-- `peak=[+0.0 …]` / `CLIP` / vysoké VU
-- hned `mic*=-200dB` / `peak=[-240 …]`
-- a zároveň `ovf=0 drop=0`
-
-…PortAudio **dostává callbacky se samými nulami**. To není chyba UI ani
-ring-bufferu. Typické příčiny:
-
-1. **Pulse/PipeWire** souběžně sahá na stejný USB mic → `pasuspender` (default)
-2. **USB hub / kabel / port** — zkus přímý USB2 port na notebooku
-3. **Firmware Pico UAC2** nestíhá SOF → nuly mezi platnými packety
-4. Přebuzení (`CLIP`) a hned ticho — firmware/USB restart period
-
-Appka teď:
-
-- loguje `[GAP] digital silence START/END`
-- počítá `zeros_*` / `gap_hops` / `zero_ratio`
-- ve webu barví mezery **magenta** (ne tiché ambient)
-
-## Stdout
-
-```text
-[VU 2kHz] mic1=…  peak=[…]  live|GAP  zeros=… zero_ratio=…
-[GAP] digital silence START …
-[GAP] digital silence END  lasted=120ms
-```
-
-## UI
-
-- mic1…mic6, multi-column spektrogram
-- magenta = digitální gap; zelená = reálný signál
-- debug: zeros / gap_hops / ovf / drop
+Magenta pruhy ve spektrogramu = digitální nuly. `--gap-hold` jen kosmetika.
