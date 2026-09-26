@@ -74,9 +74,15 @@ def _vout(msg: str) -> None:
 
 
 def maybe_reexec_pasuspender(enabled: bool) -> None:
-    """Re-exec under pasuspender so Pulse/PipeWire release the USB mic."""
+    """Re-exec under pasuspender when it actually works (classic PulseAudio).
+
+    On PipeWire-only hosts pasuspender often exits with
+    ``Failure to suspend: No such entity`` — in that case just continue
+    without wrapping so the app still starts.
+    """
     import os
     import shutil
+    import subprocess
 
     if not enabled:
         return
@@ -85,13 +91,20 @@ def maybe_reexec_pasuspender(enabled: bool) -> None:
     exe = shutil.which("pasuspender")
     if not exe:
         _vout(
-            "[spectro6] tip: install pulseaudio-utils (pasuspender) — "
-            "Pulse/PipeWire often steal USB and cause digital-zero gaps"
+            "[spectro6] tip: pasuspender not found — optional on PipeWire; "
+            "ALSA hw: device usually works without it"
         )
+        return
+    # Probe: does pasuspender have a Pulse entity to suspend?
+    probe = subprocess.run([exe, "--", "true"], capture_output=True, text=True)
+    if probe.returncode != 0:
+        err = (probe.stderr or probe.stdout or "").strip().splitlines()
+        tip = err[-1] if err else f"exit {probe.returncode}"
+        _vout(f"[spectro6] pasuspender skip ({tip}) — continuing without it")
         return
     env = os.environ.copy()
     env["SPECTRO6_UNDER_PASUSPENDER"] = "1"
-    _vout("[spectro6] re-exec under pasuspender (suspend Pulse/PipeWire)…")
+    _vout("[spectro6] re-exec under pasuspender (suspend Pulse)…")
     os.execvpe(exe, ["pasuspender", "--", sys.executable, *sys.argv], env)
 
 

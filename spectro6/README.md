@@ -14,7 +14,8 @@ cd spectro6 && source .venv/bin/activate
 
 python3 app.py --help | grep blocksize   # musí existovat; jinak máš starý app.py
 python3 app.py --list-devices
-python3 app.py                           # auto + pasuspender
+python3 app.py                           # auto; pasuspender only if it works
+# PipeWire: "Failure to suspend: No such entity" → app continues bez pasuspender
 ```
 
 Když `app.py: error: unrecognized arguments: --blocksize` → **nejsi na této větvi**.

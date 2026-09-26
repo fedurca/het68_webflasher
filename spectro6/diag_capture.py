@@ -214,11 +214,20 @@ def capture_arecord(card: int, device: int, seconds: float, channels: int, sr: i
         str(max(1, int(round(seconds)))),
         str(out),
     ]
-    # Prefer pasuspender if present
+    # Prefer pasuspender if it actually works (classic PulseAudio).
+    # PipeWire-only often: "Failure to suspend: No such entity"
     ps = shutil.which("pasuspender")
     if ps:
-        cmd = [ps, "--", *cmd]
-        print("[diag] wrapping arecord with pasuspender", flush=True)
+        probe = subprocess.run([ps, "--", "true"], capture_output=True, text=True)
+        if probe.returncode == 0:
+            cmd = [ps, "--", *cmd]
+            print("[diag] wrapping arecord with pasuspender", flush=True)
+        else:
+            tip = (probe.stderr or probe.stdout or "").strip().splitlines()
+            print(
+                f"[diag] pasuspender skip ({tip[-1] if tip else probe.returncode})",
+                flush=True,
+            )
     print("[diag] exec:", " ".join(cmd), flush=True)
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
