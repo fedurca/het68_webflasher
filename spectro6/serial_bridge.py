@@ -27,7 +27,7 @@ from typing import Any
 log = logging.getLogger("spectro6.serial")
 
 DET_KV = re.compile(
-    r"^(?:DET|DETECTION|DOA)\b[:\s]*(.*)$",
+    r"^(?:SRC|DET|DETECTION|DOA)\b[:\s]*(.*)$",
     re.IGNORECASE,
 )
 KV_PAIR = re.compile(r"([A-Za-z_][\w]*)\s*[:=]\s*([^\s,;]+)")
@@ -131,7 +131,19 @@ def parse_detection_line(line: str, host_ts: float) -> dict[str, Any] | None:
             if clm:
                 cls = clm.group(1)
         if az is not None:
-            return _mk_det(az=az, el=el, conf=conf, cls=cls, raw=s, host_ts=host_ts, det_id=kv.get("id", ""))
+            extra = {}
+            if kv.get("pos"):
+                extra["pos"] = kv["pos"]
+            return _mk_det(
+                az=az,
+                el=el,
+                conf=conf,
+                cls=cls,
+                raw=s,
+                host_ts=host_ts,
+                det_id=kv.get("id", ""),
+                extra=extra or None,
+            )
 
     # Loose: line contains azimuth-like token
     am = AZ_LOOSE.search(s)

@@ -26,19 +26,19 @@
   </header>
 
   <div class="mid">
-    <section class="doa-panel" aria-label="Hexagon mikrofonů a DOA">
+    <section class="doa-panel" aria-label="Detekční krychle a dron">
       <div class="doa-map-wrap">
-        <canvas id="doaCanvas" width="280" height="280"></canvas>
+        <canvas id="doaCanvas" width="420" height="420"></canvas>
       </div>
       <div class="doa-meta">
-        <h2>DOA @ 2&nbsp;kHz</h2>
+        <h2>Krychle 128&nbsp;mm</h2>
         <dl class="doa-readout" id="doaReadout">
           <div><dt>azimut</dt><dd data-az>—</dd></div>
-          <div><dt>fokus</dt><dd data-focus>—</dd></div>
-          <div><dt>dom</dt><dd data-dom>—</dd></div>
+          <div><dt>elevace</dt><dd data-el>—</dd></div>
+          <div><dt>zdroj</dt><dd data-src>—</dd></div>
           <div><dt>trail</dt><dd data-trail>0</dd></div>
         </dl>
-        <p class="doa-hint">mic1 nahoře · hodinově mic2…mic6</p>
+        <p class="doa-hint">krychle na vrcholu · mic1 = sever · dron ve směru detekce</p>
       </div>
     </section>
 
@@ -71,7 +71,7 @@
   <pre id="debug" class="debug" aria-live="polite"></pre>
 
   <footer class="foot">
-    <span>VU/DOA <strong>2 kHz</strong> · serial DET · Sync čas = browser UTC</span>
+    <span>VU <strong>2 kHz</strong> · krychle 128 mm · serial SRC · Sync čas = browser UTC</span>
     <span id="stats"></span>
   </footer>
 

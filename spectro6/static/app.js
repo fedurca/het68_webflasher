@@ -5,8 +5,20 @@
   const VU_HIST = 120; // scrolling VU trajectory samples per mic
   const TRAIL_MAX = 180;
   const TRAIL_FADE_MS = 14000;
-  // mic1 at top (−90°), then clockwise mic2…mic6 every 60°
-  const MIC_ANGLES = Array.from({ length: CHANNELS }, (_, i) => -Math.PI / 2 + i * (Math.PI / 3));
+  // Face normals of the vertex-down cube, same order as MIC_DIR in het68 doa.c.
+  // Mic 1 is north (+X), azimuth 0°, elevation +35.26°.
+  const MIC_DIR = [
+    [0.8165, 0, 0.57735],
+    [-0.40825, 0.70711, 0.57735],
+    [-0.40825, -0.70711, 0.57735],
+    [-0.8165, 0, -0.57735],
+    [0.40825, -0.70711, -0.57735],
+    [0.40825, 0.70711, -0.57735],
+  ];
+  const CUBE_FACE_TRIPLES = [
+    [0, 1, 2], [0, 1, 5], [0, 2, 4], [0, 4, 5],
+    [1, 2, 3], [1, 3, 5], [2, 3, 4], [3, 4, 5],
+  ];
 
   const el = {
     device: document.getElementById("device"),
@@ -19,8 +31,8 @@
     debug: document.getElementById("debug"),
     doaCanvas: document.getElementById("doaCanvas"),
     doaAz: document.querySelector("#doaReadout [data-az]"),
-    doaFocus: document.querySelector("#doaReadout [data-focus]"),
-    doaDom: document.querySelector("#doaReadout [data-dom]"),
+    doaEl: document.querySelector("#doaReadout [data-el]"),
+    doaSrc: document.querySelector("#doaReadout [data-src]"),
     doaTrail: document.querySelector("#doaReadout [data-trail]"),
     serialPort: document.getElementById("serialPort"),
     serialOpen: document.getElementById("btnSerialOpen"),
@@ -50,66 +62,118 @@
     return t;
   })();
 
-  /* ---------- Hexagon DOA map ----------------------------------------- */
+  /* ---------- Detection cube (vertex down, 128 mm) ---------------- */
+  function unitSum(idx) {
+    const s = [0, 0, 0];
+    for (const i of idx) {
+      s[0] += MIC_DIR[i][0];
+      s[1] += MIC_DIR[i][1];
+      s[2] += MIC_DIR[i][2];
+    }
+    const n = Math.hypot(s[0], s[1], s[2]) || 1;
+    return [s[0] / n, s[1] / n, s[2] / n];
+  }
+  const CUBE_VERTS = CUBE_FACE_TRIPLES.map(unitSum);
+  const CUBE_EDGES = [];
+  for (let i = 0; i < CUBE_FACE_TRIPLES.length; i++) {
+    for (let j = i + 1; j < CUBE_FACE_TRIPLES.length; j++) {
+      let share = 0;
+      for (const a of CUBE_FACE_TRIPLES[i]) {
+        if (CUBE_FACE_TRIPLES[j].includes(a)) share++;
+      }
+      if (share === 2) CUBE_EDGES.push([i, j]);
+    }
+  }
+  const FACE_SCALE = 1 / Math.sqrt(3);
+
   const doa = {
-    trail: /** @type {{ x: number, y: number, t: number, s: number }[]} */ ([]),
+    trail: /** @type {{ x: number, y: number, z: number, t: number, s: number }[]} */ ([]),
     lastLevels: new Array(CHANNELS).fill(0),
-    lastDoa: /** @type {null | { x: number, y: number, r: number, deg: number, dom: number, strength: number }} */ (
-      null
-    ),
+    vuEst: /** @type {null | { dir: number[], az: number, el: number, strength: number, dom: number }} */ (null),
+    firmware: /** @type {null | { az: number, el: number, conf: number, pos: string, t: number }} */ (null),
     raf: 0,
   };
 
+  function dirFromAzEl(azDeg, elDeg) {
+    const az = (azDeg * Math.PI) / 180;
+    const el = (elDeg * Math.PI) / 180;
+    return [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)];
+  }
+
+  function azElFromDir(d) {
+    const az = (Math.atan2(d[1], d[0]) * 180) / Math.PI;
+    const el = (Math.atan2(d[2], Math.hypot(d[0], d[1])) * 180) / Math.PI;
+    return { az: (az + 360) % 360, el };
+  }
+
   function estimateDoa(vuDb) {
     if (!vuDb || vuDb.length < CHANNELS) return null;
-    // Soft-floor; convert to linear power in 2 kHz band
     const powers = [];
     let sum = 0;
     let dom = 0;
+    const acc = [0, 0, 0];
     for (let i = 0; i < CHANNELS; i++) {
-      const db = Number(vuDb[i]);
-      const p = Math.pow(10, Math.max(db, -90) / 10);
+      const p = Math.pow(10, Math.max(Number(vuDb[i]), -90) / 10);
       powers.push(p);
       sum += p;
       if (p > powers[dom]) dom = i;
+      acc[0] += p * MIC_DIR[i][0];
+      acc[1] += p * MIC_DIR[i][1];
+      acc[2] += p * MIC_DIR[i][2];
     }
     if (sum < 1e-14) return null;
-
-    let cx = 0;
-    let cy = 0;
-    for (let i = 0; i < CHANNELS; i++) {
-      const w = powers[i] / sum;
-      cx += w * Math.cos(MIC_ANGLES[i]);
-      cy += w * Math.sin(MIC_ANGLES[i]);
-    }
-    const r = Math.hypot(cx, cy); // 0 = ambient/center, ~1 = on one vertex
-    const ang = Math.atan2(cy, cx);
-    // Strength: how far above quiet floor (for trail visibility)
+    const mag = Math.hypot(acc[0], acc[1], acc[2]);
+    if (mag < 1e-12) return null;
+    const dir = [acc[0] / mag, acc[1] / mag, acc[2] / mag];
+    const ang = azElFromDir(dir);
     const meanDb = vuDb.reduce((a, b) => a + Number(b), 0) / CHANNELS;
     const strength = Math.max(0, Math.min(1, (meanDb + 70) / 55));
-    if (strength < 0.08 && r < 0.12) return null; // too quiet / isotropic
-    return {
-      x: cx,
-      y: cy,
-      r,
-      deg: ((ang * 180) / Math.PI + 360) % 360,
-      dom,
-      strength,
-      powers,
+    if (strength < 0.08 && mag / sum < 0.12) return null;
+    return { dir, az: ang.az, el: ang.el, strength, dom };
+  }
+
+  function activeFix(now) {
+    const fw = doa.firmware;
+    if (fw && now - fw.t < 2500 && fw.pos === "tdoa" && fw.conf >= 0.28) {
+      return {
+        dir: dirFromAzEl(fw.az, fw.el),
+        az: fw.az,
+        el: fw.el,
+        strength: Math.max(0.4, Math.min(1, fw.conf)),
+        source: "TDOA",
+      };
+    }
+    if (doa.vuEst) {
+      return { ...doa.vuEst, source: "VU" };
+    }
+    if (fw && now - fw.t < 2500) {
+      return { dir: null, az: fw.az, el: fw.el, strength: 0, source: "pásmo" };
+    }
+    return null;
+  }
+
+  function noteFirmwareFix(det) {
+    if (!det || !Number.isFinite(Number(det.azimuthDeg))) return;
+    const pos = det.extra && det.extra.pos ? String(det.extra.pos) : "";
+    doa.firmware = {
+      az: Number(det.azimuthDeg),
+      el: Number.isFinite(Number(det.elevationDeg)) ? Number(det.elevationDeg) : 0,
+      conf: Number(det.confidence) || 0,
+      pos,
+      t: performance.now(),
     };
   }
 
-  function pushTrail(est) {
-    if (!est) return;
+  function pushTrail(dir, strength) {
+    if (!dir) return;
     const now = performance.now();
     const last = doa.trail[doa.trail.length - 1];
-    // Skip near-duplicates to keep trail readable
-    if (last && Math.hypot(est.x - last.x, est.y - last.y) < 0.02 && now - last.t < 40) {
+    if (last && Math.hypot(dir[0] - last.x, dir[1] - last.y, dir[2] - last.z) < 0.03 && now - last.t < 40) {
       last.t = now;
-      last.s = Math.max(last.s, est.strength);
+      last.s = Math.max(last.s, strength);
       return;
     }
-    doa.trail.push({ x: est.x, y: est.y, t: now, s: est.strength });
+    doa.trail.push({ x: dir[0], y: dir[1], z: dir[2], t: now, s: strength });
     while (doa.trail.length > TRAIL_MAX) doa.trail.shift();
   }
 
@@ -123,6 +187,25 @@
     drawDoa(performance.now());
   }
 
+  function project(p, cx, cy, R) {
+    const yaw = -0.6;
+    const pitch = 0.55;
+    const x0 = p[0];
+    const y0 = p[1];
+    const z0 = p[2];
+    const cyaw = Math.cos(yaw);
+    const syaw = Math.sin(yaw);
+    const x1 = cyaw * x0 - syaw * y0;
+    const y1 = syaw * x0 + cyaw * y0;
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
+    const y2 = cp * y1 + sp * z0;
+    const z2 = -sp * y1 + cp * z0;
+    const depth = 3.1 + y2;
+    const s = (R * 1.35) / depth;
+    return { x: cx + x1 * s, y: cy - z2 * s, depth: y2 };
+  }
+
   function drawDoa(now) {
     const canvas = el.doaCanvas;
     if (!canvas) return;
@@ -130,137 +213,100 @@
     const w = canvas.width;
     const h = canvas.height;
     const cx = w * 0.5;
-    const cy = h * 0.5;
-    const R = Math.min(w, h) * 0.38;
+    const cy = h * 0.54;
+    const R = Math.min(w, h) * 0.34;
+    const fix = activeFix(now);
 
     ctx.clearRect(0, 0, w, h);
-
-    // soft vignette
-    const g = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.35);
-    g.addColorStop(0, "rgba(8,104,33,0.18)");
+    const g = ctx.createRadialGradient(cx, cy, R * 0.05, cx, cy, R * 1.6);
+    g.addColorStop(0, "rgba(8,104,33,0.22)");
     g.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
-    // hexagon ring
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const a = -Math.PI / 2 + i * (Math.PI / 3);
-      const x = cx + Math.cos(a) * R;
-      const y = cy + Math.sin(a) * R;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = "rgba(26,154,60,0.55)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = "rgba(8,104,33,0.06)";
-    ctx.fill();
-
-    // radial spokes
-    ctx.strokeStyle = "rgba(148,163,184,0.12)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 6; i++) {
+    const pv = CUBE_VERTS.map((v) => project(v, cx, cy, R));
+    const edges = CUBE_EDGES.map(([a, b]) => ({
+      a, b, depth: (pv[a].depth + pv[b].depth) / 2,
+    }));
+    edges.sort((u, v) => u.depth - v.depth);
+    for (const e of edges) {
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(MIC_ANGLES[i]) * R, cy + Math.sin(MIC_ANGLES[i]) * R);
+      ctx.moveTo(pv[e.a].x, pv[e.a].y);
+      ctx.lineTo(pv[e.b].x, pv[e.b].y);
+      ctx.strokeStyle = e.depth > 0 ? "rgba(26,154,60,0.85)" : "rgba(26,154,60,0.35)";
+      ctx.lineWidth = e.depth > 0 ? 2.2 : 1.2;
       ctx.stroke();
     }
 
-    // fading trail (oldest → newest)
     const alive = [];
-    for (const p of doa.trail) {
-      const age = now - p.t;
-      if (age > TRAIL_FADE_MS) continue;
-      alive.push(p);
-      const u = 1 - age / TRAIL_FADE_MS;
-      const px = cx + p.x * R;
-      const py = cy + p.y * R;
-      const rad = 2.5 + 5 * u * p.s;
-      ctx.beginPath();
-      ctx.arc(px, py, rad, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(26, 154, 60, ${0.08 + 0.55 * u * u})`;
-      ctx.fill();
+    if (fix && fix.dir) {
+      for (const pt of doa.trail) {
+        const age = now - pt.t;
+        if (age > TRAIL_FADE_MS) continue;
+        alive.push(pt);
+        const u = 1 - age / TRAIL_FADE_MS;
+        const q = project([pt.x * 1.45, pt.y * 1.45, pt.z * 1.45], cx, cy, R);
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, 2 + 4 * u * pt.s, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(232, 240, 234, ${0.08 + 0.4 * u * u})`;
+        ctx.fill();
+      }
     }
     doa.trail = alive;
 
-    // trail polyline
-    if (alive.length > 1) {
-      ctx.beginPath();
-      for (let i = 0; i < alive.length; i++) {
-        const p = alive[i];
-        const u = 1 - (now - p.t) / TRAIL_FADE_MS;
-        const px = cx + p.x * R;
-        const py = cy + p.y * R;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-        ctx.strokeStyle = `rgba(232, 240, 234, ${0.05 + 0.35 * u})`;
-      }
-      // redraw as segments with per-segment alpha
-      for (let i = 1; i < alive.length; i++) {
-        const a = alive[i - 1];
-        const b = alive[i];
-        const u = 1 - (now - b.t) / TRAIL_FADE_MS;
-        ctx.beginPath();
-        ctx.moveTo(cx + a.x * R, cy + a.y * R);
-        ctx.lineTo(cx + b.x * R, cy + b.y * R);
-        ctx.strokeStyle = `rgba(26, 154, 60, ${0.1 + 0.55 * u})`;
-        ctx.lineWidth = 1.5 + 2.5 * u;
-        ctx.stroke();
-      }
-    }
-
-    // microphone nodes
     const levels = doa.lastLevels;
-    for (let i = 0; i < CHANNELS; i++) {
-      const a = MIC_ANGLES[i];
-      const mx = cx + Math.cos(a) * R;
-      const my = cy + Math.sin(a) * R;
-      const lvl = levels[i] || 0;
-      const hot = doa.lastDoa && doa.lastDoa.dom === i;
+    const mics = MIC_DIR.map((d, i) => ({
+      i,
+      p: project([d[0] * FACE_SCALE, d[1] * FACE_SCALE, d[2] * FACE_SCALE], cx, cy, R),
+    }));
+    mics.sort((a, b) => a.p.depth - b.p.depth);
+    for (const m of mics) {
+      const lvl = levels[m.i] || 0;
       ctx.beginPath();
-      ctx.arc(mx, my, 11 + lvl * 10, 0, Math.PI * 2);
-      ctx.fillStyle = hot ? "#1a9a3c" : `rgba(8,104,33,${0.35 + lvl * 0.55})`;
+      ctx.arc(m.p.x, m.p.y, 8 + lvl * 7, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(8,104,33,${0.45 + lvl * 0.5})`;
       ctx.fill();
-      ctx.strokeStyle = hot ? "#e8f0ea" : "rgba(232,240,234,0.45)";
-      ctx.lineWidth = hot ? 2 : 1;
+      ctx.strokeStyle = "rgba(232,240,234,0.7)";
+      ctx.lineWidth = 1.2;
       ctx.stroke();
       ctx.fillStyle = "#e8f0ea";
-      ctx.font = "700 11px Manrope, sans-serif";
+      ctx.font = "700 12px Manrope, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(i + 1), mx, my);
+      ctx.fillText(String(m.i + 1), m.p.x, m.p.y);
     }
 
-    // current source marker
-    if (doa.lastDoa) {
-      const d = doa.lastDoa;
-      const sx = cx + d.x * R;
-      const sy = cy + d.y * R;
+    if (fix && fix.dir) {
+      const origin = project([0, 0, 0], cx, cy, R);
+      const tip = project(
+        [fix.dir[0] * 1.45, fix.dir[1] * 1.45, fix.dir[2] * 1.45],
+        cx, cy, R,
+      );
       ctx.beginPath();
-      ctx.arc(sx, sy, 7 + 4 * d.strength, 0, Math.PI * 2);
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.strokeStyle = "rgba(232,240,234,0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 7 + 5 * fix.strength, 0, Math.PI * 2);
       ctx.fillStyle = "#e8f0ea";
       ctx.fill();
       ctx.strokeStyle = "#086821";
       ctx.lineWidth = 2;
       ctx.stroke();
-      // direction tick from center
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(sx, sy);
-      ctx.strokeStyle = "rgba(232,240,234,0.55)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
     }
 
-    // center hub
-    ctx.beginPath();
-    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(232,240,234,0.35)";
-    ctx.fill();
+    ctx.fillStyle = "rgba(232,240,234,0.55)";
+    ctx.font = "600 13px Manrope, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("128 mm", cx, h - 8);
 
     if (el.doaTrail) el.doaTrail.textContent = String(alive.length);
+    if (el.doaAz) el.doaAz.textContent = fix ? `${fix.az.toFixed(0)}°` : "—";
+    if (el.doaEl) el.doaEl.textContent = fix ? `${fix.el.toFixed(0)}°` : "—";
+    if (el.doaSrc) el.doaSrc.textContent = fix ? fix.source : "—";
   }
 
   function tickDoa() {
@@ -272,19 +318,9 @@
     for (let i = 0; i < CHANNELS; i++) {
       doa.lastLevels[i] = Math.max(0, Math.min(1, (vuNorm && vuNorm[i]) || 0));
     }
-    const est = estimateDoa(vuDb);
-    doa.lastDoa = est;
-    if (est) pushTrail(est);
-
-    if (el.doaAz) {
-      el.doaAz.textContent = est ? `${est.deg.toFixed(0)}°` : "—";
-    }
-    if (el.doaFocus) {
-      el.doaFocus.textContent = est ? `${(est.r * 100).toFixed(0)}%` : "—";
-    }
-    if (el.doaDom) {
-      el.doaDom.textContent = est ? `mic${est.dom + 1}` : "—";
-    }
+    doa.vuEst = estimateDoa(vuDb);
+    const fix = activeFix(performance.now());
+    if (fix && fix.dir && fix.source === "VU") pushTrail(fix.dir, fix.strength);
   }
 
   /* ---------- Spectrogram rows ---------------------------------------- */
@@ -690,7 +726,7 @@
       setVu(rows[ch], n, db, peak, ov);
     }
 
-    // Hexagon DOA from 2 kHz band levels (skip pure digital-zero gaps)
+    // Cube DOA from 2 kHz band levels (skip pure digital-zero gaps)
     const gapHeavy = gapFlags.length && gapFlags.filter(Boolean).length > gapFlags.length * 0.6;
     if (!gapHeavy && msg.vu_db) {
       updateDoaFromVu(msg.vu_db, msg.vu);
@@ -785,6 +821,9 @@
       }
       if (msg.type === "detection") {
         prependDetection(msg.detection);
+        noteFirmwareFix(msg.detection);
+        const fix = activeFix(performance.now());
+        if (fix && fix.dir && fix.source === "TDOA") pushTrail(fix.dir, fix.strength);
         return;
       }
       if (msg.type === "serial_ports") {

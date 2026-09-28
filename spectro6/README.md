@@ -64,10 +64,11 @@ lsusb -t
 cat /proc/asound/card1/stream0
 ```
 
-## UI — hexagon DOA
+## UI — detekční krychle
 
-Nad spektrogramy je **šestiúhelník** mic1…mic6 (mic1 nahoře, po směru hodin).
-Pozice zdroje = vážený průměr směrů kanálů podle výkonu v pásmu 2&nbsp;kHz.
+Nad spektrogramy je **krychle na vrcholu** (hrana 128 mm), mikrofony ve středech stěn
+stejně jako `MIC_DIR` ve firmware. Dron je koule ve směru detekce: přednost má
+řádek `SRC … pos=tdoa` ze sériové konzole, jinak vážený směr výkonu v pásmu 2&nbsp;kHz.
 Stopa (trail) postupně slábne (~14&nbsp;s); tlačítko **Trail ✕** ji vymaže.
 
 ## Buffery
