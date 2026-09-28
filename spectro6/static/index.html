@@ -21,6 +21,7 @@
       <button type="button" id="btnStart" class="btn primary">Start</button>
       <button type="button" id="btnStop" class="btn" disabled>Stop</button>
       <button type="button" id="btnClearTrail" class="btn" title="Vymazat DOA + VU trail">Trail ✕</button>
+      <label class="field check"><input type="checkbox" id="chkGrid" checked /> Grid</label>
       <span id="status" class="status">…</span>
     </div>
   </header>
@@ -38,7 +39,32 @@
           <div><dt>zdroj</dt><dd data-src>—</dd></div>
           <div><dt>trail</dt><dd data-trail>0</dd></div>
         </dl>
-        <p class="doa-hint">krychle na vrcholu · mic1 = sever · dron ve směru detekce</p>
+        <p class="doa-hint">táhni myší = otočit · kolečko = zoom · X červená (mic1) · Y zelená · Z modrá</p>
+        <div class="calib">
+          <h3>Citlivost</h3>
+          <p class="doa-hint">Kanály 4–6 zůstávají hlasitější i po otočení krychle, takže rozdíl je v zisku vstupu. V tichu klikni a šumové dno se srovná.</p>
+          <div class="calib-row">
+            <button type="button" id="btnSilence" class="btn">Nastavit ticho</button>
+            <button type="button" id="btnClearGain" class="btn">Zrušit</button>
+          </div>
+          <p id="gainLine" class="gain-line">bez kompenzace</p>
+          <h3>Kalibrace obletu</h3>
+          <p class="doa-hint">Krychle ve 130 cm. Kruh r = 1 m ve výšce 1 m, před mic1 výstup na 3 m, druhý kruh, přistání před mic1.</p>
+          <div class="calib-row">
+            <button type="button" id="btnCalibStart" class="btn primary">Start záznamu</button>
+            <button type="button" id="btnCalibStop" class="btn" disabled>Stop</button>
+            <button type="button" id="btnCalibDown" class="btn" disabled>Stáhnout WAV</button>
+            <button type="button" id="btnCalibReset" class="btn" disabled>Reset</button>
+          </div>
+          <div class="calib-row">
+            <button type="button" class="btn phase" data-phase="circle1" disabled>Kruh 1 m</button>
+            <button type="button" class="btn phase" data-phase="climb" disabled>Výstup 3 m</button>
+            <button type="button" class="btn phase" data-phase="circle3" disabled>Kruh 3 m</button>
+            <button type="button" class="btn phase" data-phase="land" disabled>Přistání</button>
+          </div>
+          <p id="calibName" class="gain-line"></p>
+          <ol id="calibLog" class="calib-log"></ol>
+        </div>
       </div>
     </section>
 
@@ -75,6 +101,7 @@
     <span id="stats"></span>
   </footer>
 
+  <script src="/static/cube_gl.js?v=@@ASSET_VER@@"></script>
   <script src="/static/app.js?v=@@ASSET_VER@@"></script>
 </body>
 </html>

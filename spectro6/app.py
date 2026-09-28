@@ -26,6 +26,7 @@ import logging
 import sys
 import threading
 import time
+import wave
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -35,7 +36,7 @@ import numpy as np
 import sounddevice as sd
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from serial_bridge import SerialBridge, list_serial_ports
@@ -62,11 +63,137 @@ CLIP_THRESH = 0.98
 ZERO_PEAK_THRESH = 1e-7
 GAP_DB_THRESH = -140.0  # spectro/VU below this ⇒ treat hop as gap
 DEFAULT_LATENCY = 0.20  # seconds — USB-friendly
-ASSET_VER = "20260926g"
+ASSET_VER = "20260928a"
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+RECORD_DIR = Path(__file__).resolve().parent / "recordings"
+CALIB_WAV_SUFFIX = "_1m_circle_then_3m_circle.wav"
+SILENCE_SECONDS = 1.5
 
 log = logging.getLogger("spectro6")
+
+
+class ManeuverRecorder:
+    """6-channel int16 WAV of one calibration flight, plus a text log."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._wav: wave.Wave_write | None = None
+        self.path: Path | None = None
+        self.name: str | None = None
+        self.log_path: Path | None = None
+        self.active = False
+        self.samples = 0
+        self.started_at: float | None = None
+        self.log_lines: list[dict[str, Any]] = []
+        self.error: str | None = None
+
+    def start(self, channels: int, sample_rate: int) -> dict[str, Any]:
+        with self._lock:
+            self._close_unlocked()
+            RECORD_DIR.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d%H%M")
+            self.name = f"{stamp}{CALIB_WAV_SUFFIX}"
+            self.path = RECORD_DIR / self.name
+            self.log_path = self.path.with_suffix(".log.txt")
+            wf = wave.open(str(self.path), "wb")
+            wf.setnchannels(channels)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            self._wav = wf
+            self.samples = 0
+            self.started_at = time.time()
+            self.active = True
+            self.error = None
+            self.log_lines = []
+            self._mark_unlocked(
+                "start",
+                "Záznam. Krychle 130 cm nad zemí. Dron před mic1.",
+            )
+            return self.status()
+
+    def write(self, block: np.ndarray) -> None:
+        if not self.active or block.size == 0:
+            return
+        pcm = np.clip(block, -1.0, 1.0)
+        i16 = (pcm * 32767.0).astype("<i2")
+        raw = i16.tobytes()
+        with self._lock:
+            if self._wav is None:
+                return
+            try:
+                self._wav.writeframes(raw)
+                self.samples += int(block.shape[0])
+            except Exception as exc:
+                self.error = str(exc)
+                self.active = False
+
+    def mark(self, phase: str, text: str) -> dict[str, Any]:
+        with self._lock:
+            self._mark_unlocked(phase, text)
+            return self.status()
+
+    def _mark_unlocked(self, phase: str, text: str) -> None:
+        rel = 0.0 if self.started_at is None else time.time() - self.started_at
+        entry = {
+            "t": time.strftime("%H:%M:%S"),
+            "rel_s": round(rel, 2),
+            "sample": self.samples,
+            "phase": phase,
+            "text": text,
+        }
+        self.log_lines.append(entry)
+        if self.log_path is not None:
+            line = f"{entry['t']}  t={entry['rel_s']:7.2f}s  {text}\n"
+            with self.log_path.open("a", encoding="utf-8") as fh:
+                fh.write(line)
+
+    def stop(self) -> dict[str, Any]:
+        with self._lock:
+            if self.active:
+                self._mark_unlocked("stop", "Konec záznamu.")
+            self.active = False
+            self._close_unlocked()
+            return self.status()
+
+    def reset(self) -> dict[str, Any]:
+        with self._lock:
+            self.active = False
+            self._close_unlocked()
+            for p in (self.path, self.log_path):
+                if p is not None and p.exists():
+                    p.unlink()
+            self.path = None
+            self.log_path = None
+            self.name = None
+            self.samples = 0
+            self.started_at = None
+            self.log_lines = []
+            self.error = None
+            return self.status()
+
+    def _close_unlocked(self) -> None:
+        if self._wav is not None:
+            try:
+                self._wav.close()
+            except Exception:
+                pass
+            self._wav = None
+
+    def status(self) -> dict[str, Any]:
+        dur = 0.0
+        if self.started_at is not None:
+            dur = (time.time() - self.started_at) if self.active else self.samples / SAMPLE_RATE
+        return {
+            "recording": self.active,
+            "name": self.name,
+            "samples": self.samples,
+            "seconds": round(self.samples / SAMPLE_RATE, 2),
+            "elapsed_s": round(dur, 2),
+            "log": list(self.log_lines),
+            "ready": bool(self.path and self.path.exists() and not self.active and self.samples > 0),
+            "error": self.error,
+        }
 
 
 def _vout(msg: str) -> None:
@@ -338,6 +465,12 @@ class SpectroEngine:
         if self._vu_bins.size == 0:
             self._vu_bins = np.array([int(round(VU_HZ * FFT_SIZE / sample_rate))])
         self._tail = np.zeros((0, channels), dtype=np.float32)
+        self._gains = np.ones(channels, dtype=np.float64)
+        self._silence_left = 0
+        self._silence_acc = np.zeros(channels, dtype=np.float64)
+        self._silence_n = 0
+        self._notes: deque[dict[str, Any]] = deque(maxlen=32)
+        self.recorder = ManeuverRecorder()
 
     def _build_bin_map(self) -> np.ndarray:
         f_min, f_max = 100.0, self.sample_rate / 2
@@ -493,6 +626,10 @@ class SpectroEngine:
             self._maybe_stdout_vu(idle=True)
             return None
         block = np.concatenate(chunks, axis=0)  # (n, ch)
+        # Disk I/O stays off the PortAudio callback so a recording cannot stall capture.
+        if self.recorder.active:
+            self.recorder.write(block)
+        self._collect_silence(block)
         if block.shape[1] != self.channels:
             log.error("channel mismatch: got %s want %s", block.shape, self.channels)
             return None
@@ -523,6 +660,9 @@ class SpectroEngine:
                 # else leave near-floor col (will be painted as gap stripe in UI)
             else:
                 self._last_good_cols = col.astype(np.float32)
+            gain_db = (20.0 * np.log10(np.maximum(self._gains, 1e-8))).astype(np.float32)
+            col = col + gain_db[:, None]
+            vu = vu + gain_db
             cols_acc.append(col)
             vu_acc.append(vu)
             gap_flags.append(is_gap)
@@ -597,10 +737,71 @@ class SpectroEngine:
             "gap_hops_tick": int(gap_tick),
             "zero_ratio": float(zero_ratio),
             "frames": self._frames,
+            "gain_db": [float(x) for x in (20.0 * np.log10(np.maximum(self._gains, 1e-8)))],
+            "silence_busy": self._silence_left > 0,
+            "calib": {
+                "recording": self.recorder.active,
+                "seconds": round(self.recorder.samples / SAMPLE_RATE, 2),
+                "name": self.recorder.name,
+                "ready": bool(
+                    self.recorder.path
+                    and self.recorder.path.exists()
+                    and not self.recorder.active
+                    and self.recorder.samples > 0
+                ),
+            },
             "blocks": self._callback_blocks,
             "ring": len(self._ring),
             "running": True,
         }
+
+    def begin_silence(self, seconds: float = SILENCE_SECONDS) -> None:
+        self._silence_acc[:] = 0
+        self._silence_n = 0
+        self._silence_left = int(self.sample_rate * seconds)
+
+    def clear_gains(self) -> None:
+        self._gains[:] = 1.0
+        self._silence_left = 0
+
+    def set_gains_db(self, gain_db: list[float]) -> None:
+        arr = np.array(gain_db, dtype=np.float64)
+        if arr.shape != (self.channels,):
+            raise ValueError(f"need {self.channels} gains")
+        self._gains[:] = np.clip(np.power(10.0, arr / 20.0), 0.05, 8.0)
+
+    def pop_notes(self) -> list[dict[str, Any]]:
+        out = list(self._notes)
+        self._notes.clear()
+        return out
+
+    def _collect_silence(self, block: np.ndarray) -> None:
+        if self._silence_left <= 0:
+            return
+        if float(np.max(np.abs(block))) < ZERO_PEAK_THRESH:
+            return
+        n = int(block.shape[0])
+        self._silence_acc += np.sum(block.astype(np.float64) ** 2, axis=0)
+        self._silence_n += n
+        self._silence_left -= n
+        if self._silence_left > 0 or self._silence_n <= 0:
+            return
+        rms = np.sqrt(self._silence_acc / self._silence_n)
+        med = float(np.median(rms))
+        gains = np.clip(med / np.maximum(rms, 1e-8), 0.05, 8.0)
+        self._gains[:] = gains
+        gain_db = 20.0 * np.log10(np.maximum(gains, 1e-8))
+        self._notes.append(
+            {
+                "type": "silence_done",
+                "gain_db": [float(x) for x in gain_db],
+                "rms_db": [float(x) for x in (20.0 * np.log10(np.maximum(rms, 1e-12)))],
+            }
+        )
+        _vout(
+            "[spectro6] silence baseline  "
+            + "  ".join(f"mic{i+1}={gain_db[i]:+5.1f}dB" for i in range(self.channels))
+        )
 
     def _maybe_stdout_vu(
         self,
@@ -735,6 +936,11 @@ def create_app(engine: SpectroEngine, serial: SerialBridge | None = None) -> Fas
                     await broadcast_raw(ev)
             except Exception:
                 log.exception("serial drain failed")
+            try:
+                for note in engine.pop_notes():
+                    await broadcast_raw(note)
+            except Exception:
+                log.exception("calib note drain failed")
 
             dt = time.perf_counter() - t0
             await asyncio.sleep(max(0.0, interval - dt))
@@ -803,6 +1009,17 @@ def create_app(engine: SpectroEngine, serial: SerialBridge | None = None) -> Fas
     @app.get("/api/serial/detections")
     async def api_serial_detections() -> dict[str, Any]:
         return {"detections": serial.recent_detections(), "status": serial.status()}
+
+    @app.get("/api/calib/wav")
+    async def api_calib_wav() -> Response:
+        path = engine.recorder.path
+        if path is None or not path.exists() or engine.recorder.active:
+            return Response(status_code=404)
+        return FileResponse(
+            path,
+            media_type="audio/wav",
+            filename=engine.recorder.name or path.name,
+        )
 
     @app.websocket("/ws")
     async def ws_stream(ws: WebSocket) -> None:
@@ -909,6 +1126,36 @@ def create_app(engine: SpectroEngine, serial: SerialBridge | None = None) -> Fas
                         await ws.send_json({"type": "serial_status", **serial.status()})
                     except Exception as exc:
                         await ws.send_json({"type": "error", "message": f"serial send: {exc}"})
+                elif cmd == "calib_silence":
+                    engine.begin_silence()
+                    await ws.send_json({"type": "calib", **engine.recorder.status(), "silence_busy": True})
+                elif cmd == "calib_clear_gains":
+                    engine.clear_gains()
+                    await ws.send_json({"type": "silence_done", "gain_db": [0.0] * engine.channels, "cleared": True})
+                elif cmd == "calib_set_gains":
+                    try:
+                        engine.set_gains_db(list(data.get("gain_db") or []))
+                        await ws.send_json({
+                            "type": "silence_done",
+                            "gain_db": [float(x) for x in (20.0 * np.log10(np.maximum(engine._gains, 1e-8)))],
+                        })
+                    except Exception as exc:
+                        await ws.send_json({"type": "error", "message": f"gains: {exc}"})
+                elif cmd == "calib_start":
+                    if not engine._running:
+                        await ws.send_json({"type": "error", "message": "nejdřív spusť capture"})
+                    else:
+                        st = engine.recorder.start(engine.channels, engine.sample_rate)
+                        await ws.send_json({"type": "calib", **st})
+                elif cmd == "calib_mark":
+                    st = engine.recorder.mark(str(data.get("phase") or "mark"), str(data.get("text") or ""))
+                    await ws.send_json({"type": "calib", **st})
+                elif cmd == "calib_stop":
+                    st = engine.recorder.stop()
+                    await ws.send_json({"type": "calib", **st})
+                elif cmd == "calib_reset":
+                    st = engine.recorder.reset()
+                    await ws.send_json({"type": "calib", **st})
                 elif cmd == "serial_ports":
                     await ws.send_json(
                         {"type": "serial_ports", "ports": list_serial_ports(), "status": serial.status()}

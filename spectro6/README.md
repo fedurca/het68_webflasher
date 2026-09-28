@@ -70,6 +70,13 @@ Nad spektrogramy je **krychle na vrcholu** (hrana 128 mm), mikrofony ve středec
 stejně jako `MIC_DIR` ve firmware. Dron je koule ve směru detekce: přednost má
 řádek `SRC … pos=tdoa` ze sériové konzole, jinak vážený směr výkonu v pásmu 2&nbsp;kHz.
 Stopa (trail) postupně slábne (~14&nbsp;s); tlačítko **Trail ✕** ji vymaže.
+Scéna je WebGL: tažení myší otáčí pohled, kolečko zoomuje, **Grid** kreslí půdorys.
+Osy u středu krychle: X červená (mic1 / sever), Y zelená, Z modrá (nahoru).
+
+**Nastavit ticho** změří asi 1,5 s klidu a srovná zisk kanálů (typicky ztlumí hlasitější mic4–mic6).
+**Start záznamu** uloží celý oblet jako
+`yyyymmddhhmm_1m_circle_then_3m_circle.wav` (6 kanálů, 48 kHz, 16-bit) a log fází.
+**Stáhnout WAV** po Stop, **Reset** záznam smaže.
 
 ## Buffery
 

@@ -12,3 +12,4 @@ public/build-info.json
 spectro6/.venv/
 spectro6/**/__pycache__/
 spectro6/*.pyc
+spectro6/recordings/

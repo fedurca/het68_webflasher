@@ -34,6 +34,16 @@
     doaEl: document.querySelector("#doaReadout [data-el]"),
     doaSrc: document.querySelector("#doaReadout [data-src]"),
     doaTrail: document.querySelector("#doaReadout [data-trail]"),
+    grid: document.getElementById("chkGrid"),
+    btnSilence: document.getElementById("btnSilence"),
+    btnClearGain: document.getElementById("btnClearGain"),
+    gainLine: document.getElementById("gainLine"),
+    btnCalibStart: document.getElementById("btnCalibStart"),
+    btnCalibStop: document.getElementById("btnCalibStop"),
+    btnCalibDown: document.getElementById("btnCalibDown"),
+    btnCalibReset: document.getElementById("btnCalibReset"),
+    calibName: document.getElementById("calibName"),
+    calibLog: document.getElementById("calibLog"),
     serialPort: document.getElementById("serialPort"),
     serialOpen: document.getElementById("btnSerialOpen"),
     serialClose: document.getElementById("btnSerialClose"),
@@ -206,103 +216,29 @@
     return { x: cx + x1 * s, y: cy - z2 * s, depth: y2 };
   }
 
+  let cubeView = null;
+  function ensureCube() {
+    if (cubeView || !el.doaCanvas || !window.Het68Cube) return cubeView;
+    cubeView = window.Het68Cube.attach(el.doaCanvas);
+    return cubeView;
+  }
+
   function drawDoa(now) {
-    const canvas = el.doaCanvas;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const w = canvas.width;
-    const h = canvas.height;
-    const cx = w * 0.5;
-    const cy = h * 0.54;
-    const R = Math.min(w, h) * 0.34;
     const fix = activeFix(now);
-
-    ctx.clearRect(0, 0, w, h);
-    const g = ctx.createRadialGradient(cx, cy, R * 0.05, cx, cy, R * 1.6);
-    g.addColorStop(0, "rgba(8,104,33,0.22)");
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
-
-    const pv = CUBE_VERTS.map((v) => project(v, cx, cy, R));
-    const edges = CUBE_EDGES.map(([a, b]) => ({
-      a, b, depth: (pv[a].depth + pv[b].depth) / 2,
-    }));
-    edges.sort((u, v) => u.depth - v.depth);
-    for (const e of edges) {
-      ctx.beginPath();
-      ctx.moveTo(pv[e.a].x, pv[e.a].y);
-      ctx.lineTo(pv[e.b].x, pv[e.b].y);
-      ctx.strokeStyle = e.depth > 0 ? "rgba(26,154,60,0.85)" : "rgba(26,154,60,0.35)";
-      ctx.lineWidth = e.depth > 0 ? 2.2 : 1.2;
-      ctx.stroke();
-    }
-
     const alive = [];
     if (fix && fix.dir) {
       for (const pt of doa.trail) {
-        const age = now - pt.t;
-        if (age > TRAIL_FADE_MS) continue;
-        alive.push(pt);
-        const u = 1 - age / TRAIL_FADE_MS;
-        const q = project([pt.x * 1.45, pt.y * 1.45, pt.z * 1.45], cx, cy, R);
-        ctx.beginPath();
-        ctx.arc(q.x, q.y, 2 + 4 * u * pt.s, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(232, 240, 234, ${0.08 + 0.4 * u * u})`;
-        ctx.fill();
+        if (now - pt.t <= TRAIL_FADE_MS) alive.push(pt);
       }
     }
     doa.trail = alive;
-
-    const levels = doa.lastLevels;
-    const mics = MIC_DIR.map((d, i) => ({
-      i,
-      p: project([d[0] * FACE_SCALE, d[1] * FACE_SCALE, d[2] * FACE_SCALE], cx, cy, R),
-    }));
-    mics.sort((a, b) => a.p.depth - b.p.depth);
-    for (const m of mics) {
-      const lvl = levels[m.i] || 0;
-      ctx.beginPath();
-      ctx.arc(m.p.x, m.p.y, 8 + lvl * 7, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(8,104,33,${0.45 + lvl * 0.5})`;
-      ctx.fill();
-      ctx.strokeStyle = "rgba(232,240,234,0.7)";
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-      ctx.fillStyle = "#e8f0ea";
-      ctx.font = "700 12px Manrope, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(m.i + 1), m.p.x, m.p.y);
+    const view = ensureCube();
+    const grid = el.grid ? el.grid.checked : true;
+    if (view) {
+      const trail = alive.map((pt) => view.place(pt.dir || [pt.x, pt.y, pt.z]));
+      const drone = fix && fix.dir ? view.place(fix.dir) : null;
+      view.frame({ grid, levels: doa.lastLevels, trail, drone });
     }
-
-    if (fix && fix.dir) {
-      const origin = project([0, 0, 0], cx, cy, R);
-      const tip = project(
-        [fix.dir[0] * 1.45, fix.dir[1] * 1.45, fix.dir[2] * 1.45],
-        cx, cy, R,
-      );
-      ctx.beginPath();
-      ctx.moveTo(origin.x, origin.y);
-      ctx.lineTo(tip.x, tip.y);
-      ctx.strokeStyle = "rgba(232,240,234,0.55)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(tip.x, tip.y, 7 + 5 * fix.strength, 0, Math.PI * 2);
-      ctx.fillStyle = "#e8f0ea";
-      ctx.fill();
-      ctx.strokeStyle = "#086821";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-
-    ctx.fillStyle = "rgba(232,240,234,0.55)";
-    ctx.font = "600 13px Manrope, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText("128 mm", cx, h - 8);
-
     if (el.doaTrail) el.doaTrail.textContent = String(alive.length);
     if (el.doaAz) el.doaAz.textContent = fix ? `${fix.az.toFixed(0)}°` : "—";
     if (el.doaEl) el.doaEl.textContent = fix ? `${fix.el.toFixed(0)}°` : "—";
@@ -601,9 +537,10 @@
       m.last_error ? `last_error=${m.last_error}` : null,
       `frames=${m.frames ?? 0}  blocks=${m.blocks ?? 0}  ovf=${m.overflows ?? 0}  drop=${m.ring_drops ?? 0}`,
       `zeros=${m.zero_blocks ?? 0}  gap_hops=${m.gap_hops ?? 0}  block=${m.blocksize ?? "?"}  lat=${m.latency ?? "?"}`,
-      doa.lastDoa
-        ? `doa=${doa.lastDoa.deg.toFixed(0)}° focus=${(doa.lastDoa.r * 100).toFixed(0)}% mic${doa.lastDoa.dom + 1}`
-        : null,
+      (() => {
+        const fix = activeFix(performance.now());
+        return fix ? `doa=${fix.source} ${fix.az.toFixed(0)}/${fix.el.toFixed(0)}` : null;
+      })(),
       m.peak_db ? `peak_db=[${m.peak_db.map((x) => Number(x).toFixed(1)).join(", ")}]` : null,
       extra || null,
     ].filter(Boolean);
@@ -731,6 +668,9 @@
     if (!gapHeavy && msg.vu_db) {
       updateDoaFromVu(msg.vu_db, msg.vu);
     }
+    if (msg.gain_db) renderGains(msg.gain_db);
+    if (msg.calib) renderCalib(msg.calib);
+    if (el.btnSilence) el.btnSilence.disabled = !!msg.silence_busy;
 
     const vuLine = (msg.vu_db || [])
       .slice(0, CHANNELS)
@@ -738,8 +678,9 @@
       .join(" ");
     const ovAny = (msg.overloaded || []).some(Boolean);
     const gapN = gapFlags.filter(Boolean).length;
-    const doaTxt = doa.lastDoa
-      ? ` · DOA ${doa.lastDoa.deg.toFixed(0)}° mic${doa.lastDoa.dom + 1}`
+    const fixNow = activeFix(performance.now());
+    const doaTxt = fixNow
+      ? ` · ${fixNow.source} ${fixNow.az.toFixed(0)}°/${fixNow.el.toFixed(0)}°`
       : "";
     el.stats.textContent =
       `cols ${colCount}` +
@@ -773,7 +714,15 @@
     ws = new WebSocket(`${proto}://${location.host}/ws`);
     ws.onopen = () => {
       setStatus(meta.running ? "běží" : "připojeno");
-      if (ws.readyState === 1) ws.send(JSON.stringify({ cmd: "ping" }));
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({ cmd: "ping" }));
+        const saved = localStorage.getItem("het68-gain-db");
+        if (saved) {
+          try {
+            ws.send(JSON.stringify({ cmd: "calib_set_gains", gain_db: JSON.parse(saved) }));
+          } catch { /* ignore stale storage */ }
+        }
+      }
     };
     ws.onclose = () => {
       setStatus("odpojeno — reconnect…");
@@ -829,6 +778,16 @@
       if (msg.type === "serial_ports") {
         // refresh dropdown if server pushed
         loadSerialPorts();
+        return;
+      }
+      if (msg.type === "silence_done") {
+        renderGains(msg.gain_db);
+        if (el.btnSilence) el.btnSilence.disabled = false;
+        setStatus(msg.cleared ? "kompenzace vypnuta" : "ticho nastaveno");
+        return;
+      }
+      if (msg.type === "calib") {
+        renderCalib(msg);
         return;
       }
       if (msg.type === "error") {
@@ -888,6 +847,91 @@
       setStatus("sync čas → device");
     });
   }
+
+  const PHASE_TEXT = {
+    circle1: "Kruh ve vzdálenosti 1 m, výška 1 m, po směru hodin.",
+    climb: "Před mic1 výstup na 3 m.",
+    circle3: "Kruh ve vzdálenosti 1 m, výška 3 m, po směru hodin.",
+    land: "Sestup z 3 m a přistání před mic1.",
+  };
+
+  function wsSend(payload) {
+    if (!ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify(payload));
+  }
+
+  function renderGains(gainDb) {
+    if (!el.gainLine || !gainDb) return;
+    const key = gainDb.map((g) => Number(g).toFixed(2)).join(",");
+    if (el.gainLine.dataset.key === key) return;
+    el.gainLine.dataset.key = key;
+    const idle = gainDb.every((g) => Math.abs(Number(g)) < 0.05);
+    el.gainLine.textContent = idle
+      ? "bez kompenzace"
+      : gainDb.map((g, i) => `m${i + 1} ${Number(g) >= 0 ? "+" : ""}${Number(g).toFixed(1)} dB`).join("  ");
+    if (!idle) localStorage.setItem("het68-gain-db", JSON.stringify(gainDb));
+    else localStorage.removeItem("het68-gain-db");
+  }
+
+  function renderCalib(st) {
+    if (!st) return;
+    const recording = !!st.recording;
+    if (el.btnCalibStart) el.btnCalibStart.disabled = recording;
+    if (el.btnCalibStop) el.btnCalibStop.disabled = !recording;
+    if (el.btnCalibDown) el.btnCalibDown.disabled = !st.ready;
+    if (el.btnCalibReset) el.btnCalibReset.disabled = recording || (!st.name && !(st.log || []).length);
+    document.querySelectorAll(".phase").forEach((btn) => { btn.disabled = !recording; });
+    if (el.calibName) {
+      el.calibName.textContent = st.name
+        ? `${st.name} · ${Number(st.seconds || 0).toFixed(1)} s`
+        : "";
+    }
+    if (el.calibLog && Array.isArray(st.log)) {
+      const stamp = st.log.map((row) => row.t + row.text).join("|");
+      if (el.calibLog.dataset.stamp !== stamp) {
+        el.calibLog.dataset.stamp = stamp;
+        el.calibLog.innerHTML = "";
+        for (const row of st.log) {
+          const li = document.createElement("li");
+          li.textContent = `${row.t}  ${row.text}`;
+          el.calibLog.appendChild(li);
+        }
+      }
+    }
+  }
+
+  if (el.btnSilence) {
+    el.btnSilence.addEventListener("click", () => {
+      wsSend({ cmd: "calib_silence" });
+      el.btnSilence.disabled = true;
+      setStatus("měřím ticho…");
+    });
+  }
+  if (el.btnClearGain) {
+    el.btnClearGain.addEventListener("click", () => wsSend({ cmd: "calib_clear_gains" }));
+  }
+  if (el.btnCalibStart) {
+    el.btnCalibStart.addEventListener("click", () => wsSend({ cmd: "calib_start" }));
+  }
+  if (el.btnCalibStop) {
+    el.btnCalibStop.addEventListener("click", () => wsSend({ cmd: "calib_stop" }));
+  }
+  if (el.btnCalibReset) {
+    el.btnCalibReset.addEventListener("click", () => wsSend({ cmd: "calib_reset" }));
+  }
+  if (el.btnCalibDown) {
+    el.btnCalibDown.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = "/api/calib/wav";
+      a.click();
+    });
+  }
+  document.querySelectorAll(".phase").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const phase = btn.dataset.phase;
+      wsSend({ cmd: "calib_mark", phase, text: PHASE_TEXT[phase] || phase });
+    });
+  });
 
   el.device.addEventListener("change", () => {
     const opt = el.device.selectedOptions[0];
