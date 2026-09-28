@@ -100,7 +100,6 @@
   const doa = {
     trail: /** @type {{ x: number, y: number, z: number, t: number, s: number }[]} */ ([]),
     lastLevels: new Array(CHANNELS).fill(0),
-    vuEst: /** @type {null | { dir: number[], az: number, el: number, strength: number, dom: number }} */ (null),
     firmware: /** @type {null | { az: number, el: number, conf: number, pos: string, t: number }} */ (null),
     raf: 0,
   };
@@ -111,38 +110,8 @@
     return [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)];
   }
 
-  function azElFromDir(d) {
-    const az = (Math.atan2(d[1], d[0]) * 180) / Math.PI;
-    const el = (Math.atan2(d[2], Math.hypot(d[0], d[1])) * 180) / Math.PI;
-    return { az: (az + 360) % 360, el };
-  }
-
-  function estimateDoa(vuDb) {
-    if (!vuDb || vuDb.length < CHANNELS) return null;
-    const powers = [];
-    let sum = 0;
-    let dom = 0;
-    const acc = [0, 0, 0];
-    for (let i = 0; i < CHANNELS; i++) {
-      const p = Math.pow(10, Math.max(Number(vuDb[i]), -90) / 10);
-      powers.push(p);
-      sum += p;
-      if (p > powers[dom]) dom = i;
-      acc[0] += p * MIC_DIR[i][0];
-      acc[1] += p * MIC_DIR[i][1];
-      acc[2] += p * MIC_DIR[i][2];
-    }
-    if (sum < 1e-14) return null;
-    const mag = Math.hypot(acc[0], acc[1], acc[2]);
-    if (mag < 1e-12) return null;
-    const dir = [acc[0] / mag, acc[1] / mag, acc[2] / mag];
-    const ang = azElFromDir(dir);
-    const meanDb = vuDb.reduce((a, b) => a + Number(b), 0) / CHANNELS;
-    const strength = Math.max(0, Math.min(1, (meanDb + 70) / 55));
-    if (strength < 0.08 && mag / sum < 0.12) return null;
-    return { dir, az: ang.az, el: ang.el, strength, dom };
-  }
-
+  // The drone is drawn only from firmware SRC fixes. A direction from mic
+  // loudness follows channel gain and any nearby sound, not the drone.
   function activeFix(now) {
     const fw = doa.firmware;
     if (fw && now - fw.t < 2500 && fw.pos === "tdoa" && fw.conf >= 0.28) {
@@ -153,9 +122,6 @@
         strength: Math.max(0.4, Math.min(1, fw.conf)),
         source: "TDOA",
       };
-    }
-    if (doa.vuEst) {
-      return { ...doa.vuEst, source: "VU" };
     }
     if (fw && now - fw.t < 2500) {
       return { dir: null, az: fw.az, el: fw.el, strength: 0, source: "pásmo" };
@@ -227,10 +193,8 @@
   function drawDoa(now) {
     const fix = activeFix(now);
     const alive = [];
-    if (fix && fix.dir) {
-      for (const pt of doa.trail) {
-        if (now - pt.t <= TRAIL_FADE_MS) alive.push(pt);
-      }
+    for (const pt of doa.trail) {
+      if (now - pt.t <= TRAIL_FADE_MS) alive.push(pt);
     }
     doa.trail = alive;
     const view = ensureCube();
@@ -251,13 +215,10 @@
     doa.raf = requestAnimationFrame(tickDoa);
   }
 
-  function updateDoaFromVu(vuDb, vuNorm) {
+  function updateCubeLevels(vuNorm) {
     for (let i = 0; i < CHANNELS; i++) {
       doa.lastLevels[i] = Math.max(0, Math.min(1, (vuNorm && vuNorm[i]) || 0));
     }
-    doa.vuEst = estimateDoa(vuDb);
-    const fix = activeFix(performance.now());
-    if (fix && fix.dir && fix.source === "VU") pushTrail(fix.dir, fix.strength);
   }
 
   /* ---------- Spectrogram rows ---------------------------------------- */
@@ -667,7 +628,7 @@
     // Cube DOA from 2 kHz band levels (skip pure digital-zero gaps)
     const gapHeavy = gapFlags.length && gapFlags.filter(Boolean).length > gapFlags.length * 0.6;
     if (!gapHeavy && msg.vu_db) {
-      updateDoaFromVu(msg.vu_db, msg.vu);
+      updateCubeLevels(msg.vu);
     }
     if (msg.gain_db) renderGains(msg.gain_db);
     if (msg.calib) renderCalib(msg.calib);

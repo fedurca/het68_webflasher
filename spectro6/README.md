@@ -67,8 +67,9 @@ cat /proc/asound/card1/stream0
 ## UI — detekční krychle
 
 Nad spektrogramy je **krychle na vrcholu** (hrana 128 mm), mikrofony ve středech stěn
-stejně jako `MIC_DIR` ve firmware. Dron je koule ve směru detekce: přednost má
-řádek `SRC … pos=tdoa` ze sériové konzole, jinak vážený směr výkonu v pásmu 2&nbsp;kHz.
+stejně jako `MIC_DIR` ve firmware. Dron je koule ve směru detekce z řádku
+`SRC … pos=tdoa` ze sériové konzole. Bez čerstvé detekce z firmwaru se dron nekreslí;
+směr z hlasitosti mikrofonů se nepoužívá, protože sleduje zisk kanálů a okolní zvuky.
 Stopa (trail) postupně slábne (~14&nbsp;s); tlačítko **Trail ✕** ji vymaže.
 Scéna je WebGL: tažení myší otáčí pohled, kolečko zoomuje, **Grid** kreslí půdorys.
 Osy u středu krychle: X červená (mic1 / sever), Y zelená, Z modrá (nahoru).
