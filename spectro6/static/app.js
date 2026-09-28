@@ -35,6 +35,7 @@
     doaSrc: document.querySelector("#doaReadout [data-src]"),
     doaTrail: document.querySelector("#doaReadout [data-trail]"),
     grid: document.getElementById("chkGrid"),
+    btnViewReset: document.getElementById("btnViewReset"),
     btnSilence: document.getElementById("btnSilence"),
     btnClearGain: document.getElementById("btnClearGain"),
     gainLine: document.getElementById("gainLine"),
@@ -900,6 +901,11 @@
     }
   }
 
+  if (el.btnViewReset) {
+    el.btnViewReset.addEventListener("click", () => {
+      if (cubeView) cubeView.reset();
+    });
+  }
   if (el.btnSilence) {
     el.btnSilence.addEventListener("click", () => {
       wsSend({ cmd: "calib_silence" });
