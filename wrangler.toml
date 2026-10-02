@@ -13,8 +13,9 @@ not_found_handling = "single-page-application"
 
 [vars]
 FIRMWARE_REPO = "fedurca/het68"
-BASIC_AUTH_USER = "dev"
-BASIC_AUTH_PASS = "dev"
+# Optional override for the footer bypass token (defaults to the value compiled
+# into src/worker.js). Prefer rotating the constant in worker.js + footers.
+# AUTH_BYPASS_TOKEN = "…"
 
 # Custom Domains (zóna het68.cz musí být na stejném Cloudflare účtu).
 # Po úpravě stačí: npx wrangler deploy

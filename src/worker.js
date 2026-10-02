@@ -2,9 +2,9 @@
  * HET68 — Cloudflare Worker
  *
  * - www.* → 301 strip to apex (www.het68.cz → het68.cz) before auth/routing
- * - All public hosts require Basic Auth (dev:dev by default)
- * - After one successful login, a shared HttpOnly cookie on `.het68.cz` is set
- *   so other subdomains (flasher / chirp / qr / dev / api / apex) do not prompt again
+ * - Access is gated by a long `?hb=` bypass query (sets a shared HttpOnly cookie
+ *   on `.het68.cz`); Basic Auth / password prompts are not used.
+ * - After one successful bypass, the cookie covers apex + all *.het68.cz hosts
  * - het68.cz → static marketing site
  * - flasher.het68.cz → web flasher
  * - qr.het68.cz → QR scrambler from fedurca/qr_scrambler
@@ -292,16 +292,15 @@ function timingSafeEqual(a, b) {
 const AUTH_COOKIE = "het68_auth";
 const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
-/** Long random query token (footer link) that grants the same session cookie as Basic. */
+/** Long random query token (footer link) that grants the shared session cookie. */
 const AUTH_BYPASS_PARAM = "hb";
 const AUTH_BYPASS_TOKEN =
-  "d6726caba1a89c5ac746f389d9410393c07f39423ddb5eac5c8ea0b0f6151a3cb9b8b4f5f4b07440d1824e44f1d2fc1e";
+  "4bd0d6f3dd9033e21482f32b8bd7213bf4ae5ae4bff193baa71786486b35491aa2d254ccee1b6abb74bfd8f69368bf9f";
 
 function unauthorized() {
   return new Response("Authentication required", {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Basic realm="HET68", charset="UTF-8"',
       "Cache-Control": "no-store",
       "Content-Type": "text/plain; charset=utf-8",
     },
@@ -316,23 +315,6 @@ function checkAuthBypass(request, env) {
     const got = url.searchParams.get(AUTH_BYPASS_PARAM);
     if (!got) return false;
     return timingSafeEqual(got, expected);
-  } catch {
-    return false;
-  }
-}
-
-function checkBasicAuth(request, env) {
-  const user = env.BASIC_AUTH_USER || "dev";
-  const pass = env.BASIC_AUTH_PASS || "dev";
-  const header = request.headers.get("Authorization");
-  if (!header || !header.startsWith("Basic ")) return false;
-  try {
-    const decoded = atob(header.slice(6));
-    const colon = decoded.indexOf(":");
-    if (colon < 0) return false;
-    const u = decoded.slice(0, colon);
-    const p = decoded.slice(colon + 1);
-    return timingSafeEqual(u, user) && timingSafeEqual(p, pass);
   } catch {
     return false;
   }
@@ -359,9 +341,10 @@ function authCookieDomain(hostname) {
 }
 
 async function authToken(env) {
-  const user = env.BASIC_AUTH_USER || "dev";
-  const pass = env.BASIC_AUTH_PASS || "dev";
-  const material = `het68-shared-auth|${user}|${pass}`;
+  // Cookie material follows the bypass secret so rotating `AUTH_BYPASS_TOKEN`
+  // also invalidates existing sessions.
+  const secret = env.AUTH_BYPASS_TOKEN || AUTH_BYPASS_TOKEN;
+  const material = `het68-shared-auth|hb|${secret}`;
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(material)
@@ -392,9 +375,9 @@ function withAuthCookie(response, hostname, token) {
 
 /**
  * Accept either:
- *  - shared auth cookie (set after login on any *.het68.cz host), or
- *  - valid Basic Auth (then caller should attach Set-Cookie to the response), or
+ *  - shared auth cookie (set after `?hb=` on any *.het68.cz host), or
  *  - footer bypass query `?hb=<long token>` (sets the same shared cookie).
+ * Basic Auth / password prompts are intentionally not supported.
  */
 async function authorizeRequest(request, env) {
   const expected = await authToken(env);
@@ -402,9 +385,6 @@ async function authorizeRequest(request, env) {
   const cookieVal = cookies[AUTH_COOKIE];
   if (cookieVal && timingSafeEqual(cookieVal, expected)) {
     return { ok: true, setCookie: false, token: expected };
-  }
-  if (checkBasicAuth(request, env)) {
-    return { ok: true, setCookie: true, token: expected };
   }
   if (checkAuthBypass(request, env)) {
     return { ok: true, setCookie: true, token: expected };
@@ -813,8 +793,8 @@ export default {
 
     const host = requestHostname(request);
 
-    // Gate every public host + API. One Basic login sets a shared cookie on
-    // .het68.cz so flasher / chirp / qr / dev / api / apex do not prompt again.
+    // Gate every public host + API. `?hb=` sets a shared cookie on .het68.cz
+    // so flasher / chirp / qr / dev / api / apex stay unlocked in the same browser.
     const auth = await authorizeRequest(request, env);
     if (!auth.ok) return unauthorized();
 

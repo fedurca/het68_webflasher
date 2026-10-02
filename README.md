@@ -4,12 +4,16 @@ Statický web + firmware flasher + QR pro [HET68](https://github.com/fedurca/het
 
 | Host | Obsah | Auth |
 |---|---|---|
-| `het68.cz` | Marketing CZ `/` · EN `/en/` · DE `/de/` | Basic Auth `dev:dev` |
+| `het68.cz` | Marketing CZ `/` · EN `/en/` · DE `/de/` | `?hb=` bypass (shared cookie) |
 | `www.het68.cz` | 301 → `https://het68.cz/...` (www se vždy odřezává) | — |
-| `flasher.het68.cz` | WebUSB flasher CZ `/` · EN `/en/` · DE `/de/` | bez auth |
-| `qr.het68.cz` | QR scrambler z [fedurca/qr_scrambler](https://github.com/fedurca/qr_scrambler) | bez auth |
-| `chirp.het68.cz` | Akustický chirp dekodér CZ `/` · EN `/en/` · DE `/de/` | bez auth |
-| `dev.het68.cz` | chirpdev — ladění linky, sdílené nastavení mezi zařízeními (Durable Object), mapa nodů | bez auth |
+| `flasher.het68.cz` | WebUSB flasher CZ `/` · EN `/en/` · DE `/de/` | stejná cookie / `?hb=` |
+| `qr.het68.cz` | QR scrambler z [fedurca/qr_scrambler](https://github.com/fedurca/qr_scrambler) | stejná cookie / `?hb=` |
+| `chirp.het68.cz` | Akustický chirp dekodér CZ `/` · EN `/en/` · DE `/de/` | stejná cookie / `?hb=` |
+| `dev.het68.cz` | chirpdev — ladění linky, sdílené nastavení mezi zařízeními (Durable Object), mapa nodů | stejná cookie / `?hb=` |
+
+Přístup bez Basic Auth: otevři kanonický bypass link (token je ve footerech landing
+stránek a v `AUTH_BYPASS_TOKEN` ve `src/worker.js`). Po jednom načtení Worker nastaví
+cookie na `.het68.cz` a ostatní hosty už neblokuje.
 
 Před každým `npm run deploy` / CI deployem se stáhne **nejnovější `main`** z `qr_scrambler` do `public/qr/` (`npm run fetch:qr`).
 
@@ -20,7 +24,7 @@ npm install
 npm run dev          # automaticky spustí fetch:qr
 ```
 
-- Landing: `http://127.0.0.1:8787/` — login **dev / dev**
+- Landing: `http://127.0.0.1:8787/?hb=<token>` (token viz footer / `AUTH_BYPASS_TOKEN`)
 - Flasher: `http://127.0.0.1:8787/flasher/`
 - QR: `http://127.0.0.1:8787/qr/`
 - API: `http://127.0.0.1:8787/api/releases`
