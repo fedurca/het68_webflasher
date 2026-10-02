@@ -49,7 +49,18 @@
     serialOpen: document.getElementById("btnSerialOpen"),
     serialClose: document.getElementById("btnSerialClose"),
     syncTime: document.getElementById("btnSyncTime"),
+    logClear: document.getElementById("btnLogClear"),
+    logCopy: document.getElementById("btnLogCopy"),
+    gpxDet: document.getElementById("btnGpxDet"),
+    gpxRid: document.getElementById("btnGpxRid"),
+    ridFile: document.getElementById("ridFile"),
+    ridFileInfo: document.getElementById("ridFileInfo"),
+    arrayLat: document.getElementById("arrayLat"),
+    arrayLon: document.getElementById("arrayLon"),
+    arrayAlt: document.getElementById("arrayAlt"),
+    arrayRange: document.getElementById("arrayRange"),
     serialStatus: document.getElementById("serialStatus"),
+    chipSerial: document.getElementById("chipSerial"),
     detList: document.getElementById("detList"),
     serialLog: document.getElementById("serialLog"),
   };
@@ -393,6 +404,25 @@
   const detItems = [];
   const MAX_DETS_UI = 40;
   const MAX_LOG_UI = 80;
+  const MAX_TRACK = 4000;
+  const tracksApi = window.Het68Tracks;
+  const acousticFixes = [];
+  const liveRid = [];
+  let loadedRid = [];
+  const seenTrack = new Set();
+  const logLines = [];
+
+  function setChipSerial(raw) {
+    const id = String(raw || "").trim().toUpperCase();
+    if (!/^[0-9A-F]{16}$/.test(id) || !el.chipSerial) return;
+    el.chipSerial.textContent = id;
+    el.chipSerial.title = "Sériové číslo z OTP čipu Pico 2";
+  }
+
+  function noteSerialText(text) {
+    const m = String(text || "").match(/\bserial=([0-9A-Fa-f]{16})\b/);
+    if (m) setChipSerial(m[1]);
+  }
 
   function setSerialStatus(st) {
     if (!el.serialStatus) return;
@@ -408,8 +438,29 @@
     if (el.syncTime) el.syncTime.disabled = !on;
   }
 
-  function appendSerialLog(text, kind) {
+  function rememberTrack(text, hostTs) {
+    if (!tracksApi || hostTs == null) return;
+    const key = `${hostTs}\n${text}`;
+    if (seenTrack.has(key)) return;
+    const hit = tracksApi.parseConsoleLine(text, hostTs);
+    if (!hit) return;
+    seenTrack.add(key);
+    if (hit.kind === "src") {
+      acousticFixes.push(hit);
+      if (acousticFixes.length > MAX_TRACK) acousticFixes.shift();
+    } else if (hit.kind === "rid") {
+      liveRid.push(hit);
+      if (liveRid.length > MAX_TRACK) liveRid.shift();
+    }
+    renderRidInfo();
+  }
+
+  function appendSerialLog(text, kind, hostTs) {
     if (!el.serialLog) return;
+    noteSerialText(text);
+    logLines.push(String(text));
+    if (logLines.length > MAX_TRACK) logLines.shift();
+    if (kind === "rx") rememberTrack(text, hostTs);
     const line = document.createElement("div");
     if (kind === "tx") line.className = "tx";
     if (kind === "err") line.className = "err";
@@ -419,6 +470,68 @@
       el.serialLog.removeChild(el.serialLog.firstChild);
     }
     el.serialLog.scrollTop = el.serialLog.scrollHeight;
+  }
+
+  function clearSerialView() {
+    acousticFixes.length = 0;
+    liveRid.length = 0;
+    logLines.length = 0;
+    seenTrack.clear();
+    detItems.length = 0;
+    if (el.detList) el.detList.innerHTML = "";
+    if (el.serialLog) el.serialLog.innerHTML = "";
+    renderRidInfo();
+  }
+
+  function consoleText() {
+    return logLines.join("\n");
+  }
+
+  function arrayOrigin() {
+    return {
+      lat: el.arrayLat && el.arrayLat.value,
+      lon: el.arrayLon && el.arrayLon.value,
+      alt: el.arrayAlt && el.arrayAlt.value,
+      rangeM: el.arrayRange && el.arrayRange.value,
+    };
+  }
+
+  function saveOrigin() {
+    const o = arrayOrigin();
+    localStorage.setItem("het68-array-origin", JSON.stringify(o));
+  }
+
+  function loadOrigin() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem("het68-array-origin") || "null");
+    } catch { /* ignore */ }
+    if (!saved) return;
+    if (el.arrayLat && saved.lat) el.arrayLat.value = saved.lat;
+    if (el.arrayLon && saved.lon) el.arrayLon.value = saved.lon;
+    if (el.arrayAlt && saved.alt != null && saved.alt !== "") el.arrayAlt.value = saved.alt;
+    if (el.arrayRange && saved.rangeM) el.arrayRange.value = saved.rangeM;
+  }
+
+  function renderRidInfo() {
+    if (!el.ridFileInfo) return;
+    const loaded = loadedRid.length ? `soubor ${loadedRid.length}` : "bez souboru";
+    el.ridFileInfo.textContent = `det ${acousticFixes.length} · rid ${liveRid.length} · ${loaded}`;
+  }
+
+  function downloadText(name, text) {
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(new Blob([text], { type: "application/gpx+xml" }));
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function stampName(prefix) {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return `${prefix}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.gpx`;
   }
 
   function prependDetection(det) {
@@ -467,7 +580,11 @@
             (p.recommended ? "★ " : "") +
             p.device +
             (p.description ? " · " + p.description : "");
+          if (p.serial_number) o.dataset.usbSerial = p.serial_number;
           el.serialPort.appendChild(o);
+          if (/het68|pico 6ch/i.test(p.description || "") && p.serial_number) {
+            setChipSerial(p.serial_number);
+          }
         }
         const rec = ports.find((p) => p.recommended);
         if (rec) el.serialPort.value = rec.device;
@@ -560,6 +677,7 @@
       o.value = String(d.id);
       o.textContent = formatDevice(d);
       o.dataset.channels = String(d.channels);
+      if (d.usb_serial) o.dataset.usbSerial = d.usb_serial;
       el.device.appendChild(o);
     }
 
@@ -577,6 +695,8 @@
       }
       renderMetaDebug(meta, meta.last_error ? "Tip: zvol ★ ALSA 6ch / ← DEFAULT" : null);
     }
+    const picked = el.device.selectedOptions[0];
+    if (picked && picked.dataset.usbSerial) setChipSerial(picked.dataset.usbSerial);
   }
 
   function selectedDevicePayload() {
@@ -704,7 +824,10 @@
         if (msg.serial) setSerialStatus(msg.serial);
         if (msg.device != null) {
           const match = [...el.device.options].find((o) => o.value === String(msg.device));
-          if (match) el.device.value = String(msg.device);
+          if (match) {
+            el.device.value = String(msg.device);
+            if (match.dataset.usbSerial) setChipSerial(match.dataset.usbSerial);
+          }
         }
         renderMetaDebug(meta);
         return;
@@ -722,12 +845,18 @@
         if (el.detList) el.detList.innerHTML = "";
         detItems.length = 0;
         (msg.detections || []).slice().reverse().forEach(prependDetection);
+        logLines.length = 0;
         if (el.serialLog) el.serialLog.innerHTML = "";
-        (msg.lines || []).forEach((ln) => appendSerialLog(ln.text, ln.kind));
+        (msg.lines || []).forEach((ln) => appendSerialLog(ln.text, ln.kind, ln.t));
+        return;
+      }
+      if (msg.type === "serial_cleared") {
+        clearSerialView();
+        setSerialStatus(msg);
         return;
       }
       if (msg.type === "serial_line") {
-        appendSerialLog(msg.text, msg.kind || "rx");
+        appendSerialLog(msg.text, msg.kind || "rx", msg.t);
         const line = String(msg.text || "");
         if (line.includes("TIME OK")) setStatus("čas synchronizován");
         else if (line.includes("TIME ERR") || line.includes("unknown command")) setStatus(line);
@@ -809,6 +938,87 @@
       const epochMs = Date.now();
       ws.send(JSON.stringify({ cmd: "serial_sync_time", epochMs }));
       setStatus("posílám TIME SYNC");
+    });
+  }
+  if (el.logClear) {
+    el.logClear.addEventListener("click", () => {
+      clearSerialView();
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "serial_clear" }));
+      setStatus("log smazán");
+    });
+  }
+  if (el.logCopy) {
+    el.logCopy.addEventListener("click", async () => {
+      const text = consoleText();
+      if (!text) {
+        setStatus("konzole je prázdná");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("log je ve schránce");
+      } catch {
+        setStatus("schránka není dostupná");
+      }
+    });
+  }
+  loadOrigin();
+  renderRidInfo();
+  for (const input of [el.arrayLat, el.arrayLon, el.arrayAlt, el.arrayRange]) {
+    if (input) input.addEventListener("change", saveOrigin);
+  }
+  if (el.gpxDet) {
+    el.gpxDet.addEventListener("click", () => {
+      if (!tracksApi) return;
+      const origin = arrayOrigin();
+      const points = tracksApi.acousticPoints(acousticFixes, origin);
+      if (!points.length) {
+        setStatus(acousticFixes.length
+          ? "vyplň šířku, délku, výšku a dosah krychle"
+          : "není žádná detekce pos=tdoa");
+        return;
+      }
+      saveOrigin();
+      const desc = `Směry pos=tdoa promítnuté ${origin.rangeM} m od krychle ${origin.lat},${origin.lon}. Není to GPS poloha dronu.`;
+      downloadText(stampName("het68-detekce"), tracksApi.buildGpx("het68 detekce", desc, points));
+      setStatus(`GPX detekce, ${points.length} bodů`);
+    });
+  }
+  if (el.gpxRid) {
+    el.gpxRid.addEventListener("click", () => {
+      if (!tracksApi) return;
+      const points = (loadedRid.length ? loadedRid : liveRid).map((p) => ({
+        lat: p.lat,
+        lon: p.lon,
+        ele: p.ele,
+        time: p.time,
+        cmt: p.id ? `id=${p.id}` : "",
+      }));
+      if (!points.length) {
+        setStatus("není droneID stopa — načti log nebo počkej na RID");
+        return;
+      }
+      const src = loadedRid.length ? "načtený log" : "živá konzole";
+      downloadText(
+        stampName("het68-droneid"),
+        tracksApi.buildGpx("het68 droneID", `OpenDroneID polohy (${src}).`, points)
+      );
+      setStatus(`GPX droneID, ${points.length} bodů`);
+    });
+  }
+  if (el.ridFile) {
+    el.ridFile.addEventListener("change", () => {
+      const file = el.ridFile.files && el.ridFile.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        loadedRid = tracksApi ? tracksApi.parseDocument(String(reader.result || "")) : [];
+        renderRidInfo();
+        setStatus(loadedRid.length
+          ? `droneID log: ${loadedRid.length} bodů`
+          : "v souboru není lat/lon");
+      };
+      reader.readAsText(file);
     });
   }
 
@@ -904,6 +1114,7 @@
 
   el.device.addEventListener("change", () => {
     const opt = el.device.selectedOptions[0];
+    if (opt && opt.dataset.usbSerial) setChipSerial(opt.dataset.usbSerial);
     const ch = opt && opt.dataset.channels ? Number(opt.dataset.channels) : null;
     if (ch != null && ch < 6) {
       setStatus(`varování: zařízení má jen ${ch} ch — potřeba 6`);

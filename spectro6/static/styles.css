@@ -68,6 +68,15 @@ body {
   color: var(--green-hi);
 }
 .sub { color: var(--muted); font-size: 0.72rem; }
+.chip-serial {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--green-hi);
+  padding: 0.08rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
 
 .controls {
   display: flex;
@@ -444,6 +453,36 @@ body {
   font-size: 0.72rem;
 }
 .serial-controls .btn { padding: 0.22rem 0.45rem; font-size: 0.7rem; }
+.serial-tracks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem 0.4rem;
+  align-items: center;
+}
+.serial-tracks label {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+.serial-tracks input {
+  width: 4.6rem;
+  padding: 0.16rem 0.28rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+}
+.serial-tracks .btn { padding: 0.22rem 0.45rem; font-size: 0.7rem; }
+.file-btn { cursor: pointer; }
+.rid-info {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-family: var(--mono);
+}
 .serial-split {
   display: grid;
   grid-template-columns: 1.15fr 1fr;

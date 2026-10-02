@@ -23,6 +23,7 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import sys
 import threading
 import time
@@ -63,7 +64,7 @@ CLIP_THRESH = 0.98
 ZERO_PEAK_THRESH = 1e-7
 GAP_DB_THRESH = -140.0  # spectro/VU below this ⇒ treat hop as gap
 DEFAULT_LATENCY = 0.20  # seconds — USB-friendly
-ASSET_VER = "20261002a"
+ASSET_VER = "20261002c"
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 RECORD_DIR = Path(__file__).resolve().parent / "recordings"
@@ -237,6 +238,35 @@ def maybe_reexec_pasuspender(enabled: bool) -> None:
     os.execvpe(exe, ["pasuspender", "--", sys.executable, *sys.argv], env)
 
 
+def _alsa_usb_serial(name: str) -> str:
+    """OTP serial of a Pico ALSA card, from the USB device behind hw:N."""
+    low = name.lower()
+    if "pico" not in low and "het68" not in low:
+        return ""
+    match = re.search(r"hw:(\d+)", name)
+    if not match:
+        return ""
+    cur = Path(f"/sys/class/sound/card{match.group(1)}/device")
+    try:
+        cur = cur.resolve()
+    except OSError:
+        return ""
+    for _ in range(6):
+        vendor = cur / "idVendor"
+        serial = cur / "serial"
+        if vendor.is_file() and serial.is_file():
+            try:
+                if vendor.read_text().strip().lower() == "cafe":
+                    return serial.read_text().strip().upper()
+            except OSError:
+                return ""
+            return ""
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return ""
+
+
 def list_devices() -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for i, d in enumerate(sd.query_devices()):
@@ -255,6 +285,7 @@ def list_devices() -> list[dict[str, Any]]:
                 "is_pulse": "Pulse" in host,
                 "is_virtual": name.lower()
                 in ("sysdefault", "default", "pipewire", "pulse", "lavrate", "samplerate", "speexrate"),
+                "usb_serial": _alsa_usb_serial(name),
             }
         )
     return out
@@ -1033,7 +1064,7 @@ def create_app(engine: SpectroEngine, serial: SerialBridge | None = None) -> Fas
                     "type": "serial_snapshot",
                     "status": serial.status(),
                     "detections": serial.recent_detections(),
-                    "lines": serial.recent_lines(40),
+                    "lines": serial.recent_lines(4000),
                 }
             )
             while True:
@@ -1100,6 +1131,9 @@ def create_app(engine: SpectroEngine, serial: SerialBridge | None = None) -> Fas
                     serial.close()
                     await ws.send_json({"type": "serial_status", **serial.status()})
                     _vout("[spectro6] serial closed")
+                elif cmd == "serial_clear":
+                    serial.clear_log()
+                    await ws.send_json({"type": "serial_cleared", **serial.status()})
                 elif cmd == "serial_sync_time":
                     try:
                         epoch_ms = int(data.get("epochMs") or data.get("epoch_ms") or 0)

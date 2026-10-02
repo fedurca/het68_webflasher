@@ -81,6 +81,7 @@ def list_serial_ports() -> list[dict[str, Any]]:
                 "hwid": p.hwid or "",
                 "vid": p.vid,
                 "pid": p.pid,
+                "serial_number": (getattr(p, "serial_number", None) or "").strip().upper(),
                 "recommended": bool(
                     "ACM" in (p.device or "").upper()
                     or "USB" in (p.device or "").upper()
@@ -222,7 +223,7 @@ def _mk_det(
 class SerialBridge:
     """Background reader for USB CDC serial console."""
 
-    def __init__(self, max_lines: int = 200, max_dets: int = 100) -> None:
+    def __init__(self, max_lines: int = 4000, max_dets: int = 2000) -> None:
         self._lock = threading.Lock()
         self._ser = None
         self._thread: threading.Thread | None = None
@@ -322,6 +323,13 @@ class SerialBridge:
     def recent_lines(self, n: int = 60) -> list[dict[str, Any]]:
         with self._lock:
             return list(self.lines)[-n:]
+
+    def clear_log(self) -> None:
+        """Drop the kept console lines and parsed detections. The port stays open."""
+        with self._lock:
+            self.lines.clear()
+            self.detections.clear()
+            self._outbox.clear()
 
     def _push_line(self, text: str, kind: str = "rx") -> None:
         host_ts = time.time()

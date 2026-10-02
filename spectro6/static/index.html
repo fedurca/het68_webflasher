@@ -12,6 +12,7 @@
     <div class="brand">
       <span class="mark">HET68</span>
       <span class="sub">spectro6</span>
+      <span id="chipSerial" class="chip-serial" title="Sériové číslo z OTP čipu Pico 2">—</span>
     </div>
     <div class="controls">
       <label class="field">
@@ -79,6 +80,18 @@
         <button type="button" id="btnSerialOpen" class="btn">Open</button>
         <button type="button" id="btnSerialClose" class="btn" disabled>Close</button>
         <button type="button" id="btnSyncTime" class="btn primary" title="Pošle TIME SYNC &lt;unix_s&gt; na zařízení">Sync čas</button>
+        <button type="button" id="btnLogClear" class="btn" title="Smaže konzoli, detekce a stopy v tomto okně">Smazat</button>
+        <button type="button" id="btnLogCopy" class="btn" title="Zkopíruje text konzole do schránky">Kopírovat</button>
+      </div>
+      <div class="serial-tracks">
+        <label>lat <input id="arrayLat" inputmode="decimal" placeholder="50.08" title="Zeměpisná šířka krychle" /></label>
+        <label>lon <input id="arrayLon" inputmode="decimal" placeholder="14.42" title="Zeměpisná délka krychle" /></label>
+        <label>výška <input id="arrayAlt" inputmode="decimal" value="0" title="Výška krychle nad mořem, metry" /></label>
+        <label>dosah m <input id="arrayRange" inputmode="decimal" value="100" title="Akustický směr se promítne do této vzdálenosti" /></label>
+        <button type="button" id="btnGpxDet" class="btn" title="GPX směrů pos=tdoa promítnutých od krychle">GPX detekce</button>
+        <button type="button" id="btnGpxRid" class="btn" title="GPX poloh z RID řádků nebo z načteného logu">GPX droneID</button>
+        <label class="btn file-btn">Načíst droneID<input id="ridFile" type="file" accept=".txt,.log,.csv,.gpx,text/plain" hidden /></label>
+        <span id="ridFileInfo" class="rid-info"></span>
       </div>
       <div class="serial-split">
         <div class="det-box">
@@ -103,6 +116,7 @@
   </footer>
 
   <script src="/static/cube_gl.js?v=@@ASSET_VER@@"></script>
+  <script src="/static/tracks.js?v=@@ASSET_VER@@"></script>
   <script src="/static/app.js?v=@@ASSET_VER@@"></script>
 </body>
 </html>

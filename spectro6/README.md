@@ -99,10 +99,14 @@ python3 app.py --list-serial
 python3 app.py --serial /dev/ttyACM0
 ```
 
+V záhlaví je OTP sériové číslo Pica (16 hex znaků). Bere se z USB karty zařízení a z řádku `serial=` ve firmware banneru. Je stejné jako `SerialNumber` v dmesg.
+
 Ve UI (panel **Serial · detekce**):
 
 - Open/Close CDC portu
 - **Sync čas** → pošle na zařízení řádek `TIME SYNC <unix_s>` (UTC sekundy z browseru)
+- **Smazat** smaže konzoli, seznam detekcí i stopy v okně (načtený droneID soubor nechá). **Kopírovat** dá do schránky držený log, až 4000 řádků; v okně je vidět posledních 80
+- **GPX detekce** a **GPX droneID** stáhnou dvě stopy k porovnání. Formát je GPX, ne KMZ: každý bod má čas a souřadnice a otevře se v QGIS i v Google Earth. Akustická stopa potřebuje šířku, délku a výšku krychle; směr `pos=tdoa` se promítne do zadaného dosahu, takže to není GPS poloha dronu. DroneID bere `lat`/`lon` z řádků `RID`, nebo z načteného textového či GPX logu
 - seznam detekcí + raw konzole
 
 Rozpoznávané řádky (příklady):
