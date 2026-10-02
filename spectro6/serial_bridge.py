@@ -11,7 +11,9 @@ Accepted inbound line formats (examples)::
 
 Time sync outbound (browser → device)::
 
-    TIME <epoch_ms>\\n
+    TIME SYNC <unix_epoch_seconds>\\n
+
+The firmware CLI accepts seconds, not milliseconds, and ignores a bare ``TIME``.
 """
 
 from __future__ import annotations
@@ -25,6 +27,24 @@ from collections import deque
 from typing import Any
 
 log = logging.getLogger("spectro6.serial")
+
+# Firmware: `TIME SYNC <unix seconds>`, and the value must be >= 1700000000.
+_EPOCH_MS_MIN = 10_000_000_000
+_EPOCH_SEC_MIN = 1_700_000_000
+_EPOCH_SEC_MAX = 4_000_000_000
+
+
+def time_sync_command(epoch_ms: int) -> str:
+    """Build the firmware clock command from a JS Date.now() millisecond stamp.
+
+    A 10-digit value is already unix seconds and is sent as-is.
+    """
+    value = int(epoch_ms)
+    sec = value // 1000 if value >= _EPOCH_MS_MIN else value
+    if sec < _EPOCH_SEC_MIN or sec > _EPOCH_SEC_MAX:
+        raise ValueError(f"unix epoch {sec}s is outside 2023..2096")
+    return f"TIME SYNC {sec}"
+
 
 DET_KV = re.compile(
     r"^(?:SRC|DET|DETECTION|DOA)\b[:\s]*(.*)$",
@@ -279,8 +299,8 @@ class SerialBridge:
             self._ser.flush()
 
     def sync_time(self, epoch_ms: int) -> str:
-        """Push browser/host UTC epoch ms to the device. Returns command sent."""
-        cmd = f"TIME {int(epoch_ms)}"
+        """Push browser/host UTC to the device. Returns the command sent."""
+        cmd = time_sync_command(epoch_ms)
         self.write_line(cmd)
         self.last_sync_at = time.time()
         self.last_sync_epoch_ms = int(epoch_ms)

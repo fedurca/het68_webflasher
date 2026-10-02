@@ -63,7 +63,7 @@ CLIP_THRESH = 0.98
 ZERO_PEAK_THRESH = 1e-7
 GAP_DB_THRESH = -140.0  # spectro/VU below this ⇒ treat hop as gap
 DEFAULT_LATENCY = 0.20  # seconds — USB-friendly
-ASSET_VER = "20260928c"
+ASSET_VER = "20261002a"
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 RECORD_DIR = Path(__file__).resolve().parent / "recordings"
@@ -1290,7 +1290,7 @@ def main() -> None:
     )
     _vout(
         "[spectro6] console: [VU 2kHz] + [GAP]; serial DET lines → UI detections; "
-        "browser Sync čas → TIME <epoch_ms>"
+        "browser Sync čas → TIME SYNC <unix_s>"
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

@@ -102,7 +102,7 @@ python3 app.py --serial /dev/ttyACM0
 Ve UI (panel **Serial · detekce**):
 
 - Open/Close CDC portu
-- **Sync čas** → pošle na zařízení řádek `TIME <epoch_ms>` (UTC z browseru)
+- **Sync čas** → pošle na zařízení řádek `TIME SYNC <unix_s>` (UTC sekundy z browseru)
 - seznam detekcí + raw konzole
 
 Rozpoznávané řádky (příklady):

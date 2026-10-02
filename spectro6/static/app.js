@@ -712,8 +712,8 @@
       if (msg.type === "serial_status" || msg.type === "serial_sync_ok") {
         setSerialStatus(msg);
         if (msg.type === "serial_sync_ok") {
-          appendSerialLog(`sync OK → ${msg.command}`, "tx");
-          setStatus("čas sync " + (msg.epochMs || ""));
+          appendSerialLog(`odesláno ${msg.command}`, "tx");
+          setStatus("čekám na TIME OK");
         }
         return;
       }
@@ -728,6 +728,9 @@
       }
       if (msg.type === "serial_line") {
         appendSerialLog(msg.text, msg.kind || "rx");
+        const line = String(msg.text || "");
+        if (line.includes("TIME OK")) setStatus("čas synchronizován");
+        else if (line.includes("TIME ERR") || line.includes("unknown command")) setStatus(line);
         return;
       }
       if (msg.type === "detection") {
@@ -805,8 +808,7 @@
       if (!ws || ws.readyState !== 1) return;
       const epochMs = Date.now();
       ws.send(JSON.stringify({ cmd: "serial_sync_time", epochMs }));
-      appendSerialLog(`TIME ${epochMs}`, "tx");
-      setStatus("sync čas → device");
+      setStatus("posílám TIME SYNC");
     });
   }
 
