@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="het68 web flasher — flash firmware from GitHub Releases to Raspberry Pi Pico / Pico W / Pico 2 / Pico 2 W / Pimoroni Pico Plus 2 W."
+      content="het68 web flasher — flash firmware from GitHub Releases to the Pimoroni Pico Plus 2 W (final hardware)."
     />
     <title>het68 — Web Flasher</title>
     <link rel="alternate" hreflang="cs" href="https://flasher.het68.cz/" />
@@ -52,8 +52,8 @@
           <a href="https://github.com/fedurca/het68/releases" target="_blank" rel="noopener"
             >GitHub Releases</a
           >
-          and writes it over WebUSB to a Raspberry&nbsp;Pi Pico (RP2040) or Pico&nbsp;2 (RP2350)
-          in BOOTSEL mode.
+          and writes it over WebUSB to a Pimoroni Pico Plus&nbsp;2&nbsp;W
+          (RP2350B, 8&nbsp;MB PSRAM) in BOOTSEL mode. Other boards (Pico, Pico&nbsp;W, Pico&nbsp;2, Pico&nbsp;2&nbsp;W) are rejected.
         </p>
         <div class="hero-actions">
           <a class="btn btn-teal" href="#flasher">Start flasher</a>
@@ -110,7 +110,7 @@
               <li>Unplug the USB cable.</li>
               <li>Hold the <strong>BOOTSEL</strong> (or BOOT) button.</li>
               <li>Plug USB back in, then release after 1–2&nbsp;s.</li>
-              <li>The board appears as a USB drive (<code>RPI-RP2</code> / <code>RP2350</code>).</li>
+              <li>The board appears as a USB drive <code>RP2350</code> (Plus&nbsp;2&nbsp;W, 16&nbsp;MB flash).</li>
             </ol>
             <div class="action-row">
               <button type="button" class="btn btn-teal" id="connectBtn">

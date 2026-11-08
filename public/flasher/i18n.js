@@ -16,7 +16,9 @@ const STRINGS = {
     loadErrorOpt: "Chyba načtení",
     webusbUnsupported: "WebUSB není podporováno",
     pickDevice: "Vyber zařízení v dialogu…",
-    unsupportedDevice: "Nepodporované zařízení (očekáván RP2040/RP2350 BOOTSEL)",
+    unsupportedDevice: "Nepodporované zařízení (očekáván RP2350 BOOTSEL — Pico Plus 2 W)",
+    wrongHardware: (mcu) =>
+      `Tohle není finální hardware. Firmware jde jen na Pimoroni Pico Plus 2 W (RP2350B, 8 MB PSRAM). Připojeno: ${mcu}.`,
     warnMcu: (mcu, expected, board) =>
       `Varování: detekován ${mcu}, ale ${board || "vybraná deska"} používá ${expected}. Zkontroluj výběr desky.`,
     boardLabel: (name) => `Deska: ${name}`,
@@ -63,12 +65,7 @@ const STRINGS = {
     buildDeployed: "nasazeno",
     buildAgo: (s) => `před ${s}`,
     boards: {
-      het68: "Firemní zařízení · RP2350 · Wi‑Fi / BT",
-      pico1: "RP2040 · bez Wi‑Fi",
-      pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
-      pico2: "RP2350 · bez Wi‑Fi",
-      pico2w: "RP2350 · CYW43439 Wi‑Fi / BT",
-      pimoroni: "RP2350 · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
+      het68: "Finální HW · RP2350B · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
     },
   },
   en: {
@@ -88,7 +85,9 @@ const STRINGS = {
     loadErrorOpt: "Load error",
     webusbUnsupported: "WebUSB is not supported",
     pickDevice: "Pick a device in the dialog…",
-    unsupportedDevice: "Unsupported device (expected RP2040/RP2350 BOOTSEL)",
+    unsupportedDevice: "Unsupported device (expected RP2350 BOOTSEL — Pico Plus 2 W)",
+    wrongHardware: (mcu) =>
+      `This is not the final hardware. Firmware flashes only to the Pimoroni Pico Plus 2 W (RP2350B, 8 MB PSRAM). Connected: ${mcu}.`,
     warnMcu: (mcu, expected, board) =>
       `Warning: detected ${mcu}, but ${board || "the selected board"} uses ${expected}. Check the board selection.`,
     boardLabel: (name) => `Board: ${name}`,
@@ -135,12 +134,7 @@ const STRINGS = {
     buildDeployed: "deployed",
     buildAgo: (s) => `${s} ago`,
     boards: {
-      het68: "Enterprise appliance · RP2350 · Wi‑Fi / BT",
-      pico1: "RP2040 · no Wi‑Fi",
-      pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
-      pico2: "RP2350 · no Wi‑Fi",
-      pico2w: "RP2350 · CYW43439 Wi‑Fi / BT",
-      pimoroni: "RP2350 · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
+      het68: "Final hardware · RP2350B · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
     },
   },
   de: {
@@ -160,7 +154,9 @@ const STRINGS = {
     loadErrorOpt: "Ladefehler",
     webusbUnsupported: "WebUSB wird nicht unterstützt",
     pickDevice: "Wähle ein Gerät im Dialog…",
-    unsupportedDevice: "Nicht unterstütztes Gerät (erwartet RP2040/RP2350 BOOTSEL)",
+    unsupportedDevice: "Nicht unterstütztes Gerät (erwartet RP2350 BOOTSEL — Pico Plus 2 W)",
+    wrongHardware: (mcu) =>
+      `Das ist nicht die finale Hardware. Firmware nur für Pimoroni Pico Plus 2 W (RP2350B, 8 MB PSRAM). Verbunden: ${mcu}.`,
     warnMcu: (mcu, expected, board) =>
       `Warnung: ${mcu} erkannt, aber ${board || "das gewählte Board"} nutzt ${expected}. Prüfe die Board-Auswahl.`,
     boardLabel: (name) => `Board: ${name}`,
@@ -207,12 +203,7 @@ const STRINGS = {
     buildDeployed: "bereitgestellt",
     buildAgo: (s) => `vor ${s}`,
     boards: {
-      het68: "Enterprise-Gerät · RP2350 · Wi‑Fi / BT",
-      pico1: "RP2040 · kein Wi‑Fi",
-      pico1w: "RP2040 · CYW43439 Wi‑Fi / BT",
-      pico2: "RP2350 · kein Wi‑Fi",
-      pico2w: "RP2350 · CYW43439 Wi‑Fi / BT",
-      pimoroni: "RP2350 · 8 MB PSRAM · 16 MB Flash · Wi‑Fi / BT",
+      het68: "Finale Hardware · RP2350B · 8 MB PSRAM · 16 MB Flash · Wi‑Fi / BT",
     },
   },
 };

@@ -2,18 +2,14 @@
 
 Statický web + firmware flasher + QR pro [HET68](https://github.com/fedurca/het68) na Cloudflare Workers.
 
-| Host | Obsah | Auth |
-|---|---|---|
-| `het68.cz` | Marketing CZ `/` · EN `/en/` · DE `/de/` | `?hb=` bypass (shared cookie) |
-| `www.het68.cz` | 301 → `https://het68.cz/...` (www se vždy odřezává) | — |
-| `flasher.het68.cz` | WebUSB flasher CZ `/` · EN `/en/` · DE `/de/` | stejná cookie / `?hb=` |
-| `qr.het68.cz` | QR scrambler z [fedurca/qr_scrambler](https://github.com/fedurca/qr_scrambler) | stejná cookie / `?hb=` |
-| `chirp.het68.cz` | Akustický chirp dekodér CZ `/` · EN `/en/` · DE `/de/` | stejná cookie / `?hb=` |
-| `dev.het68.cz` | chirpdev — ladění linky, sdílené nastavení mezi zařízeními (Durable Object), mapa nodů | stejná cookie / `?hb=` |
-
-Přístup bez Basic Auth: otevři kanonický bypass link (token je ve footerech landing
-stránek a v `AUTH_BYPASS_TOKEN` ve `src/worker.js`). Po jednom načtení Worker nastaví
-cookie na `.het68.cz` a ostatní hosty už neblokuje.
+| Host | Obsah |
+|---|---|
+| `het68.cz` | Marketing CZ `/` · EN `/en/` · DE `/de/` |
+| `www.het68.cz` | 301 → `https://het68.cz/...` (www se vždy odřezává) |
+| `flasher.het68.cz` | WebUSB flasher CZ `/` · EN `/en/` · DE `/de/` — jen Pimoroni Pico Plus 2 W |
+| `qr.het68.cz` | QR scrambler z [fedurca/qr_scrambler](https://github.com/fedurca/qr_scrambler) |
+| `chirp.het68.cz` | Akustický chirp dekodér CZ `/` · EN `/en/` · DE `/de/` |
+| `dev.het68.cz` | chirpdev — ladění linky, sdílené nastavení mezi zařízeními (Durable Object), mapa nodů |
 
 Před každým `npm run deploy` / CI deployem se stáhne **nejnovější `main`** z `qr_scrambler` do `public/qr/` (`npm run fetch:qr`).
 
@@ -24,18 +20,20 @@ npm install
 npm run dev          # automaticky spustí fetch:qr
 ```
 
-- Landing: `http://127.0.0.1:8787/?hb=<token>` (token viz footer / `AUTH_BYPASS_TOKEN`)
+- Landing: `http://127.0.0.1:8787/`
 - Flasher: `http://127.0.0.1:8787/flasher/`
 - QR: `http://127.0.0.1:8787/qr/`
 - API: `http://127.0.0.1:8787/api/releases`
 
-## Flasher — podporované desky
+## Flasher — podporovaná deska
+
+Firmware se flashuje **jen** na finální hardware:
 
 | Varianta | Asset |
 |---|---|
-| Raspberry Pi Pico 2 | `het68-<ver>-pico2.uf2` |
-| Raspberry Pi Pico 2 W | `het68-<ver>-pico2w.uf2` |
-| Pimoroni Pico Plus 2 W (8 MB PSRAM · 16 MB flash) | `het68-<ver>-pico-plus2-w.uf2` |
+| Pimoroni Pico Plus 2 W (RP2350B · 8 MB PSRAM · 16 MB flash) | `het68-<ver>-pico-plus2-w.uf2` |
+
+WebUSB filtruje pouze RP2350 (`0x2e8a:0x000f`). Pico / Pico W (RP2040) a ostatní desky flasher odmítne.
 
 ## Deploy (z Macu)
 
@@ -75,6 +73,6 @@ public/flasher/         # flasher UI
 public/qr/              # generováno z fedurca/qr_scrambler (fetch:qr)
 spectro6/               # 6ch spektrogram + 2 kHz VU (Python, localhost)
 scripts/fetch-qr.mjs    # stažení nejnovějšího QR z GitHubu
-src/worker.js           # auth + host routing + GitHub proxy
+src/worker.js           # host routing + GitHub proxy
 wrangler.toml
 ```

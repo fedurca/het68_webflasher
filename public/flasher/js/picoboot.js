@@ -43,11 +43,7 @@ function isDisconnectError(e) {
 }
 
 export function usbFilters() {
-  return [
-    { vendorId: VID, productId: PID_RP2040 },
-    { vendorId: VID, productId: PID_RP2350 },
-    { vendorId: VID },
-  ];
+  return [{ vendorId: VID, productId: PID_RP2350 }];
 }
 
 export function describeDevice(device) {

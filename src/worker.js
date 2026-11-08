@@ -1,16 +1,14 @@
 /**
  * HET68 — Cloudflare Worker
  *
- * - www.* → 301 strip to apex (www.het68.cz → het68.cz) before auth/routing
- * - Access is gated by a long `?hb=` bypass query (sets a shared HttpOnly cookie
- *   on `.het68.cz`); Basic Auth / password prompts are not used.
- * - After one successful bypass, the cookie covers apex + all *.het68.cz hosts
+ * - www.* → 301 strip to apex (www.het68.cz → het68.cz) before routing
+ * - Public hosts are open (no authentication)
  * - het68.cz → static marketing site
- * - flasher.het68.cz → web flasher
+ * - flasher.het68.cz → web flasher (Pimoroni Pico Plus 2 W only)
  * - qr.het68.cz → QR scrambler from fedurca/qr_scrambler
  * - chirp.het68.cz → acoustic chirp decoder
  * - dev.het68.cz → chirpdev tuning playground
- * - api.het68.cz → API host (auth required; surface TBD)
+ * - api.het68.cz → API host (placeholder REST surface)
  * - /api/* → GitHub Releases proxy (flasher host, or /flasher path in dev)
  *
  * Note: DNS alone cannot strip "www" from the hostname — the www custom domain
@@ -27,76 +25,34 @@ const JSON_HEADERS = {
   "cache-control": `public, max-age=${RELEASES_CACHE_TTL}`,
 };
 
-const BOARDS = [
-  {
-    id: "het68",
-    label: "het68 board",
-    short: "het68 board",
-    mcu: "RP2350",
-    description: "Firemní zařízení · RP2350 · Wi‑Fi / BT",
-    // Virtual platform — ships the same firmware as the Pimoroni Plus 2 W.
-    assetPatterns: [
-      /^het68-.+-pico-plus2-w\.uf2$/i,
-      /^het68-.+-pimoroni.*\.uf2$/i,
-      /^het68-.+-plus2-w\.uf2$/i,
-    ],
-    rejectPatterns: [],
-  },
-  {
-    id: "pico1",
-    label: "Raspberry Pi Pico",
-    short: "Pico",
-    mcu: "RP2040",
-    description: "RP2040 · bez Wi‑Fi",
-    assetPatterns: [/^het68-.+-pico1\.uf2$/i, /^het68-.+-pico\.uf2$/i],
-    rejectPatterns: [/pico1w/i, /picow/i, /pico2/i, /plus/i, /pimoroni/i],
-  },
-  {
-    id: "pico1w",
-    label: "Raspberry Pi Pico W",
-    short: "Pico W",
-    mcu: "RP2040",
-    description: "RP2040 · CYW43439 Wi‑Fi / BT",
-    assetPatterns: [
-      /^het68-.+-pico1w\.uf2$/i,
-      /^het68-.+-pico1-w\.uf2$/i,
-      /^het68-.+-picow\.uf2$/i,
-      /^het68-.+-pico-w\.uf2$/i,
-    ],
-    rejectPatterns: [/pico2/i, /plus/i, /pimoroni/i],
-  },
-  {
-    id: "pico2",
-    label: "Raspberry Pi Pico 2",
-    short: "Pico 2",
-    mcu: "RP2350",
-    description: "RP2350 · bez Wi‑Fi",
-    assetPatterns: [/^het68-.+-pico2\.uf2$/i],
-    rejectPatterns: [/pico2w/i, /pico2-w/i, /plus/i, /pimoroni/i],
-  },
-  {
-    id: "pico2w",
-    label: "Raspberry Pi Pico 2 W",
-    short: "Pico 2 W",
-    mcu: "RP2350",
-    description: "RP2350 · CYW43439 Wi‑Fi / BT",
-    assetPatterns: [/^het68-.+-pico2w\.uf2$/i, /^het68-.+-pico2-w\.uf2$/i],
-    rejectPatterns: [/plus/i, /pimoroni/i],
-  },
-  {
-    id: "pimoroni",
-    label: "Pimoroni Pico Plus 2 W",
-    short: "Pimoroni Plus 2 W",
-    mcu: "RP2350",
-    description: "RP2350 · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
-    assetPatterns: [
-      /^het68-.+-pico-plus2-w\.uf2$/i,
-      /^het68-.+-pimoroni.*\.uf2$/i,
-      /^het68-.+-plus2-w\.uf2$/i,
-    ],
-    rejectPatterns: [],
-  },
-];
+// Final hardware only: Pimoroni Pico Plus 2 W (RP2350B + 8 MB PSRAM).
+// Older Pico / Pico W / Pico 2 / Pico 2 W images are no longer built.
+const FINAL_BOARD = {
+  id: "het68",
+  label: "Pimoroni Pico Plus 2 W",
+  short: "Plus 2 W",
+  mcu: "RP2350",
+  description: "Finální HW · RP2350B · 8 MB PSRAM · 16 MB flash · Wi‑Fi / BT",
+  assetPatterns: [
+    /^het68-.+-pico-plus2-w\.uf2$/i,
+    /^het68-.+-pimoroni.*\.uf2$/i,
+    /^het68-.+-plus2-w\.uf2$/i,
+  ],
+  rejectPatterns: [],
+};
+
+const BOARDS = [FINAL_BOARD];
+
+const BOARD_ALIASES = {
+  pimoroni: "het68",
+  plus2w: "het68",
+  "pico-plus2-w": "het68",
+};
+
+function resolveBoardId(boardId) {
+  if (!boardId) return boardId;
+  return BOARD_ALIASES[boardId] || boardId;
+}
 
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
@@ -203,6 +159,7 @@ async function handleReleases(env) {
 
 async function handleFirmware(env, tag, boardId) {
   const repo = env.FIRMWARE_REPO || "fedurca/het68";
+  boardId = resolveBoardId(boardId);
   const board = BOARDS.find((b) => b.id === boardId);
   if (!board) return err(`Neznámá deska: ${boardId}`, 404);
   if (!tag || !/^[A-Za-z0-9._-]+$/.test(tag)) {
@@ -278,120 +235,6 @@ async function handleApi(request, env) {
   return err("Not found", 404);
 }
 
-function timingSafeEqual(a, b) {
-  if (typeof a !== "string" || typeof b !== "string") return false;
-  const enc = new TextEncoder();
-  const aa = enc.encode(a);
-  const bb = enc.encode(b);
-  if (aa.length !== bb.length) return false;
-  let out = 0;
-  for (let i = 0; i < aa.length; i++) out |= aa[i] ^ bb[i];
-  return out === 0;
-}
-
-const AUTH_COOKIE = "het68_auth";
-const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
-
-/** Long random query token (footer link) that grants the shared session cookie. */
-const AUTH_BYPASS_PARAM = "hb";
-const AUTH_BYPASS_TOKEN =
-  "4bd0d6f3dd9033e21482f32b8bd7213bf4ae5ae4bff193baa71786486b35491aa2d254ccee1b6abb74bfd8f69368bf9f";
-
-function unauthorized() {
-  return new Response("Authentication required", {
-    status: 401,
-    headers: {
-      "Cache-Control": "no-store",
-      "Content-Type": "text/plain; charset=utf-8",
-    },
-  });
-}
-
-function checkAuthBypass(request, env) {
-  const expected = env.AUTH_BYPASS_TOKEN || AUTH_BYPASS_TOKEN;
-  if (!expected) return false;
-  try {
-    const url = new URL(request.url);
-    const got = url.searchParams.get(AUTH_BYPASS_PARAM);
-    if (!got) return false;
-    return timingSafeEqual(got, expected);
-  } catch {
-    return false;
-  }
-}
-
-function parseCookies(request) {
-  const header = request.headers.get("Cookie") || "";
-  const out = Object.create(null);
-  for (const part of header.split(";")) {
-    const i = part.indexOf("=");
-    if (i < 0) continue;
-    const k = part.slice(0, i).trim();
-    const v = part.slice(i + 1).trim();
-    if (k) out[k] = v;
-  }
-  return out;
-}
-
-/** Parent-domain cookie so one login covers apex + all *.het68.cz hosts. */
-function authCookieDomain(hostname) {
-  const host = (hostname || "").toLowerCase().split(":")[0];
-  if (host === "het68.cz" || host.endsWith(".het68.cz")) return ".het68.cz";
-  return null;
-}
-
-async function authToken(env) {
-  // Cookie material follows the bypass secret so rotating `AUTH_BYPASS_TOKEN`
-  // also invalidates existing sessions.
-  const secret = env.AUTH_BYPASS_TOKEN || AUTH_BYPASS_TOKEN;
-  const material = `het68-shared-auth|hb|${secret}`;
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(material)
-  );
-  return [...new Uint8Array(digest)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function buildAuthCookie(hostname, token) {
-  let cookie =
-    `${AUTH_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${AUTH_COOKIE_MAX_AGE}`;
-  const domain = authCookieDomain(hostname);
-  if (domain) cookie += `; Domain=${domain}`;
-  return cookie;
-}
-
-function withAuthCookie(response, hostname, token) {
-  if (!response || !token) return response;
-  const headers = new Headers(response.headers);
-  headers.append("Set-Cookie", buildAuthCookie(hostname, token));
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-/**
- * Accept either:
- *  - shared auth cookie (set after `?hb=` on any *.het68.cz host), or
- *  - footer bypass query `?hb=<long token>` (sets the same shared cookie).
- * Basic Auth / password prompts are intentionally not supported.
- */
-async function authorizeRequest(request, env) {
-  const expected = await authToken(env);
-  const cookies = parseCookies(request);
-  const cookieVal = cookies[AUTH_COOKIE];
-  if (cookieVal && timingSafeEqual(cookieVal, expected)) {
-    return { ok: true, setCookie: false, token: expected };
-  }
-  if (checkAuthBypass(request, env)) {
-    return { ok: true, setCookie: true, token: expected };
-  }
-  return { ok: false, setCookie: false, token: null };
-}
-
 function isFlasherHost(hostname) {
   const host = (hostname || "").toLowerCase();
   return host === "flasher.het68.cz" || host.startsWith("flasher.");
@@ -446,8 +289,7 @@ function requestHostname(request) {
 }
 
 /**
- * api.het68.cz — dedicated API host. Auth is enforced globally; the public
- * surface is a placeholder until the REST API ships.
+ * api.het68.cz — dedicated API host. Public placeholder until the REST API ships.
  */
 async function serveApiHost(request, env) {
   const url = new URL(request.url);
@@ -474,7 +316,7 @@ async function serveApiHost(request, env) {
       ok: true,
       service: "het68-api",
       host: "api.het68.cz",
-      auth: "required",
+      auth: "none",
       status: "placeholder",
     });
   }
@@ -500,10 +342,9 @@ async function serveApiHost(request, env) {
         ok: false,
         service: "het68-api",
         host: "api.het68.cz",
-        auth: "ok",
+        auth: "none",
         status: "not_implemented",
-        message:
-          "API surface is not public yet. Authenticated access only — endpoints coming soon.",
+        message: "API surface is not public yet — endpoints coming soon.",
         docs: "https://het68.cz/api/",
       },
       501
@@ -786,17 +627,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Canonical host: always strip www (before Basic Auth).
-    // Cookie is on Domain=.het68.cz, so it survives apex/subdomain hops.
+    // Canonical host: always strip www.
     const wwwRedirect = wwwCanonicalRedirect(request);
     if (wwwRedirect) return wwwRedirect;
 
     const host = requestHostname(request);
-
-    // Gate every public host + API. `?hb=` sets a shared cookie on .het68.cz
-    // so flasher / chirp / qr / dev / api / apex stay unlocked in the same browser.
-    const auth = await authorizeRequest(request, env);
-    if (!auth.ok) return unauthorized();
 
     let response;
 
@@ -832,9 +667,6 @@ export default {
       response = redirect || (await serveAssets(request, env));
     }
 
-    if (auth.setCookie) {
-      response = withAuthCookie(response, host, auth.token);
-    }
     return response;
   },
 };

@@ -6,19 +6,15 @@ import {
   describeDevice as describeDeviceRaw,
   mcuOf,
   VID,
+  PID_RP2350,
 } from "./js/picoboot.js";
 import { t, getLang } from "./i18n.js";
 
 const FALLBACK_BOARDS = [
-  { id: "het68", label: "het68 board", short: "het68 board", mcu: "RP2350" },
-  { id: "pico1", label: "Raspberry Pi Pico", short: "Pico", mcu: "RP2040" },
-  { id: "pico1w", label: "Raspberry Pi Pico W", short: "Pico W", mcu: "RP2040" },
-  { id: "pico2", label: "Raspberry Pi Pico 2", short: "Pico 2", mcu: "RP2350" },
-  { id: "pico2w", label: "Raspberry Pi Pico 2 W", short: "Pico 2 W", mcu: "RP2350" },
   {
-    id: "pimoroni",
+    id: "het68",
     label: "Pimoroni Pico Plus 2 W",
-    short: "Pimoroni Plus 2 W",
+    short: "Plus 2 W",
     mcu: "RP2350",
   },
 ];
@@ -26,12 +22,7 @@ const FALLBACK_BOARDS = [
 // Local metadata (board photo + MCU) keyed by board id, independent of the API.
 // Image URLs are resolved against app.js so they work from / and /en/.
 const BOARD_META = {
-  het68: { mcu: "RP2350", img: "het68.svg" },
-  pico1: { mcu: "RP2040", img: "pico1.png" },
-  pico1w: { mcu: "RP2040", img: "pico1w.png" },
-  pico2: { mcu: "RP2350", img: "pico2.png" },
-  pico2w: { mcu: "RP2350", img: "pico2w.png" },
-  pimoroni: { mcu: "RP2350", img: "pimoroni.png" },
+  het68: { mcu: "RP2350", img: "pimoroni.png" },
 };
 
 function boardImg(id) {
@@ -365,24 +356,21 @@ async function connectDevice() {
     setStatus(i18n.pickDevice);
     const existing = await navigator.usb.getDevices();
     let device =
-      existing.find(
-        (d) =>
-          d.vendorId === VID &&
-          (d.productId === 0x0003 || d.productId === 0x000f)
-      ) || null;
+      existing.find((d) => d.vendorId === VID && d.productId === PID_RP2350) ||
+      null;
 
     if (!device) {
       device = await navigator.usb.requestDevice({ filters: usbFilters() });
     }
 
     const mcu = mcuOf(device);
-    if (!mcu) {
-      throw new Error(i18n.unsupportedDevice);
+    if (mcu !== "RP2350") {
+      throw new Error(i18n.wrongHardware(mcu || i18n.unknownDevice));
     }
     const board = state.boards.find((b) => b.id === state.boardId);
-    const expectedMcu = boardMcu(board);
-    if (expectedMcu && mcu !== expectedMcu) {
-      log(i18n.warnMcu(mcu, expectedMcu, board?.label || state.boardId));
+    const expectedMcu = boardMcu(board) || "RP2350";
+    if (mcu !== expectedMcu) {
+      throw new Error(i18n.wrongHardware(mcu));
     }
 
     state.device = device;
@@ -444,6 +432,11 @@ async function runFlash() {
     setStatus(i18n.missingUf2);
     return;
   }
+  const connectedMcu = mcuOf(state.device);
+  if (connectedMcu !== "RP2350") {
+    setStatus(i18n.wrongHardware(connectedMcu || i18n.unknownDevice));
+    return;
+  }
 
   state.busy = true;
   updateFlashEnabled();
@@ -465,6 +458,9 @@ async function runFlash() {
     } catch (openErr) {
       log(i18n.reopenNeeded(openErr.message));
       device = await navigator.usb.requestDevice({ filters: usbFilters() });
+      if (mcuOf(device) !== "RP2350") {
+        throw new Error(i18n.wrongHardware(mcuOf(device) || i18n.unknownDevice));
+      }
       state.device = device;
       els.deviceMeta.textContent = i18n.boardLabel(describeDevice(device));
       pico = await PicoBoot.open(device);
