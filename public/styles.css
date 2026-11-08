@@ -803,6 +803,11 @@ a:hover {
   max-width: min(100% - 2rem, 56rem);
 }
 
+.home-video-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
 .home-video-frame {
   position: relative;
   width: 100%;
