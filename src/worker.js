@@ -551,14 +551,6 @@ function cookieLang(request) {
   return null;
 }
 
-function acceptLanguageLang(request) {
-  const al = (request.headers.get("Accept-Language") || "").toLowerCase();
-  if (!al) return null;
-  const primary = al.split(",")[0]?.trim().slice(0, 2);
-  if (primary === "en" || primary === "de" || primary === "cs") return primary;
-  return null;
-}
-
 /** Locale path for marketing site. */
 function sitePathForLang(lang) {
   if (lang === "en") return "/en/";
@@ -591,12 +583,33 @@ function localeRedirect(request, url, pathForLang) {
   if (url.pathname !== "/" && url.pathname !== "") return null;
   if (url.searchParams.has("lang")) return null;
 
-  // Cookie wins (manual choice). Accept-Language only on first visit.
-  const lang = cookieLang(request) || acceptLanguageLang(request);
+  // Cookie only. Accept-Language must not fight client localStorage
+  // (HAR: / ↔ /en/ reload loop when LS=cs but edge still 302'd to /en/).
+  const lang = cookieLang(request);
   if (!lang || lang === "cs") return null;
   const dest = pathForLang(lang);
   if (!dest) return null;
-  return Response.redirect(new URL(dest, url).toString(), 302);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: new URL(dest, url).toString(),
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
+/** Mark every HTML/asset response as non-indexable (search + AI). */
+function withNoIndex(response) {
+  if (!response) return response;
+  const headers = new Headers(response.headers);
+  if (!headers.has("X-Robots-Tag")) {
+    headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /** Raw request host (Host / X-Forwarded-Host), without flasher/qr/chirp preference. */
@@ -667,7 +680,7 @@ export default {
       response = redirect || (await serveAssets(request, env));
     }
 
-    return response;
+    return withNoIndex(response);
   },
 };
 

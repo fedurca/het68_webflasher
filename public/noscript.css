@@ -1,0 +1,66 @@
+/* Readable / usable layout when JavaScript is disabled. */
+
+.nav-toggle {
+  display: none !important;
+}
+
+.site-nav {
+  position: static !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.35rem !important;
+  padding: 0.75rem 0 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.nav-dd-btn {
+  display: none !important;
+}
+
+.nav-dd-menu,
+.nav-dd-menu[hidden] {
+  display: flex !important;
+  position: static !important;
+  flex-direction: column !important;
+  gap: 0.15rem !important;
+  min-width: 0 !important;
+  padding: 0 0 0.35rem 0.65rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.theme-btn {
+  display: none !important;
+}
+
+.hero-atmos {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .site-nav {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    gap: 0.15rem !important;
+  }
+
+  .nav-dd {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 0.15rem !important;
+  }
+
+  .nav-dd-menu,
+  .nav-dd-menu[hidden] {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    padding: 0 !important;
+  }
+}

@@ -5,6 +5,7 @@
 (() => {
   const COOKIE = "het68_lang";
   const STORAGE = "het68-lang";
+  const BOUNCE = "het68-lang-bounce";
   const SUPPORTED = new Set(["cs", "en", "de"]);
 
   function readCookie() {
@@ -80,6 +81,14 @@
     return null;
   }
 
+  function clearBounce() {
+    try {
+      sessionStorage.removeItem(BOUNCE);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   function enforceStoredLang() {
     if (!hostHasLocales()) return;
 
@@ -89,16 +98,37 @@
     if (!stored) {
       // First visit: adopt the language of the page we landed on.
       setStoredLang(current);
+      clearBounce();
       return;
     }
+
+    // Keep cookie in sync with localStorage so the Worker never fights JS.
+    if (readCookie() !== stored) writeCookie(stored);
 
     const here = normalizePath(location.pathname);
     if (here == null) return; // deep path — leave alone
 
     const target = normalizePath(pathForLang(stored));
-    if (target && target !== here) {
-      location.replace(target + location.search + location.hash);
+    if (!target || target === here) {
+      clearBounce();
+      return;
     }
+
+    // Break / ↔ /en/ (or /de/) loops from cached redirects / desync.
+    try {
+      const stamp = here + ">" + target;
+      const prev = sessionStorage.getItem(BOUNCE);
+      if (prev === target + ">" + here) {
+        setStoredLang(current);
+        clearBounce();
+        return;
+      }
+      sessionStorage.setItem(BOUNCE, stamp);
+    } catch (_) {
+      /* private mode — still attempt a single replace */
+    }
+
+    location.replace(target + location.search + location.hash);
   }
 
   function bindLangSwitchers() {
@@ -107,6 +137,7 @@
         const lang = (link.getAttribute("hreflang") || "").slice(0, 2).toLowerCase();
         if (!SUPPORTED.has(lang)) return;
         setStoredLang(lang);
+        clearBounce();
         // Let the browser follow href; cookie is already set.
       });
     });
