@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="HET68 — akustická recepce pro nezvané hosty. 6kanálové mikrofonní pole s prostorovým sluchem pro obranu i průmysl."
+      content="HET68 — akustická recepce pro nezvané hosty. Prostorový sluch pro obranu i průmysl."
     />
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <title>HET68 — vnímá prostor, mění dopad</title>
@@ -44,7 +44,6 @@
         <nav class="site-nav" id="siteNav" aria-label="Hlavní navigace">
           <a href="#projekt">Projekt</a>
           <a href="#jak">Jak to funguje</a>
-          <a href="#scenare">Scénáře</a>
           <a href="#nabidka">Nabídka</a>
           <a href="#kontakt">Kontakt</a>
           <div class="nav-dd">
@@ -95,8 +94,8 @@
               <p>
                 Většina hrozeb spoléhá na to, že je ve tmě, mlze nebo nízké letové hladině
                 neuvidíte. My spoléháme na to, že fyzika zvuku nezná tmu a akustický podpis
-                se nedá zamaskovat. HET68 je pokročilé 6kanálové mikrofonní pole, které dává
-                obranným i průmyslovým systémům přesný prostorový sluch.
+                se nedá zamaskovat. HET68 je akustická platforma s prostorovým sluchem pro
+                obranné i průmyslové systémy.
               </p>
               <p>
                 Slyšíme směr, počítáme trajektorii a posíláme souřadnice. Dřív, než návštěva
@@ -108,7 +107,7 @@
               <a class="btn btn-blue" href="https://github.com/fedurca/het68" target="_blank" rel="noopener"
                 >GitHub</a
               >
-              <a class="btn btn-ghost" href="#scenare">Scénáře →</a>
+              <a class="btn btn-ghost" href="#nabidka">Nabídka →</a>
             </div>
           </div>
 
@@ -156,27 +155,24 @@
           </header>
           <div class="howto-grid">
             <article class="howto-card">
-              <h3>Šest uší slyší víc</h3>
+              <h3>Víc uší slyší víc</h3>
               <p>
-                Pole šesti nezávislých MEMS mikrofonů vzorkuje okolní prostor při 48&nbsp;kHz a
-                24&nbsp;bitech. Zachytí i nepatrné odchylky v čase, kdy zvuková vlna dorazí
-                k jednotlivým senzorům.
+                Mikrofonní pole snímá okolní prostor tak, aby zachytilo i nepatrné časové
+                odchylky, kdy zvuková vlna dorazí k jednotlivým senzorům.
               </p>
             </article>
             <article class="howto-card">
               <h3>Geometrie místo hádaní</h3>
               <p>
-                Pomocí pokročilých algoritmů (DOA — Direction of Arrival) zařízení přesně spočítá
-                úhel a směr, odkud zvuk přichází. Při zapojení více uzlů získáte přesnou 3D
-                triangulaci cíle na kilometry daleko.
+                Algoritmy směru příchodu zvuku (DOA) spočítají úhel a směr zdroje.
+                Více uzlů umožní prostorovou lokalizaci cíle.
               </p>
             </article>
             <article class="howto-card">
               <h3>Žádné zbytečné řeči</h3>
               <p>
-                Výkonný dvoujádrový čip RP2350 chroupe surová data na místě. Ven jdou jen čisté,
-                strukturované informace s latencí blížící se nule. Přesné souřadnice pro
-                systémy, které už se postarají o patřičně vřelé přijetí.
+                Surová data se zpracovávají přímo na zařízení. Ven jdou jen strukturované
+                informace — směr a souřadnice pro systémy, které se postarají o přijetí.
               </p>
             </article>
             <article class="howto-card">
@@ -234,171 +230,6 @@
         </div>
       </section>
 
-<section class="section" id="scenare">
-        <div class="wrap">
-          <header class="section-head">
-            <h2>Scénáře</h2>
-          </header>
-
-          <div class="scenario-table-wrap" role="region" aria-label="Tabulka scénářů" tabindex="0">
-            <table class="scenario-table">
-              <thead>
-                <tr>
-                  <th scope="col">Oblast použití</th>
-                  <th scope="col">Typické frekvence</th>
-                  <th scope="col">Odhad dosahu</th>
-                  <th scope="col">Samostatná kostka</th>
-                  <th scope="col">Nody 20&nbsp;m</th>
-                  <th scope="col">Nody 100&nbsp;m</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="scenario-cat">
-                  <th scope="colgroup" colspan="6">Aero</th>
-                </tr>
-                <tr>
-                  <th scope="row">Běžné drony (UAV)</th>
-                  <td>200&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>300 – 500&nbsp;m</td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">limitováno větrem</span></td>
-                  <td><span class="fit fit-strong">92&nbsp;%</span> <span class="fit-note">eliminace slepých míst</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">3D triangulace na 1&nbsp;km</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Dopravní letadla (LKPR)</th>
-                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>3 – 15&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">sledování nad hlavou</span></td>
-                  <td><span class="fit fit-strong">91&nbsp;%</span> <span class="fit-note">příliš malá základna</span></td>
-                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">přesná letová hladina</span></td>
-                </tr>
-                <tr class="scenario-cat">
-                  <th scope="colgroup" colspan="6">Train</th>
-                </tr>
-                <tr>
-                  <th scope="row">Blížící se vlak</th>
-                  <td>80&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>2 – 5&nbsp;km</td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">silný akustický podpis</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">minimální změna</span></td>
-                  <td><span class="fit fit-strong">99,9&nbsp;%</span> <span class="fit-note">přesný ETA a rychlost</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Plochá kola (Wheel Flats)</th>
-                  <td>100&nbsp;Hz – 3&nbsp;kHz</td>
-                  <td>500&nbsp;m – 1,5&nbsp;km</td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">detekce vady a směru</span></td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">přesné určení vadné nápravy</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">potvrzení vady na 2 bodech</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Zadírající se ložisko (Hot Box)</th>
-                  <td>2 – 15&nbsp;kHz</td>
-                  <td>50 – 200&nbsp;m</td>
-                  <td><span class="fit fit-ok">70&nbsp;%</span> <span class="fit-note">riziko maskování hlukem kol</span></td>
-                  <td><span class="fit fit-good">88&nbsp;%</span> <span class="fit-note">3D zacílení čistě na nápravy</span></td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">ověření na dvou stanovištích</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Jiskření troleje a sběrače</th>
-                  <td>4 – 15&nbsp;kHz</td>
-                  <td>100 – 400&nbsp;m</td>
-                  <td><span class="fit fit-good">80&nbsp;%</span> <span class="fit-note">lokalizace praskání ve výšce</span></td>
-                  <td><span class="fit fit-strong">92&nbsp;%</span> <span class="fit-note">přesný metr poškozené troleje</span></td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">kontrola dlouhého úseku</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Vandalismus a chůze po trati</th>
-                  <td>500&nbsp;Hz – 4&nbsp;kHz</td>
-                  <td>20 – 80&nbsp;m</td>
-                  <td><span class="fit fit-ok">75&nbsp;%</span> <span class="fit-note">křupání štěrku v nočním tichu</span></td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">přesné sledování narušitele</span></td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">pokrytí dlouhého koridoru</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Uvolněné upevnění kolejnice</th>
-                  <td>200&nbsp;Hz – 2&nbsp;kHz</td>
-                  <td>30 – 100&nbsp;m</td>
-                  <td><span class="fit fit-ok">65&nbsp;%</span> <span class="fit-note">změna rezonance pražce</span></td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">porovnání s vedlejším úsekem</span></td>
-                  <td><span class="fit fit-good">80&nbsp;%</span> <span class="fit-note">příliš daleko pro sponu</span></td>
-                </tr>
-                <tr class="scenario-cat">
-                  <th scope="colgroup" colspan="6">Automotive</th>
-                </tr>
-                <tr>
-                  <th scope="row">Klasifikace aut (válce)</th>
-                  <td>60&nbsp;Hz – 3,5&nbsp;kHz</td>
-                  <td>300 – 800&nbsp;m</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">při přímém průjezdu</span></td>
-                  <td><span class="fit fit-strong">96&nbsp;%</span> <span class="fit-note">separace motoru a výfuku</span></td>
-                  <td><span class="fit fit-strong">92&nbsp;%</span> <span class="fit-note">sledování změn v čase</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Odhad rychlosti jízdy</th>
-                  <td>500&nbsp;Hz – 2&nbsp;kHz</td>
-                  <td>300&nbsp;m – 1&nbsp;km</td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">odchylka ±3&nbsp;km/h</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">odchylka ±1&nbsp;km/h</span></td>
-                  <td><span class="fit fit-strong">99,9&nbsp;%</span> <span class="fit-note">úsekové měření času</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Počítání aut v křižovatce</th>
-                  <td>500&nbsp;Hz – 2&nbsp;kHz</td>
-                  <td>100 – 300&nbsp;m</td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">separace max 5 aut</span></td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">rozlišení souvislé kolony</span></td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">pokrytí širšího okolí</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Přeložené vozidlo</th>
-                  <td>300&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>50 – 200&nbsp;m</td>
-                  <td><span class="fit fit-ok">75&nbsp;%</span> <span class="fit-note">nepřímý akustický tip</span></td>
-                  <td><span class="fit fit-good">88&nbsp;%</span> <span class="fit-note">separace gum a motoru</span></td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">akcelerace pod zátěží</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Vykuchaný DPF a EGR</th>
-                  <td>800&nbsp;Hz – 3,5&nbsp;kHz</td>
-                  <td>20 – 100&nbsp;m</td>
-                  <td><span class="fit fit-good">80&nbsp;%</span> <span class="fit-note">odhalení pískání turba</span></td>
-                  <td><span class="fit fit-strong">92&nbsp;%</span> <span class="fit-note">snímání zepředu i zezadu</span></td>
-                  <td><span class="fit fit-good">85&nbsp;%</span> <span class="fit-note">potvrzení na dvou bodech</span></td>
-                </tr>
-                <tr class="scenario-cat">
-                  <th scope="colgroup" colspan="6">Others</th>
-                </tr>
-                <tr>
-                  <th scope="row">Sledování sport. míče</th>
-                  <td>1 – 5&nbsp;kHz</td>
-                  <td>30 – 50&nbsp;m</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">lokalizace na hřišti</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">přesnost na centimetry</span></td>
-                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">příliš daleko od hřiště</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">3D NVH / VR / Roboti</th>
-                  <td>100&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>0,5 – 5&nbsp;m</td>
-                  <td><span class="fit fit-strong">95&nbsp;%</span> <span class="fit-note">plný prostorový sluch</span></td>
-                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">vyžaduje 1 bod</span></td>
-                  <td><span class="fit fit-bad">Nevhodné</span> <span class="fit-note">mimo aplikační rámec</span></td>
-                </tr>
-                <tr>
-                  <th scope="row">Městská střelba / Alarm</th>
-                  <td>500&nbsp;Hz – 5&nbsp;kHz</td>
-                  <td>500&nbsp;m – 1,5&nbsp;km</td>
-                  <td><span class="fit fit-strong">90&nbsp;%</span> <span class="fit-note">určení patra budovy</span></td>
-                  <td><span class="fit fit-strong">98&nbsp;%</span> <span class="fit-note">lokalizace z odrazů</span></td>
-                  <td><span class="fit fit-strong">99&nbsp;%</span> <span class="fit-note">přesnost na 2&nbsp;metry</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
 <section class="section offers" id="nabidka">
         <div class="wrap">
           <header class="section-head">
@@ -411,7 +242,7 @@
                 <p class="offer-kicker teal">Hacker</p>
                 <h2>USB zvukovka + SDK</h2>
                 <ul class="checklist">
-                  <li>6kanálové USB audio (UAC2) pro vlastní pipeline</li>
+                  <li>USB audio pro vlastní pipeline</li>
                   <li>Open-source firmware a SDK</li>
                   <li>Web flasher a přímý přístup k surovým kanálům</li>
                   <li>Pro vývojáře, laboratoře a rychlé PoC</li>
@@ -497,55 +328,6 @@
           <p style="text-align:center;margin:1.25rem 0 0">
             <a class="btn btn-ghost btn-sm" href="/wiki/#security">Více ve wiki</a>
             <a class="btn btn-teal btn-sm" href="/api/">API &amp; OpenAPI</a>
-          </p>
-        </div>
-      </section>
-
-      <section class="section" id="administrace">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="offer-kicker teal">Cloud · náhled</p>
-            <h2>Webová administrace — ostraha objektu</h2>
-            <p>
-              Náhled konzole pro operátory: mapa senzorů, živé detekce a fúze trajektorií.
-              Finální UI bude součástí cloud / on‑prem předplatného.
-            </p>
-          </header>
-          <div class="admin-mock" aria-label="Náhled administrace ostrahy objektu">
-            <div class="admin-top">
-              <strong>HET68 Site Console · Lokalita Alpha</strong>
-              <div class="admin-pills">
-                <span class="admin-pill ok">12 nodů online</span>
-                <span class="admin-pill warn">1 aktivní track</span>
-                <span class="admin-pill">ISO 27k režim</span>
-              </div>
-            </div>
-            <div class="admin-body">
-              <div class="admin-map" aria-hidden="true">
-                <span class="admin-node n1"></span>
-                <span class="admin-node n2"></span>
-                <span class="admin-node n3 alert"></span>
-                <span class="admin-track"></span>
-              </div>
-              <div class="admin-side">
-                <div class="admin-event">
-                  <strong>UAV · pravděpodobnost 0,91</strong>
-                  <span>az 214° · elev 12° · 18:42:07 UTC</span>
-                </div>
-                <div class="admin-event">
-                  <strong>Kalibrace mesh OK</strong>
-                  <span>node-07 · Δt 0,4 ms · 18:40:12 UTC</span>
-                </div>
-                <div class="admin-event">
-                  <strong>Audio clip připraven</strong>
-                  <span>companion HW · 4,2 s WAV · stažení přes API</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <p class="admin-note">
-            Ilustrativní mock — skutečná administrace napojí detekce, kalibraci, sync a nastavení přes
-            <a href="/api/">REST API</a>. Role: operátor · technik · auditor.
           </p>
         </div>
       </section>
